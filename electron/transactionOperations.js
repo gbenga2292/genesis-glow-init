@@ -333,7 +333,7 @@ export async function processReturnTransaction(db, returnData) {
       .update({
         items: JSON.stringify(updatedItems),
         status: allItemsReturned ? 'return_completed' : 'partial_returned',
-        updated_at: new Date().toISOString()
+        updatedAt: new Date().toISOString()
       });
 
     await trx.commit();
