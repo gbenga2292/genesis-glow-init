@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  inventory-flow:
+    build: .
+    ports:
+      - "80:80"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped

@@ -1,0 +1,191 @@
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import * as XLSX from 'xlsx';
+import { Asset } from '@/types/asset';
+import { CompanySettings } from '@/types/asset';
+import { logger } from '@/lib/logger';
+
+declare module 'jspdf' {
+  interface jsPDF {
+    autoTable: (options: any) => jsPDF;
+  }
+}
+
+export interface ReportConfig {
+  title: string;
+  assets: Asset[];
+  companySettings: CompanySettings;
+  reportType: 'all' | 'low-stock' | 'damaged' | 'missing';
+}
+
+export const generatePDFReport = async (config: ReportConfig): Promise<void> => {
+  const { title, assets, companySettings, reportType } = config;
+  
+  // Create new PDF document
+  const doc = new jsPDF('landscape');
+  
+  // Add company logo if available
+  if (companySettings.logo) {
+    try {
+      doc.addImage(companySettings.logo, 'JPEG', 20, 10, 30, 20);
+    } catch (error) {
+      logger.warn('Could not add logo to PDF', { context: 'PDFGenerator' });
+    }
+  }
+  
+  // Add company information
+  doc.setFontSize(20);
+  doc.setFont('helvetica', 'bold');
+  doc.text(companySettings.companyName || 'Asset Management System', 60, 20);
+  
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'normal');
+  if (companySettings.address) {
+    doc.text(companySettings.address, 60, 28);
+  }
+  if (companySettings.phone) {
+    doc.text(`Phone: ${companySettings.phone}`, 60, 35);
+  }
+  if (companySettings.email) {
+    doc.text(`Email: ${companySettings.email}`, 60, 42);
+  }
+  
+  // Add report title and date
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text(title, 20, 60);
+  
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, 68);
+  doc.text(`Report Type: ${reportType.toUpperCase().replace('-', ' ')}`, 20, 74);
+  
+  // Filter assets based on report type
+  let filteredAssets = assets;
+  switch (reportType) {
+    case 'low-stock':
+      filteredAssets = assets.filter(asset => asset.quantity < 10);
+      break;
+    case 'damaged':
+      filteredAssets = assets.filter(asset => asset.status === 'damaged');
+      break;
+    case 'missing':
+      filteredAssets = assets.filter(asset => asset.status === 'missing');
+      break;
+    default:
+      filteredAssets = assets;
+  }
+  
+  // Prepare table data
+  const tableData = filteredAssets.map(asset => [
+    asset.name,
+    asset.description || '-',
+    asset.quantity.toString(),
+    asset.unitOfMeasurement,
+    asset.category,
+    asset.type,
+    asset.location || '-',
+    asset.service || '-',
+    asset.status,
+    asset.condition || '-',
+    asset.cost ? `$${asset.cost.toFixed(2)}` : '-'
+  ]);
+  
+  // Add table
+  doc.autoTable({
+    startY: 85,
+    head: [['Name', 'Description', 'Qty', 'Unit', 'Category', 'Type', 'Location', 'Service', 'Status', 'Condition', 'Cost']],
+    body: tableData,
+    theme: 'striped',
+    headStyles: {
+      fillColor: [41, 128, 185],
+      textColor: 255,
+      fontStyle: 'bold'
+    },
+    styles: {
+      fontSize: 8,
+      cellPadding: 3
+    },
+    columnStyles: {
+      0: { cellWidth: 25 }, // Name
+      1: { cellWidth: 30 }, // Description
+      2: { cellWidth: 15 }, // Quantity
+      3: { cellWidth: 15 }, // Unit
+      4: { cellWidth: 20 }, // Category
+      5: { cellWidth: 20 }, // Type
+      6: { cellWidth: 20 }, // Location
+      7: { cellWidth: 20 }, // Service
+      8: { cellWidth: 18 }, // Status
+      9: { cellWidth: 18 }, // Condition
+      10: { cellWidth: 20 } // Cost
+    }
+  });
+  
+  // Add summary statistics
+  const finalY = (doc as any).lastAutoTable.finalY || 100;
+  
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Summary Statistics:', 20, finalY + 20);
+  
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  
+  const totalAssets = filteredAssets.length;
+  const totalValue = filteredAssets.reduce((sum, asset) => sum + (asset.cost || 0), 0);
+  const activeAssets = filteredAssets.filter(asset => asset.status === 'active').length;
+  const damagedAssets = filteredAssets.filter(asset => asset.status === 'damaged').length;
+  const missingAssets = filteredAssets.filter(asset => asset.status === 'missing').length;
+  const lowStockAssets = filteredAssets.filter(asset => asset.quantity < 10).length;
+  
+  const summaryY = finalY + 30;
+  doc.text(`Total Assets: ${totalAssets}`, 20, summaryY);
+  doc.text(`Total Value: $${totalValue.toFixed(2)}`, 20, summaryY + 8);
+  doc.text(`Active Assets: ${activeAssets}`, 20, summaryY + 16);
+  doc.text(`Damaged Assets: ${damagedAssets}`, 20, summaryY + 24);
+  doc.text(`Missing Assets: ${missingAssets}`, 120, summaryY);
+  doc.text(`Low Stock Items: ${lowStockAssets}`, 120, summaryY + 8);
+  
+  // Add footer
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text(
+      `Page ${i} of ${pageCount} | Generated by Asset Management System`,
+      20,
+      doc.internal.pageSize.height - 10
+    );
+  }
+  
+  // Save the PDF
+  const fileName = `${title.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`;
+  doc.save(fileName);
+};
+
+export const exportAssetsToExcel = (assets: Asset[], filename: string) => {
+  const ws_data = [
+    ['Name', 'Description', 'Quantity', 'Unit', 'Category', 'Type', 'Location', 'Service', 'Status', 'Condition', 'Cost', 'Updated'],
+    ...assets.map(asset => [
+      asset.name,
+      asset.description || '',
+      asset.quantity,
+      asset.unitOfMeasurement,
+      asset.category,
+      asset.type,
+      asset.location || '',
+      asset.service || '',
+      asset.status || 'active',
+      asset.condition || 'good',
+      asset.cost || 0,
+      asset.updatedAt instanceof Date ? asset.updatedAt.toLocaleDateString() : new Date(asset.updatedAt).toLocaleDateString()
+    ])
+  ];
+  
+  const ws = XLSX.utils.aoa_to_sheet(ws_data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Assets');
+  
+  XLSX.writeFile(wb, `${filename}.xlsx`);
+};
