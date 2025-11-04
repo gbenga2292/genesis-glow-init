@@ -1195,6 +1195,7 @@ const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLog[]>([]);
           assets={assets}
           employees={employees}
           vehicles={vehicles}
+          siteInventory={getSiteInventory(selectedSite.id)}
           onCreateReturnWaybill={handleCreateReturnWaybill}
           onCancel={() => {
             setActiveTab("site-waybills");
