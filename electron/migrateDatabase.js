@@ -224,9 +224,11 @@ async function migrateDatabase(dbPath) {
     const assets = await db('assets').select('*');
     for (const asset of assets) {
       const reservedQty = asset.reserved_quantity || 0;
-      const siteQuantities = asset.site_quantities ? JSON.parse(asset.site_quantities) : {};
-      const totalSiteQty = Object.values(siteQuantities).reduce((sum, qty) => sum + qty, 0);
-      const correctAvailable = asset.quantity - reservedQty - totalSiteQty;
+      const damagedCount = asset.damaged_count || 0;
+      const missingCount = asset.missing_count || 0;
+      // Available = quantity - reserved - damaged - missing (NOT subtracting site quantities)
+      // Site quantities are already accounted for in reserved quantity
+      const correctAvailable = asset.quantity - reservedQty - damagedCount - missingCount;
       
       if (asset.available_quantity !== correctAvailable) {
         console.log(`Fixing asset ${asset.id} (${asset.name}): available ${asset.available_quantity} -> ${correctAvailable}`);
