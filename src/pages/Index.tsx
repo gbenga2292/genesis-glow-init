@@ -716,7 +716,9 @@ const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLog[]>([]);
       );
       const pendingQty = pendingReturns.reduce((sum, wb) => {
         const wbItem = wb.items.find(i => i.assetId === item.assetId);
-        return sum + (wbItem?.quantity || 0);
+        // Only count unreturned quantity (quantity minus what's already returned)
+        const unreturnedQty = (wbItem?.quantity || 0) - (wbItem?.returnedQuantity || 0);
+        return sum + unreturnedQty;
       }, 0);
 
       // Check effective site stock (current site quantity minus pending returns)
@@ -908,7 +910,9 @@ const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLog[]>([]);
       );
       const pendingQty = pendingReturns.reduce((sum, wb) => {
         const wbItem = wb.items.find(i => i.assetId === returnItem.assetId);
-        return sum + (wbItem?.quantity || 0);
+        // Only count unreturned quantity (quantity minus what's already returned)
+        const unreturnedQty = (wbItem?.quantity || 0) - (wbItem?.returnedQuantity || 0);
+        return sum + unreturnedQty;
       }, 0);
 
       const effectiveAvailable = currentSiteQty - pendingQty;
