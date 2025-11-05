@@ -733,6 +733,16 @@ const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLog[]>([]);
 
       // Check effective site stock (current site quantity minus pending returns)
       const asset = assets.find(a => a.id === item.assetId);
+      
+      console.log(`[Return Validation] Asset found:`, {
+        assetId: item.assetId,
+        assetFound: !!asset,
+        assetName: asset?.name,
+        siteQuantities: asset?.siteQuantities,
+        targetSiteId: waybillData.siteId,
+        siteIdType: typeof waybillData.siteId
+      });
+      
       const currentSiteQty = asset ? (asset.siteQuantities[waybillData.siteId] || 0) : 0;
       const effectiveAvailable = currentSiteQty - pendingQty;
       
