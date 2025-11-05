@@ -714,10 +714,20 @@ const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLog[]>([]);
         wb.siteId === waybillData.siteId &&
         wb.items.some(wbItem => wbItem.assetId === item.assetId)
       );
+      
+      console.log(`[Return Validation] Asset ${item.assetName}:`, {
+        pendingReturnsCount: pendingReturns.length,
+        pendingReturns: pendingReturns.map(wb => ({
+          id: wb.id,
+          items: wb.items.filter(i => i.assetId === item.assetId)
+        }))
+      });
+      
       const pendingQty = pendingReturns.reduce((sum, wb) => {
         const wbItem = wb.items.find(i => i.assetId === item.assetId);
         // Only count unreturned quantity (quantity minus what's already returned)
         const unreturnedQty = (wbItem?.quantity || 0) - (wbItem?.returnedQuantity || 0);
+        console.log(`  Waybill ${wb.id}: qty=${wbItem?.quantity}, returned=${wbItem?.returnedQuantity}, unreturned=${unreturnedQty}`);
         return sum + unreturnedQty;
       }, 0);
 
@@ -725,6 +735,8 @@ const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLog[]>([]);
       const asset = assets.find(a => a.id === item.assetId);
       const currentSiteQty = asset ? (asset.siteQuantities[waybillData.siteId] || 0) : 0;
       const effectiveAvailable = currentSiteQty - pendingQty;
+      
+      console.log(`[Return Validation] Site qty: ${currentSiteQty}, Pending qty: ${pendingQty}, Effective available: ${effectiveAvailable}, Requested: ${item.quantity}`);
 
       if (pendingQty > 0) {
         warnings.push(`${item.assetName} (${pendingQty} quantity) already has pending return(s) at this site.`);
