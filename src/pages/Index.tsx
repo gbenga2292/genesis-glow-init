@@ -706,6 +706,8 @@ const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLog[]>([]);
     // Check for existing pending returns or zero stock warnings
     const warnings: string[] = [];
     const errors: string[] = [];
+    const currentSiteInventory = getSiteInventory(waybillData.siteId);
+    
     waybillData.items.forEach(item => {
       // Check for pending returns
       const pendingReturns = waybills.filter(wb =>
@@ -715,38 +717,17 @@ const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLog[]>([]);
         wb.items.some(wbItem => wbItem.assetId === item.assetId)
       );
       
-      console.log(`[Return Validation] Asset ${item.assetName}:`, {
-        pendingReturnsCount: pendingReturns.length,
-        pendingReturns: pendingReturns.map(wb => ({
-          id: wb.id,
-          items: wb.items.filter(i => i.assetId === item.assetId)
-        }))
-      });
-      
       const pendingQty = pendingReturns.reduce((sum, wb) => {
         const wbItem = wb.items.find(i => i.assetId === item.assetId);
         // Only count unreturned quantity (quantity minus what's already returned)
         const unreturnedQty = (wbItem?.quantity || 0) - (wbItem?.returnedQuantity || 0);
-        console.log(`  Waybill ${wb.id}: qty=${wbItem?.quantity}, returned=${wbItem?.returnedQuantity}, unreturned=${unreturnedQty}`);
         return sum + unreturnedQty;
       }, 0);
 
-      // Check effective site stock (current site quantity minus pending returns)
-      const asset = assets.find(a => a.id === item.assetId);
-      
-      console.log(`[Return Validation] Asset found:`, {
-        assetId: item.assetId,
-        assetFound: !!asset,
-        assetName: asset?.name,
-        siteQuantities: asset?.siteQuantities,
-        targetSiteId: waybillData.siteId,
-        siteIdType: typeof waybillData.siteId
-      });
-      
-      const currentSiteQty = asset ? (asset.siteQuantities[waybillData.siteId] || 0) : 0;
+      // Get site quantity from siteInventory instead of assets array
+      const siteItem = currentSiteInventory.find(si => si.assetId === item.assetId);
+      const currentSiteQty = siteItem?.quantity || 0;
       const effectiveAvailable = currentSiteQty - pendingQty;
-      
-      console.log(`[Return Validation] Site qty: ${currentSiteQty}, Pending qty: ${pendingQty}, Effective available: ${effectiveAvailable}, Requested: ${item.quantity}`);
 
       if (pendingQty > 0) {
         warnings.push(`${item.assetName} (${pendingQty} quantity) already has pending return(s) at this site.`);
