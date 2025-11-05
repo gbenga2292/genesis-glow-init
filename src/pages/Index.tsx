@@ -898,10 +898,13 @@ const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLog[]>([]);
       return;
     }
 
+    // Get site inventory for validation
+    const currentSiteInventory = getSiteInventory(siteId);
+
     // Validate against site inventory: Ensure return quantities don't exceed what's available at the site
     for (const returnItem of returnData.items) {
-      const asset = assets.find(a => a.id === returnItem.assetId);
-      const currentSiteQty = asset ? (asset.siteQuantities[siteId] || 0) : 0;
+      const siteItem = currentSiteInventory.find(si => si.assetId === returnItem.assetId);
+      const currentSiteQty = siteItem?.quantity || 0;
 
       // Check for pending returns for the same asset from the same site, excluding the current return being processed
       const pendingReturns = waybills.filter(wb =>
