@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Asset, Site, Waybill, WaybillItem, CompanySettings, Employee, SiteTransaction, Vehicle } from "@/types/asset";
 import { EquipmentLog } from "@/types/equipment";
 import { SiteInventoryItem } from "@/types/inventory";
-import { MapPin, Plus, Edit, Trash2, MoreVertical, FileText, Package, Activity, Eye } from "lucide-react";
+import { MapPin, Plus, Edit, Trash2, MoreVertical, FileText, Package, Activity, Eye, ChevronDown } from "lucide-react";
 import { WaybillDocument } from "../waybills/WaybillDocument";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,7 +20,10 @@ import { ReturnWaybillForm } from "../waybills/ReturnWaybillForm";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { MachinesSection } from "./MachinesSection";
+import { ConsumablesSection } from "./ConsumablesSection";
+import { ConsumableUsageLog } from "@/types/consumable";
 
 interface SitesPageProps {
   sites: Site[];
@@ -30,6 +33,7 @@ interface SitesPageProps {
   vehicles: Vehicle[];
   transactions: SiteTransaction[];
   equipmentLogs: EquipmentLog[];
+  consumableLogs: ConsumableUsageLog[];
   siteInventory: SiteInventoryItem[];
   getSiteInventory: (siteId: string) => SiteInventoryItem[];
   companySettings?: CompanySettings;
@@ -50,9 +54,11 @@ interface SitesPageProps {
   onProcessReturn: (returnData: any) => void;
   onAddEquipmentLog: (log: EquipmentLog) => void;
   onUpdateEquipmentLog: (log: EquipmentLog) => void;
+  onAddConsumableLog: (log: ConsumableUsageLog) => void;
+  onUpdateConsumableLog: (log: ConsumableUsageLog) => void;
 }
 
-export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transactions, equipmentLogs, siteInventory, getSiteInventory, companySettings, onAddSite, onUpdateSite, onDeleteSite, onUpdateAsset, onCreateWaybill, onCreateReturnWaybill, onProcessReturn, onAddEquipmentLog, onUpdateEquipmentLog }: SitesPageProps) => {
+export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transactions, equipmentLogs, consumableLogs, siteInventory, getSiteInventory, companySettings, onAddSite, onUpdateSite, onDeleteSite, onUpdateAsset, onCreateWaybill, onCreateReturnWaybill, onProcessReturn, onAddEquipmentLog, onUpdateEquipmentLog, onAddConsumableLog, onUpdateConsumableLog }: SitesPageProps) => {
   const [showForm, setShowForm] = useState(false);
   const [editingSite, setEditingSite] = useState<Site | null>(null);
   const [selectedSite, setSelectedSite] = useState<Site | null>(null);
@@ -359,32 +365,49 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
 
             <div className="space-y-6">
               {/* Materials List */}
-              <div>
-                <h3 className="text-lg font-semibold mb-3">Materials at Site</h3>
-                {(() => {
-                  const materialsAtSite = getSiteInventory(selectedSite.id);
-                  return materialsAtSite.length === 0 ? (
-                    <p className="text-muted-foreground">No materials currently at this site.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {materialsAtSite.map((item) => (
-                        <div key={item.assetId} className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
-                          <div>
-                            <p className="font-medium">{item.itemName}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {item.quantity} {item.unit} • {item.category}
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Last updated: {new Date(item.lastUpdated).toLocaleDateString()}
-                            </p>
+              <Collapsible defaultOpen={true} className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Package className="h-5 w-5" />
+                    <h3 className="text-lg font-semibold">Materials at Site</h3>
+                  </div>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </CollapsibleTrigger>
+                </div>
+                
+                <CollapsibleContent className="space-y-2">
+                  {(() => {
+                    const materialsAtSite = getSiteInventory(selectedSite.id);
+                    return materialsAtSite.length === 0 ? (
+                      <p className="text-muted-foreground">No materials currently at this site.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {materialsAtSite.map((item) => (
+                          <div key={item.assetId} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <p className="font-medium">{item.itemName}</p>
+                              {item.itemType && (
+                                <span className="text-sm text-muted-foreground">• {item.itemType}</span>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <p className={`font-semibold ${item.quantity === 0 ? 'text-destructive' : 'text-foreground'}`}>
+                                {item.quantity} {item.unit}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Updated: {new Date(item.lastUpdated).toLocaleDateString()}
+                              </p>
+                            </div>
                           </div>
-                          <Badge variant="outline">{item.category}</Badge>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
-              </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </CollapsibleContent>
+              </Collapsible>
 
               {/* Machines Section */}
               <MachinesSection
@@ -396,49 +419,72 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
                 onUpdateEquipmentLog={onUpdateEquipmentLog}
               />
 
+              {/* Consumables Section */}
+              <ConsumablesSection
+                site={selectedSite}
+                assets={assets}
+                employees={employees}
+                consumableLogs={consumableLogs}
+                onAddConsumableLog={onAddConsumableLog}
+                onUpdateConsumableLog={onUpdateConsumableLog}
+              />
+
               {/* Waybills List */}
-              <div>
-                <h3 className="text-lg font-semibold mb-3">Waybills for Site</h3>
-                {waybills.filter(waybill => waybill.siteId === selectedSite.id).length === 0 ? (
-                  <p className="text-muted-foreground">No waybills for this site.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {waybills.filter(waybill => waybill.siteId === selectedSite.id).map((waybill) => {
-                      let badgeVariant: "default" | "secondary" | "outline" = 'outline';
-                      if (waybill.status === 'outstanding') {
-                        badgeVariant = 'default';
-                      } else if (waybill.status === 'sent_to_site' || waybill.status === 'partial_returned') {
-                        badgeVariant = 'secondary';
-                      } else if (waybill.status === 'return_completed') {
-                        badgeVariant = 'default';
-                      }
-                      return (
-                        <div key={waybill.id} className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
-                          <div>
-                            <p className="font-medium">{waybill.id}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {waybill.driverName} • {waybill.items.length} items • {waybill.status}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge variant={badgeVariant}>
-                              {waybill.status.replace('_', ' ')}
-                            </Badge>
-                            <Button
-                              onClick={() => handleViewWaybill(waybill)}
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    })}
+              <Collapsible defaultOpen={true} className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    <h3 className="text-lg font-semibold">Waybills for Site</h3>
                   </div>
-                )}
-              </div>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </CollapsibleTrigger>
+                </div>
+                
+                <CollapsibleContent className="space-y-2">
+                  {waybills.filter(waybill => waybill.siteId === selectedSite.id).length === 0 ? (
+                    <p className="text-muted-foreground">No waybills for this site.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {waybills.filter(waybill => waybill.siteId === selectedSite.id).map((waybill) => {
+                        let badgeVariant: "default" | "secondary" | "outline" = 'outline';
+                        if (waybill.status === 'outstanding') {
+                          badgeVariant = 'default';
+                        } else if (waybill.status === 'sent_to_site' || waybill.status === 'partial_returned') {
+                          badgeVariant = 'secondary';
+                        } else if (waybill.status === 'return_completed') {
+                          badgeVariant = 'default';
+                        }
+                        return (
+                          <div key={waybill.id} className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
+                            <div>
+                              <p className="font-medium">{waybill.id}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {waybill.driverName} • {waybill.items.length} items • {waybill.status}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={badgeVariant}>
+                                {waybill.status.replace('_', ' ')}
+                              </Badge>
+                              <Button
+                                onClick={() => handleViewWaybill(waybill)}
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
 
               {/* Actions */}
               <div className="flex gap-3 pt-4">

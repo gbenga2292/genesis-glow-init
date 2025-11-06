@@ -49,6 +49,10 @@ interface Window {
     createEquipmentLog: (data: any) => Promise<any>;
     updateEquipmentLog: (id: string, data: any) => Promise<any>;
     deleteEquipmentLog: (id: string) => Promise<any>;
+    getConsumableLogs: () => Promise<any[]>;
+    createConsumableLog: (data: any) => Promise<any>;
+    updateConsumableLog: (id: string, data: any) => Promise<any>;
+    deleteConsumableLog: (id: string) => Promise<any>;
     getCompanySettings: () => Promise<any>;
     updateCompanySettings: (id: string, data: any) => Promise<any>;
     getSiteTransactions: () => Promise<any[]>;

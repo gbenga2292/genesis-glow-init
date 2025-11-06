@@ -4,5 +4,6 @@ export interface SiteInventoryItem {
   quantity: number;
   unit: string;
   category: 'dewatering' | 'waterproofing';
+  itemType?: string; // Add item type (consumable, equipment, material, etc.)
   lastUpdated: Date;
 }

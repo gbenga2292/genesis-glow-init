@@ -16,6 +16,7 @@ async function initializeDatabase(dbPath) {
     // --- Drop existing tables for a clean slate (optional, for development) ---
     await db.schema.dropTableIfExists('activities');
     await db.schema.dropTableIfExists('site_transactions');
+    await db.schema.dropTableIfExists('consumable_logs');
     await db.schema.dropTableIfExists('return_items');
     await db.schema.dropTableIfExists('return_bills');
     await db.schema.dropTableIfExists('quick_checkouts');
@@ -169,6 +170,23 @@ async function initializeDatabase(dbPath) {
       table.timestamps(true, true);
     });
     console.log('Created "equipment_logs" table.');
+
+    // Consumable Logs Table
+    await db.schema.createTable('consumable_logs', (table) => {
+      table.string('id').primary();
+      table.string('consumable_id').notNullable();
+      table.string('consumable_name').notNullable();
+      table.integer('site_id').unsigned().notNullable().references('id').inTable('sites');
+      table.date('date').notNullable();
+      table.decimal('quantity_used', 10, 2).notNullable();
+      table.decimal('quantity_remaining', 10, 2).notNullable();
+      table.string('unit').notNullable();
+      table.string('used_for').notNullable();
+      table.string('used_by').notNullable();
+      table.text('notes');
+      table.timestamps(true, true);
+    });
+    console.log('Created "consumable_logs" table.');
 
     // Return Bills Table
     await db.schema.createTable('return_bills', (table) => {

@@ -13,6 +13,7 @@ const dbFunctions = [
     'getReturnBills', 'createReturnBill', 'updateReturnBill', 'deleteReturnBill',
     'getReturnItems', 'createReturnItem', 'updateReturnItem', 'deleteReturnItem',
     'getEquipmentLogs', 'createEquipmentLog', 'updateEquipmentLog', 'deleteEquipmentLog',
+    'getConsumableLogs', 'createConsumableLog', 'updateConsumableLog', 'deleteConsumableLog',
     'getCompanySettings', 'updateCompanySettings',
     'getSiteTransactions', 'addSiteTransaction', 'updateSiteTransaction', 'deleteSiteTransaction',
     'getActivities', 'createActivity', 'clearActivities',

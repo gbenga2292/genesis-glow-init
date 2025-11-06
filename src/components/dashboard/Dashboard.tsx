@@ -1,17 +1,28 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Asset, Waybill, QuickCheckout, Activity } from "@/types/asset";
-import { Package, FileText, ShoppingCart, AlertTriangle, TrendingDown, CheckCircle, User } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Asset, Waybill, QuickCheckout, Activity, Site } from "@/types/asset";
+import { EquipmentLog } from "@/types/equipment";
+import { Package, FileText, ShoppingCart, AlertTriangle, TrendingDown, CheckCircle, User, Wrench, BarChart3 } from "lucide-react";
 import { getActivities } from "@/utils/activityLogger";
+import { SiteMachineAnalytics } from "@/components/sites/SiteMachineAnalytics";
+import { format } from "date-fns";
 
 interface DashboardProps {
   assets: Asset[];
   waybills: Waybill[];
   quickCheckouts: QuickCheckout[];
+  sites: Site[];
+  equipmentLogs: EquipmentLog[];
 }
 
-export const Dashboard = ({ assets, waybills, quickCheckouts }: DashboardProps) => {
+export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLogs }: DashboardProps) => {
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [selectedEquipment, setSelectedEquipment] = useState<Asset | null>(null);
+  const [selectedSite, setSelectedSite] = useState<Site | null>(null);
+  const [showAnalytics, setShowAnalytics] = useState(false);
 
   // Load activities on mount
   useEffect(() => {
@@ -33,6 +44,55 @@ export const Dashboard = ({ assets, waybills, quickCheckouts }: DashboardProps) 
   // Calculate categories
   const dewateringAssets = assets.filter(a => a.category === 'dewatering');
   const waterproofingAssets = assets.filter(a => a.category === 'waterproofing');
+  
+  // Get all equipment requiring logging
+  const equipmentRequiringLogging = assets.filter(
+    asset => asset.type === 'equipment' && asset.requiresLogging === true
+  );
+
+  // Helper function to get site name
+  const getSiteName = (asset: Asset): string => {
+    if (asset.siteId) {
+      const site = sites.find(s => s.id === asset.siteId);
+      return site?.name || 'Unknown Site';
+    }
+    // Check siteQuantities for multi-site equipment
+    if (asset.siteQuantities) {
+      const sitesWithEquipment = Object.entries(asset.siteQuantities)
+        .filter(([_, qty]) => qty !== undefined)
+        .map(([siteId]) => {
+          const site = sites.find(s => s.id === siteId);
+          return site?.name || siteId;
+        });
+      return sitesWithEquipment.join(', ') || 'Not assigned';
+    }
+    return 'Not assigned';
+  };
+
+  // Helper function to get latest log status
+  const getLatestStatus = (equipmentId: string): { active: boolean; date?: Date } => {
+    const logs = equipmentLogs
+      .filter(log => log.equipmentId === equipmentId)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    if (logs.length > 0) {
+      return { active: logs[0].active, date: logs[0].date };
+    }
+    return { active: false };
+  };
+
+  // Helper function to get site for equipment
+  const getSiteForEquipment = (asset: Asset): Site | null => {
+    if (asset.siteId) {
+      return sites.find(s => s.id === asset.siteId) || null;
+    }
+    // For equipment with siteQuantities, get the first site
+    if (asset.siteQuantities) {
+      const siteId = Object.keys(asset.siteQuantities)[0];
+      return sites.find(s => s.id === siteId) || null;
+    }
+    return null;
+  };
   
   const stats = [
     {
@@ -184,8 +244,75 @@ export const Dashboard = ({ assets, waybills, quickCheckouts }: DashboardProps) 
         </Card>
       </div>
 
+      {/* Equipment Requiring Logging */}
+      {equipmentRequiringLogging.length > 0 && (
+        <Card className="border-0 shadow-soft animate-slide-up" style={{animationDelay: '0.8s'}}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Wrench className="h-5 w-5 text-primary" />
+              Equipment Requiring Logging
+            </CardTitle>
+            <CardDescription>
+              {equipmentRequiringLogging.length} equipment items across sites
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {equipmentRequiringLogging.map(equipment => {
+                const status = getLatestStatus(equipment.id);
+                const siteName = getSiteName(equipment);
+                const site = getSiteForEquipment(equipment);
+                
+                return (
+                  <div 
+                    key={equipment.id} 
+                    className="flex justify-between items-center p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex-1">
+                      <div className="font-medium">{equipment.name}</div>
+                      <div className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
+                        <span>Site: {siteName}</span>
+                        <span>•</span>
+                        <Badge 
+                          variant={status.active ? "default" : "secondary"}
+                          className="text-xs"
+                        >
+                          {status.active ? "Active" : "Inactive"}
+                        </Badge>
+                        {status.date && (
+                          <>
+                            <span>•</span>
+                            <span className="text-xs">
+                              Last logged: {format(new Date(status.date), 'MMM dd, yyyy')}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        if (site) {
+                          setSelectedEquipment(equipment);
+                          setSelectedSite(site);
+                          setShowAnalytics(true);
+                        }
+                      }}
+                      disabled={!site}
+                    >
+                      <BarChart3 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Recent Activity */}
-      <Card className="border-0 shadow-soft animate-slide-up" style={{animationDelay: '0.8s'}}>
+      <Card className="border-0 shadow-soft animate-slide-up" style={{animationDelay: '0.9s'}}>
         <CardHeader>
           <CardTitle>Recent Activity</CardTitle>
           <CardDescription>Latest system activities and user actions</CardDescription>
@@ -225,6 +352,28 @@ export const Dashboard = ({ assets, waybills, quickCheckouts }: DashboardProps) 
           </div>
         </CardContent>
       </Card>
+
+      {/* Analytics Dialog */}
+      {selectedEquipment && selectedSite && (
+        <Dialog open={showAnalytics} onOpenChange={setShowAnalytics}>
+          <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                Equipment Analytics - {selectedEquipment.name} at {selectedSite.name}
+              </DialogTitle>
+            </DialogHeader>
+            <SiteMachineAnalytics
+              site={selectedSite}
+              equipment={[selectedEquipment]}
+              equipmentLogs={equipmentLogs.filter(log => 
+                log.equipmentId === selectedEquipment.id && 
+                log.siteId === selectedSite.id
+              )}
+              selectedEquipmentId={selectedEquipment.id}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 };

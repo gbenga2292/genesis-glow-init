@@ -251,20 +251,26 @@ export async function processReturnTransaction(db, returnData) {
       }
 
       console.log(`Processing return for asset ${assetId}: total=${summary.total}, good=${summary.good}, damaged=${summary.damaged}, missing=${summary.missing}`);
+      console.log(`Asset before update:`, asset);
 
       // Reduce reserved quantity by total returned
       const currentReserved = asset.reserved_quantity || 0;
       const newReserved = Math.max(0, currentReserved - summary.total);
 
-      // Reduce site quantities
+      // Reduce site quantities - CONVERT siteId to string for JSON key matching
       const siteQuantities = asset.site_quantities ? JSON.parse(asset.site_quantities) : {};
-      const currentSiteQty = siteQuantities[waybill.siteId] || 0;
+      const siteIdKey = String(waybill.siteId); // Convert to string for consistent key matching
+      console.log(`🔍 Site quantities:`, siteQuantities);
+      console.log(`🔍 Looking for siteId:`, waybill.siteId, 'as string:', siteIdKey);
+      console.log(`🔍 Available keys:`, Object.keys(siteQuantities));
+      const currentSiteQty = siteQuantities[siteIdKey] || 0;
       const newSiteQty = Math.max(0, currentSiteQty - summary.total);
+      console.log(`✅ Site ${siteIdKey}: current=${currentSiteQty}, reducing by=${summary.total}, new=${newSiteQty}`);
       
       if (newSiteQty === 0) {
-        delete siteQuantities[waybill.siteId];
+        delete siteQuantities[siteIdKey];
       } else {
-        siteQuantities[waybill.siteId] = newSiteQty;
+        siteQuantities[siteIdKey] = newSiteQty;
       }
 
       // Update damaged and missing counts

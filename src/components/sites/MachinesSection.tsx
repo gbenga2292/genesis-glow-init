@@ -10,11 +10,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Site, Asset, Employee } from "@/types/asset";
 import { EquipmentLog as EquipmentLogType, DowntimeEntry } from "@/types/equipment";
-import { Wrench, Calendar as CalendarIcon, Plus, Eye, BarChart3, Package } from "lucide-react";
+import { Wrench, Calendar as CalendarIcon, Plus, Eye, BarChart3, Package, ChevronDown, LineChart } from "lucide-react";
 import { format, isSameDay } from "date-fns";
 import { SiteMachineAnalytics } from "./SiteMachineAnalytics";
+import { SiteWideMachineAnalytics } from "./SiteWideMachineAnalytics";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface MachinesSectionProps {
@@ -35,14 +37,15 @@ export const MachinesSection = ({
   onUpdateEquipmentLog
 }: MachinesSectionProps) => {
   const { hasPermission } = useAuth();
+  const [isOpen, setIsOpen] = useState(true);
   const [showLogDialog, setShowLogDialog] = useState(false);
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [showAnalyticsDialog, setShowAnalyticsDialog] = useState(false);
+  const [showSiteWideAnalytics, setShowSiteWideAnalytics] = useState(false);
   const [showItemDialog, setShowItemDialog] = useState(false);
   const [selectedEquipment, setSelectedEquipment] = useState<Asset | null>(null);
   const [selectedItem, setSelectedItem] = useState<Asset | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const [showCalendar, setShowCalendar] = useState(false);
   const [selectedViewLogs, setSelectedViewLogs] = useState<EquipmentLogType[]>([]);
   const [logForm, setLogForm] = useState<{
     active: boolean;
@@ -62,27 +65,57 @@ export const MachinesSection = ({
     issuesOnSite: ""
   });
 
-  // Filter equipment for the site - only show equipment that requires logging
+  // Filter equipment for the site - show ALL equipment including those with 0 quantity
+  // This ensures we can still see and log machines even if they're temporarily removed
   const siteEquipment = assets.filter(asset =>
     asset.type === 'equipment' &&
     asset.requiresLogging === true &&
-    (asset.siteId === site.id || (asset.siteQuantities && asset.siteQuantities[site.id] > 0))
+    (asset.siteId === site.id || (asset.siteQuantities && asset.siteQuantities[site.id] !== undefined)) // Keep ALL including zero
   );
 
   const handleEquipmentSelect = (equipment: Asset) => {
     setSelectedEquipment(equipment);
-    setShowCalendar(true);
+    setSelectedDate(new Date());
+    setShowLogDialog(true);
+
+    // Check for existing log for today
+    const existingLog = equipmentLogs.find(log =>
+      log.equipmentId === equipment.id &&
+      format(log.date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
+    );
+
+    if (existingLog) {
+      // Populate form with existing data
+      setLogForm({
+        active: existingLog.active,
+        downtimeEntries: existingLog.downtimeEntries.length > 0 ? existingLog.downtimeEntries : [{ id: Date.now().toString(), downtime: "", downtimeReason: "", downtimeAction: "", uptime: "" }],
+        maintenanceDetails: existingLog.maintenanceDetails || "",
+        dieselEntered: existingLog.dieselEntered?.toString() || "",
+        supervisorOnSite: existingLog.supervisorOnSite || "",
+        clientFeedback: existingLog.clientFeedback || "",
+        issuesOnSite: existingLog.issuesOnSite || ""
+      });
+    } else {
+      // Reset form for new entry - default to active
+      setLogForm({
+        active: true,
+        downtimeEntries: [{ id: Date.now().toString(), downtime: "", downtimeReason: "", downtimeAction: "", uptime: "" }],
+        maintenanceDetails: "",
+        dieselEntered: "",
+        supervisorOnSite: "",
+        clientFeedback: "",
+        issuesOnSite: ""
+      });
+    }
   };
 
   const handleDateSelect = (date: Date | undefined) => {
-    if (date) {
+    if (date && selectedEquipment) {
       setSelectedDate(date);
-      setShowCalendar(false);
-      setShowLogDialog(true);
 
       // Check for existing log
       const existingLog = equipmentLogs.find(log =>
-        log.equipmentId === selectedEquipment!.id &&
+        log.equipmentId === selectedEquipment.id &&
         format(log.date, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
       );
 
@@ -168,12 +201,30 @@ export const MachinesSection = ({
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Wrench className="h-5 w-5" />
-        <h3 className="text-lg font-semibold">Machines</h3>
+    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Wrench className="h-5 w-5" />
+          <h3 className="text-lg font-semibold">Machines</h3>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button 
+            onClick={() => setShowSiteWideAnalytics(true)}
+            variant="outline"
+            size="sm"
+          >
+            <LineChart className="h-4 w-4 mr-2" />
+            Site Analytics
+          </Button>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm">
+              <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+            </Button>
+          </CollapsibleTrigger>
+        </div>
       </div>
 
+      <CollapsibleContent className="space-y-4">
       {siteEquipment.length === 0 ? (
         <p className="text-muted-foreground">No equipment assigned to this dewatering site.</p>
       ) : (
@@ -242,40 +293,11 @@ export const MachinesSection = ({
           ))}
         </div>
       )}
-
-      {/* Calendar Dialog */}
-      <Dialog open={showCalendar} onOpenChange={setShowCalendar}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Select Date for {selectedEquipment?.name}</DialogTitle>
-            <DialogDescription>
-              Choose a date to add or view the equipment log entry.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-center">
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={handleDateSelect}
-              modifiers={{
-                logged: selectedEquipment ? getLoggedDatesForEquipmentAndSite(selectedEquipment.id) : []
-              }}
-              modifiersStyles={{
-                logged: {
-                  backgroundColor: 'blue',
-                  color: 'white',
-                  fontWeight: 'bold'
-                }
-              }}
-              className="rounded-md border"
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
+      </CollapsibleContent>
 
       {/* Log Entry Dialog */}
       <Dialog open={showLogDialog} onOpenChange={setShowLogDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               Log Entry - {selectedEquipment?.name}
@@ -285,195 +307,222 @@ export const MachinesSection = ({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="active"
-                checked={logForm.active}
-                onCheckedChange={(checked) => setLogForm({...logForm, active: checked as boolean})}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Calendar on the Left */}
+            <div className="space-y-2">
+              <Label>Date</Label>
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={(date) => date && handleDateSelect(date)}
+                modifiers={{
+                  logged: selectedEquipment ? getLoggedDatesForEquipmentAndSite(selectedEquipment.id) : []
+                }}
+                modifiersStyles={{
+                  logged: {
+                    backgroundColor: 'hsl(var(--primary))',
+                    color: 'white',
+                    fontWeight: 'bold'
+                  }
+                }}
+                className="rounded-md border"
               />
-              <Label htmlFor="active">Active</Label>
+              <p className="text-xs text-muted-foreground mt-2">
+                Blue dates have existing logs
+              </p>
             </div>
 
-            {logForm.active && (
-              <div className="space-y-4">
+            {/* Form on the Right */}
+            <div className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="active"
+                  checked={logForm.active}
+                  onCheckedChange={(checked) => setLogForm({...logForm, active: checked as boolean})}
+                />
+                <Label htmlFor="active">Active</Label>
+              </div>
+
+              {logForm.active && (
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Label>Downtime Entries</Label>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setLogForm({
-                        ...logForm,
-                        downtimeEntries: [...logForm.downtimeEntries, { id: Date.now().toString(), downtime: "", downtimeReason: "", downtimeAction: "", uptime: "" }]
-                      })}
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Entry
-                    </Button>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label>Downtime Entries</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setLogForm({
+                          ...logForm,
+                          downtimeEntries: [...logForm.downtimeEntries, { id: Date.now().toString(), downtime: "", downtimeReason: "", downtimeAction: "", uptime: "" }]
+                        })}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Entry
+                      </Button>
+                    </div>
+
+                    {logForm.downtimeEntries.map((entry, index) => (
+                      <div key={entry.id} className="border rounded-lg p-4 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-medium">Entry {index + 1}</h4>
+                          {logForm.downtimeEntries.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setLogForm({
+                                ...logForm,
+                                downtimeEntries: logForm.downtimeEntries.filter((_, i) => i !== index)
+                              })}
+                            >
+                              Remove
+                            </Button>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor={`downtime-${index}`}>Downtime (Time Machine Went Off)</Label>
+                            <Input
+                              id={`downtime-${index}`}
+                              value={entry.downtime}
+                              onChange={(e) => {
+                                const newEntries = [...logForm.downtimeEntries];
+                                newEntries[index].downtime = e.target.value;
+                                setLogForm({...logForm, downtimeEntries: newEntries});
+                              }}
+                              placeholder="e.g., 14:30"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor={`uptime-${index}`}>Uptime (Time Machine Came Back On)</Label>
+                            <Input
+                              id={`uptime-${index}`}
+                              value={entry.uptime}
+                              onChange={(e) => {
+                                const newEntries = [...logForm.downtimeEntries];
+                                newEntries[index].uptime = e.target.value;
+                                setLogForm({...logForm, downtimeEntries: newEntries});
+                              }}
+                              placeholder="e.g., 16:00"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor={`downtimeReason-${index}`}>Downtime Reason</Label>
+                          <Input
+                            id={`downtimeReason-${index}`}
+                            value={entry.downtimeReason}
+                            onChange={(e) => {
+                              const newEntries = [...logForm.downtimeEntries];
+                              newEntries[index].downtimeReason = e.target.value;
+                              setLogForm({...logForm, downtimeEntries: newEntries});
+                            }}
+                            placeholder="Reason for downtime"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor={`downtimeAction-${index}`}>Action Taken</Label>
+                          <Textarea
+                            id={`downtimeAction-${index}`}
+                            value={entry.downtimeAction}
+                            onChange={(e) => {
+                              const newEntries = [...logForm.downtimeEntries];
+                              newEntries[index].downtimeAction = e.target.value;
+                              setLogForm({...logForm, downtimeEntries: newEntries});
+                            }}
+                            placeholder="Actions taken to resolve"
+                            rows={2}
+                          />
+                        </div>
+                      </div>
+                    ))}
                   </div>
 
-                  {logForm.downtimeEntries.map((entry, index) => (
-                    <div key={entry.id} className="border rounded-lg p-4 space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-medium">Entry {index + 1}</h4>
-                        {logForm.downtimeEntries.length > 1 && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setLogForm({
-                              ...logForm,
-                              downtimeEntries: logForm.downtimeEntries.filter((_, i) => i !== index)
-                            })}
-                          >
-                            Remove
-                          </Button>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor={`downtime-${index}`}>Downtime (Time Machine Went Off)</Label>
-                          <Input
-                            id={`downtime-${index}`}
-                            value={entry.downtime}
-                            onChange={(e) => {
-                              const newEntries = [...logForm.downtimeEntries];
-                              newEntries[index].downtime = e.target.value;
-                              setLogForm({...logForm, downtimeEntries: newEntries});
-                            }}
-                            placeholder="e.g., 14:30"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor={`uptime-${index}`}>Uptime (Time Machine Came Back On)</Label>
-                          <Input
-                            id={`uptime-${index}`}
-                            value={entry.uptime}
-                            onChange={(e) => {
-                              const newEntries = [...logForm.downtimeEntries];
-                              newEntries[index].uptime = e.target.value;
-                              setLogForm({...logForm, downtimeEntries: newEntries});
-                            }}
-                            placeholder="e.g., 16:00"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor={`downtimeReason-${index}`}>Downtime Reason</Label>
-                        <Input
-                          id={`downtimeReason-${index}`}
-                          value={entry.downtimeReason}
-                          onChange={(e) => {
-                            const newEntries = [...logForm.downtimeEntries];
-                            newEntries[index].downtimeReason = e.target.value;
-                            setLogForm({...logForm, downtimeEntries: newEntries});
-                          }}
-                          placeholder="Reason for downtime"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor={`downtimeAction-${index}`}>Action Taken</Label>
-                        <Textarea
-                          id={`downtimeAction-${index}`}
-                          value={entry.downtimeAction}
-                          onChange={(e) => {
-                            const newEntries = [...logForm.downtimeEntries];
-                            newEntries[index].downtimeAction = e.target.value;
-                            setLogForm({...logForm, downtimeEntries: newEntries});
-                          }}
-                          placeholder="Actions taken to resolve"
-                          rows={2}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="maintenanceDetails">Maintenance Details</Label>
-                  <Textarea
-                    id="maintenanceDetails"
-                    value={logForm.maintenanceDetails}
-                    onChange={(e) => setLogForm({...logForm, maintenanceDetails: e.target.value})}
-                    placeholder="Maintenance performed"
-                    rows={2}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="dieselEntered">Diesel Entered (L)</Label>
-                    <Input
-                      id="dieselEntered"
-                      type="number"
-                      value={logForm.dieselEntered}
-                      onChange={(e) => setLogForm({...logForm, dieselEntered: e.target.value})}
-                      placeholder="0.00"
+                    <Label htmlFor="maintenanceDetails">Maintenance Details</Label>
+                    <Textarea
+                      id="maintenanceDetails"
+                      value={logForm.maintenanceDetails}
+                      onChange={(e) => setLogForm({...logForm, maintenanceDetails: e.target.value})}
+                      placeholder="Maintenance performed"
+                      rows={2}
                     />
                   </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="dieselEntered">Diesel Entered (L)</Label>
+                      <Input
+                        id="dieselEntered"
+                        type="number"
+                        value={logForm.dieselEntered}
+                        onChange={(e) => setLogForm({...logForm, dieselEntered: e.target.value})}
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="supervisorOnSite">Supervisor on Site</Label>
+                      <Select
+                        value={logForm.supervisorOnSite}
+                        onValueChange={(value) => setLogForm({...logForm, supervisorOnSite: value})}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select supervisor" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {employees.map((employee) => (
+                            <SelectItem key={employee.id} value={employee.name}>
+                              {employee.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
-                    <Label htmlFor="supervisorOnSite">Supervisor on Site</Label>
-                    <Select
-                      value={logForm.supervisorOnSite}
-                      onValueChange={(value) => setLogForm({...logForm, supervisorOnSite: value})}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select supervisor" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {employees.map((employee) => (
-                          <SelectItem key={employee.id} value={employee.name}>
-                            {employee.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label htmlFor="clientFeedback">Client Feedback</Label>
+                    <Textarea
+                      id="clientFeedback"
+                      value={logForm.clientFeedback}
+                      onChange={(e) => setLogForm({...logForm, clientFeedback: e.target.value})}
+                      placeholder="Client feedback and comments"
+                      rows={2}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="issuesOnSite">Issues on Site</Label>
+                    <Textarea
+                      id="issuesOnSite"
+                      value={logForm.issuesOnSite}
+                      onChange={(e) => setLogForm({...logForm, issuesOnSite: e.target.value})}
+                      placeholder="Any issues encountered"
+                      rows={2}
+                    />
                   </div>
                 </div>
+              )}
 
-                <div className="space-y-2">
-                  <Label htmlFor="clientFeedback">Client Feedback</Label>
-                  <Textarea
-                    id="clientFeedback"
-                    value={logForm.clientFeedback}
-                    onChange={(e) => setLogForm({...logForm, clientFeedback: e.target.value})}
-                    placeholder="Client feedback and comments"
-                    rows={2}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="issuesOnSite">Issues on Site</Label>
-                  <Textarea
-                    id="issuesOnSite"
-                    value={logForm.issuesOnSite}
-                    onChange={(e) => setLogForm({...logForm, issuesOnSite: e.target.value})}
-                    placeholder="Any issues encountered"
-                    rows={2}
-                  />
-                </div>
+              <div className="flex gap-3 pt-4">
+                <Button
+                  onClick={() => setShowLogDialog(false)}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSaveLog}
+                  className="flex-1"
+                >
+                  Save Log Entry
+                </Button>
               </div>
-            )}
-
-            <div className="flex gap-3 pt-4">
-              <Button
-                onClick={() => setShowLogDialog(false)}
-                variant="outline"
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSaveLog}
-                className="flex-1"
-              >
-                Save Log Entry
-              </Button>
             </div>
           </div>
         </DialogContent>
@@ -687,6 +736,15 @@ export const MachinesSection = ({
           )}
         </DialogContent>
       </Dialog>
-    </div>
+
+      {/* Site-Wide Machine Analytics Dialog */}
+      <SiteWideMachineAnalytics
+        open={showSiteWideAnalytics}
+        onOpenChange={setShowSiteWideAnalytics}
+        site={site}
+        equipment={assets}
+        equipmentLogs={equipmentLogs}
+      />
+    </Collapsible>
   );
 };

@@ -45,7 +45,7 @@ export const SiteMachineAnalytics = ({
 
   // Filter logs for this site only
   const siteLogs = useMemo(() => {
-    return equipmentLogs.filter(log => log.siteId === site.id);
+    return equipmentLogs.filter(log => String(log.siteId) === String(site.id));
   }, [equipmentLogs, site.id]);
 
   // Get date range based on selected period and date

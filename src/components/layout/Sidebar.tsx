@@ -16,8 +16,7 @@ import {
   LogIn,
   Activity,
   Sun,
-  Moon,
-  Trash2
+  Moon
 } from "lucide-react";
 
 interface SidebarProps {
@@ -102,15 +101,7 @@ export const Sidebar = ({ activeTab, onTabChange }: SidebarProps) => {
     return hasPermission(permissions);
   };
 
-  const handleWipe = () => {
-    if (window.confirm('Are you absolutely sure you want to delete the local database? This action is irreversible and the application will close.')) {
-      if (window.db && window.db.wipeLocalDatabase) {
-        window.db.wipeLocalDatabase();
-      } else {
-        alert('Database API not available. This must be run in Electron.');
-      }
-    }
-  };
+
 
   return (
     <div className="w-64 bg-card border-r border-border h-full shadow-soft flex flex-col">
@@ -147,16 +138,6 @@ export const Sidebar = ({ activeTab, onTabChange }: SidebarProps) => {
       </nav>
 
       <div className="p-2 border-t border-border space-y-2">
-        {/* WIPE BUTTON - TEMPORARY */}
-        <Button
-          variant="destructive"
-          className="w-full justify-center gap-3 h-10 md:h-11 text-sm md:text-base"
-          onClick={handleWipe}
-        >
-          <Trash2 className="h-4 w-4" />
-          FORCE WIPE
-        </Button>
-
         {isAuthenticated ? (
           <div className="flex items-center gap-1.5">
             <div className="flex-1 min-w-0 px-2 py-1 bg-muted/50 rounded">
