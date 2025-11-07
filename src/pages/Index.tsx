@@ -56,35 +56,49 @@ const Index = () => {
   const [assets, setAssets] = useState<Asset[]>([]);
 
   // Load assets from database
-  useEffect(() => {
-    (async () => {
-      if (window.db) {
-        try {
-          const loadedAssets = await window.db.getAssets();
-          const processedAssets = loadedAssets.map((item: any) => {
-            const asset = {
-              ...item,
-              createdAt: new Date(item.createdAt),
-              updatedAt: new Date(item.updatedAt),
-              siteQuantities: item.site_quantities ? JSON.parse(item.site_quantities) : {}
-            };
-            // Recalculate availableQuantity on load
-            if (!asset.siteId) {
-              const reservedQuantity = asset.reservedQuantity || 0;
-              const damagedCount = asset.damagedCount || 0;
-              const missingCount = asset.missingCount || 0;
-              const totalQuantity = asset.quantity;
-              asset.availableQuantity = totalQuantity - reservedQuantity - damagedCount - missingCount;
-            }
-            return asset;
-          });
-          console.log('Loaded assets with availableQuantity:', processedAssets);
-          setAssets(processedAssets);
-        } catch (error) {
-          logger.error('Failed to load assets from database', error);
-        }
+  const loadAssets = async () => {
+    if (window.db) {
+      try {
+        const loadedAssets = await window.db.getAssets();
+        const processedAssets = loadedAssets.map((item: any) => {
+          const asset = {
+            ...item,
+            createdAt: new Date(item.createdAt),
+            updatedAt: new Date(item.updatedAt),
+            siteQuantities: item.site_quantities ? JSON.parse(item.site_quantities) : {}
+          };
+          // Recalculate availableQuantity on load
+          if (!asset.siteId) {
+            const reservedQuantity = asset.reservedQuantity || 0;
+            const damagedCount = asset.damagedCount || 0;
+            const missingCount = asset.missingCount || 0;
+            const totalQuantity = asset.quantity;
+            asset.availableQuantity = totalQuantity - reservedQuantity - damagedCount - missingCount;
+          }
+          return asset;
+        });
+        console.log('Loaded assets with availableQuantity:', processedAssets);
+        setAssets(processedAssets);
+      } catch (error) {
+        logger.error('Failed to load assets from database', error);
       }
-    })();
+    }
+  };
+
+  useEffect(() => {
+    loadAssets();
+  }, []);
+
+  // Listen for asset refresh events from WaybillsContext
+  useEffect(() => {
+    const handleRefreshAssets = () => {
+      loadAssets();
+    };
+
+    window.addEventListener('refreshAssets', handleRefreshAssets);
+    return () => {
+      window.removeEventListener('refreshAssets', handleRefreshAssets);
+    };
   }, []);
 
   const [waybills, setWaybills] = useState<Waybill[]>([]);
