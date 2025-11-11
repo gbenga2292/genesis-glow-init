@@ -5,8 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Asset, CompanySettings } from "@/types/asset";
 import { FileText, Download } from "lucide-react";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import { generateUnifiedReport } from "@/utils/unifiedReportGenerator";
 
 interface InventoryReportProps {
   assets: Asset[];
@@ -40,43 +39,52 @@ export const InventoryReport = ({ assets, companySettings }: InventoryReportProp
 
   const generateReport = (filteredAssets: Asset[], title: string) => {
     setLoading(true);
-    const doc = new jsPDF();
 
-    // Add company logo in top left corner using default company information
-    if (defaultCompanySettings.logo) {
-      try {
-        doc.addImage(defaultCompanySettings.logo, 'PNG', 10, 10, 80, 25);
-      } catch (e) {
-        // Ignore logo errors
-      }
-    }
+    // Calculate summary statistics
+    const totalAssets = filteredAssets.length;
+    const totalQuantity = filteredAssets.reduce((sum, asset) => sum + asset.quantity, 0);
+    const totalValue = filteredAssets.reduce((sum, asset) => sum + (asset.cost * asset.quantity), 0);
+    const activeAssets = filteredAssets.filter(a => a.status === 'active').length;
+    const equipmentCount = filteredAssets.filter(a => a.type === 'equipment').length;
+    const consumablesCount = filteredAssets.filter(a => a.type === 'consumable').length;
 
-    // Company name and title positioned to the right of logo using default company information
-    doc.setFont("times", "normal");
-    doc.setFontSize(18);
-    doc.text(defaultCompanySettings.companyName, 100, 20);
-    doc.setFontSize(14);
-    doc.text(title, 100, 30);
+    // Transform data for unified generator
+    const reportData = filteredAssets.map(asset => ({
+      name: asset.name,
+      quantity: asset.quantity,
+      unit: asset.unitOfMeasurement,
+      category: asset.category,
+      type: asset.type,
+      location: asset.location || '-',
+      description: asset.description || '-'
+    }));
 
-    const tableData = filteredAssets.map(asset => [
-      asset.name,
-      asset.quantity.toString(),
-      asset.unitOfMeasurement,
-      asset.category,
-      asset.type,
-      asset.location || "",
-      asset.description || ""
-    ]);
-
-    autoTable(doc, {
-      startY: 40,
-      head: [['Name', 'Quantity', 'Unit', 'Category', 'Type', 'Location', 'Description']],
-      body: tableData,
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [43, 101, 236] }
+    generateUnifiedReport({
+      title: 'Inventory Report',
+      subtitle: title,
+      reportType: 'INVENTORY',
+      companySettings: effectiveCompanySettings,
+      orientation: 'landscape',
+      columns: [
+        { header: 'Name', dataKey: 'name', width: 40 },
+        { header: 'Quantity', dataKey: 'quantity', width: 20 },
+        { header: 'Unit', dataKey: 'unit', width: 20 },
+        { header: 'Category', dataKey: 'category', width: 25 },
+        { header: 'Type', dataKey: 'type', width: 25 },
+        { header: 'Location', dataKey: 'location', width: 30 },
+        { header: 'Description', dataKey: 'description', width: 50 }
+      ],
+      data: reportData,
+      summaryStats: [
+        { label: 'Total Assets', value: totalAssets },
+        { label: 'Total Quantity', value: totalQuantity },
+        { label: 'Total Value', value: `$${totalValue.toFixed(2)}` },
+        { label: 'Active Assets', value: activeAssets },
+        { label: 'Equipment Items', value: equipmentCount },
+        { label: 'Consumables', value: consumablesCount }
+      ]
     });
 
-    doc.save(`${title.replace(/\s+/g, '_').toLowerCase()}.pdf`);
     setLoading(false);
   };
 

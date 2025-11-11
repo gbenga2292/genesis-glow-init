@@ -29,3 +29,13 @@ for (const functionName of dbFunctions) {
 
 // Expose the entire API on window.db
 contextBridge.exposeInMainWorld('db', dbAPI);
+
+// Expose a simple local LLM bridge to the renderer.
+// The main process will handle launching/spawning the local binary or calling a local HTTP wrapper.
+const llmAPI = {
+    generate: (payload) => ipcRenderer.invoke('llm:generate', payload),
+    status: () => ipcRenderer.invoke('llm:status'),
+    configure: (cfg) => ipcRenderer.invoke('llm:configure', cfg)
+};
+
+contextBridge.exposeInMainWorld('llm', llmAPI);

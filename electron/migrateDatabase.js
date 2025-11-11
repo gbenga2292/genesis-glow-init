@@ -143,6 +143,27 @@ async function migrateDatabase(dbPath) {
       console.log('Created equipment_logs table.');
     }
 
+    // Check if consumable_logs table exists, create it if it doesn't
+    const hasConsumableLogsTable = await db.schema.hasTable('consumable_logs');
+    if (!hasConsumableLogsTable) {
+      console.log('Creating consumable_logs table...');
+      await db.schema.createTable('consumable_logs', (table) => {
+        table.string('id').primary();
+        table.string('consumable_id').notNullable();
+        table.string('consumable_name').notNullable();
+        table.integer('site_id').unsigned().notNullable().references('id').inTable('sites');
+        table.date('date').notNullable();
+        table.decimal('quantity_used', 10, 2).notNullable();
+        table.decimal('quantity_remaining', 10, 2).notNullable();
+        table.string('unit').notNullable();
+        table.string('used_for').notNullable();
+        table.string('used_by').notNullable();
+        table.text('notes');
+        table.timestamps(true, true);
+      });
+      console.log('Created consumable_logs table.');
+    }
+
     // Vehicles table migrations - add missing timestamp columns
     const hasVehicleCreatedAt = await db.schema.hasColumn('vehicles', 'createdAt');
     if (!hasVehicleCreatedAt) {

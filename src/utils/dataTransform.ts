@@ -6,6 +6,7 @@
 export function transformAssetFromDB(dbAsset: any): any {
   return {
     ...dbAsset,
+    unitOfMeasurement: dbAsset.unit_of_measurement || dbAsset.unitOfMeasurement || 'pcs',
     createdAt: new Date(dbAsset.created_at),
     updatedAt: new Date(dbAsset.updated_at),
     purchaseDate: dbAsset.purchase_date ? new Date(dbAsset.purchase_date) : undefined,

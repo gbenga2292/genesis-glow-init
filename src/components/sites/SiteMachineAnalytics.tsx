@@ -5,18 +5,18 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Site, Asset } from "@/types/asset";
+import { Site, Asset, CompanySettings } from "@/types/asset";
 import { EquipmentLog } from "@/types/equipment";
 import { BarChart3, TrendingUp, Clock, Fuel, Activity, Calendar, Download } from "lucide-react";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, isWithinInterval, parseISO, differenceInHours, differenceInMinutes } from "date-fns";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import { generateUnifiedReport } from "@/utils/unifiedReportGenerator";
 
 interface SiteMachineAnalyticsProps {
   site: Site;
   equipment: Asset[];
   equipmentLogs: EquipmentLog[];
   selectedEquipmentId?: string;
+  companySettings?: CompanySettings;
 }
 
 type TimePeriod = 'daily' | 'weekly' | 'monthly' | 'yearly';
@@ -38,7 +38,8 @@ interface MachineAnalytics {
 export const SiteMachineAnalytics = ({
   site,
   equipment,
-  equipmentLogs
+  equipmentLogs,
+  companySettings
 }: SiteMachineAnalyticsProps) => {
   const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>('monthly');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -163,54 +164,47 @@ export const SiteMachineAnalytics = ({
   }, [machineAnalytics]);
 
   const generatePDFReport = () => {
-    const doc = new jsPDF();
+    if (!companySettings) return;
+
     const periodLabel = selectedPeriod.charAt(0).toUpperCase() + selectedPeriod.slice(1);
+    const dateRangeText = `${format(dateRange.start, 'PPP')} to ${format(dateRange.end, 'PPP')}`;
 
-    doc.setFontSize(18);
-    doc.text(`${site.name} - Machine Analytics Report`, 20, 20);
-    doc.setFontSize(12);
-    doc.text(`${periodLabel} Report - ${format(dateRange.start, 'PPP')} to ${format(dateRange.end, 'PPP')}`, 20, 30);
+    // Transform machine data for the report
+    const reportData = machineAnalytics.map(machine => ({
+      equipmentName: machine.equipmentName,
+      fuelConsumption: machine.totalFuelConsumption.toFixed(2),
+      downtime: machine.totalDowntimeHours.toFixed(2),
+      activeDays: machine.activeDays,
+      efficiency: machine.efficiencyPercentage.toFixed(1),
+      fuelEfficiency: machine.fuelEfficiency.toFixed(2),
+      avgDowntime: machine.averageDowntimePerActiveDay.toFixed(2)
+    }));
 
-    // Site Summary
-    doc.setFontSize(14);
-    doc.text("Site Summary", 20, 50);
-    const summaryData = [
-      ["Total Machines", siteAnalytics.totalMachines.toString()],
-      ["Total Fuel Consumption", `${siteAnalytics.totalFuelConsumption.toFixed(2)} L`],
-      ["Total Downtime", `${siteAnalytics.totalDowntimeHours.toFixed(2)} hours`],
-      ["Active Days", siteAnalytics.totalActiveDays.toString()],
-      ["Average Efficiency", `${siteAnalytics.averageEfficiency.toFixed(1)}%`]
-    ];
-
-    const summaryTable = autoTable(doc, {
-      startY: 55,
-      head: [['Metric', 'Value']],
-      body: summaryData,
-      styles: { fontSize: 10 },
-      headStyles: { fillColor: [22, 160, 133] }
+    generateUnifiedReport({
+      title: 'Machine Analytics Report',
+      subtitle: `${site.name} | ${periodLabel} Period`,
+      reportType: `${dateRangeText}`,
+      companySettings,
+      orientation: 'landscape',
+      columns: [
+        { header: 'Machine', dataKey: 'equipmentName', width: 40 },
+        { header: 'Fuel Used (L)', dataKey: 'fuelConsumption', width: 25 },
+        { header: 'Downtime (hrs)', dataKey: 'downtime', width: 28 },
+        { header: 'Active Days', dataKey: 'activeDays', width: 25 },
+        { header: 'Efficiency (%)', dataKey: 'efficiency', width: 28 },
+        { header: 'Fuel Eff. (L/hr)', dataKey: 'fuelEfficiency', width: 30 },
+        { header: 'Avg Downtime/Day', dataKey: 'avgDowntime', width: 35 }
+      ],
+      data: reportData,
+      summaryStats: [
+        { label: 'Total Machines', value: siteAnalytics.totalMachines },
+        { label: 'Total Fuel Consumption', value: `${siteAnalytics.totalFuelConsumption.toFixed(2)} L` },
+        { label: 'Total Downtime', value: `${siteAnalytics.totalDowntimeHours.toFixed(2)} hrs` },
+        { label: 'Total Active Days', value: siteAnalytics.totalActiveDays },
+        { label: 'Average Efficiency', value: `${siteAnalytics.averageEfficiency.toFixed(1)}%` },
+        { label: 'Period', value: periodLabel }
+      ]
     });
-
-    // Machine Details
-    let yPosition = (doc as any).lastAutoTable.finalY + 20;
-    doc.text("Machine Details", 20, yPosition);
-    const machineData = machineAnalytics.map(machine => [
-      machine.equipmentName,
-      `${machine.totalFuelConsumption.toFixed(2)} L`,
-      `${machine.totalDowntimeHours.toFixed(2)} hrs`,
-      machine.activeDays.toString(),
-      `${machine.efficiencyPercentage.toFixed(1)}%`,
-      `${machine.fuelEfficiency.toFixed(2)} L/hr`
-    ]);
-
-    autoTable(doc, {
-      startY: yPosition + 5,
-      head: [['Machine', 'Fuel Used', 'Downtime', 'Active Days', 'Efficiency', 'Fuel Efficiency']],
-      body: machineData,
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [22, 160, 133] }
-    });
-
-    doc.save(`${site.name}_machine_analytics_${selectedPeriod}_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   };
 
   const getPeriodLabel = () => {

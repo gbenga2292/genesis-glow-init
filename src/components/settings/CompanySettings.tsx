@@ -82,6 +82,13 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
+  // LLM settings (local-only)
+  const [llmBinaryPath, setLlmBinaryPath] = useState<string>((settings as any)?.ai?.binaryPath || '');
+  const [llmModelPath, setLlmModelPath] = useState<string>((settings as any)?.ai?.modelPath || '');
+  const [llmArgs, setLlmArgs] = useState<string>((settings as any)?.ai?.args ? (settings as any).ai.args.join(' ') : '');
+  const [llmHttpUrl, setLlmHttpUrl] = useState<string>((settings as any)?.ai?.httpUrl || '');
+  const [llmStatus, setLlmStatus] = useState<any>(null);
+
   const [showActivityLog, setShowActivityLog] = useState(false);
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
   const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
@@ -468,6 +475,35 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       title: "Settings Saved",
       description: "Company settings have been updated successfully."
     });
+
+    // Persist AI settings into company settings record (best-effort)
+    const aiConfigToSave: any = {
+      binaryPath: llmBinaryPath || null,
+      modelPath: llmModelPath || null,
+      args: llmArgs ? llmArgs.split(/\s+/) : [],
+      httpUrl: llmHttpUrl || null
+    };
+
+    (async () => {
+      try {
+        // Persist to DB if the company settings record has an id
+        if ((formData as any)?.id && window?.db?.updateCompanySettings) {
+          const updated = { ...(formData as any), ai: aiConfigToSave };
+          await window.db.updateCompanySettings((formData as any).id, updated);
+        }
+      } catch (err) {
+        console.warn('Failed to persist AI settings to DB', err);
+      }
+    })();
+
+    // Configure runtime via IPC bridge
+    try {
+      if ((window as any).llm?.configure) {
+        (window as any).llm.configure(aiConfigToSave).catch(() => {});
+      }
+    } catch (err) {
+      // ignore
+    }
   };
 
   const handleReset = async () => {
@@ -779,6 +815,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       setEditingUserId(userId);
       setEditUserName(user.name);
       setEditUserUsername(user.username);
+      setEditUserPassword('');
       setEditUserRole(user.role);
       setEditUserEmail(user.email || '');
     }
@@ -787,12 +824,19 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
   const handleSaveUserEdit = async () => {
     if (!editingUserId || !editUserName.trim() || !editUserUsername.trim()) return;
 
-    const result = await updateUser(editingUserId, {
+    const updateData: any = {
       name: editUserName.trim(),
       username: editUserUsername.trim(),
       role: editUserRole,
       email: editUserEmail.trim() || undefined
-    });
+    };
+
+    // Only include password if it's been entered
+    if (editUserPassword.trim()) {
+      updateData.password = editUserPassword.trim();
+    }
+
+    const result = await updateUser(editingUserId, updateData);
 
     if (result.success) {
       const fetchedUsers = await getUsers();
@@ -800,6 +844,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       setEditingUserId(null);
       setEditUserName('');
       setEditUserUsername('');
+      setEditUserPassword('');
       setEditUserRole('staff');
       setEditUserEmail('');
       toast({
@@ -837,6 +882,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     setEditingUserId(null);
     setEditUserName('');
     setEditUserUsername('');
+    setEditUserPassword('');
     setEditUserRole('staff');
     setEditUserEmail('');
   };
@@ -988,6 +1034,13 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                                 value={editUserUsername}
                                 onChange={(e) => setEditUserUsername(e.target.value)}
                                 placeholder="Username"
+                                className="flex-1"
+                              />
+                              <Input
+                                type="password"
+                                value={editUserPassword}
+                                onChange={(e) => setEditUserPassword(e.target.value)}
+                                placeholder="New Password (optional)"
                                 className="flex-1"
                               />
                               <Select value={editUserRole} onValueChange={(value: UserRole) => setEditUserRole(value)}>
@@ -1200,6 +1253,67 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                   className="w-full h-full object-contain"
                 />
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* AI Assistant (Local LLM) */}
+        <Card className="border-0 shadow-soft">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              AI Assistant (Local LLM)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Local HTTP Endpoint (optional)</Label>
+              <Input placeholder="http://127.0.0.1:8080/generate" value={llmHttpUrl} onChange={(e) => setLlmHttpUrl(e.target.value)} />
+              <p className="text-xs text-muted-foreground">If you run a local HTTP wrapper (recommended), set its URL here.</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>LLM Binary Path (optional)</Label>
+              <Input placeholder="C:\\path\\to\\llama.exe" value={llmBinaryPath} onChange={(e) => setLlmBinaryPath(e.target.value)} />
+              <p className="text-xs text-muted-foreground">Path to a local LLM wrapper binary. Use this OR the HTTP endpoint.</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Model Path (optional)</Label>
+              <Input placeholder="models/mistral-7b.gguf" value={llmModelPath} onChange={(e) => setLlmModelPath(e.target.value)} />
+              <p className="text-xs text-muted-foreground">Path to the quantized model file used by the binary.</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Extra Args</Label>
+              <Input placeholder="--threads 4 --n_predict 256" value={llmArgs} onChange={(e) => setLlmArgs(e.target.value)} />
+              <p className="text-xs text-muted-foreground">Additional CLI flags to pass to the binary (space-separated).</p>
+            </div>
+
+            <div className="flex gap-2">
+              <Button onClick={async () => {
+                setLlmStatus({ loading: true });
+                try {
+                  if ((window as any).llm?.status) {
+                    const s = await (window as any).llm.status();
+                    setLlmStatus({ loading: false, ok: true, info: s });
+                  } else {
+                    setLlmStatus({ loading: false, ok: false, error: 'LLM bridge not available' });
+                  }
+                } catch (err) {
+                  setLlmStatus({ loading: false, ok: false, error: (err as Error).message });
+                }
+              }} size="sm">Test Connection</Button>
+              <Button onClick={() => setLlmStatus(null)} variant="outline" size="sm">Clear</Button>
+              {llmStatus && llmStatus.loading ? (
+                <div className="text-sm text-muted-foreground">Testing...</div>
+              ) : llmStatus ? (
+                llmStatus.ok ? (
+                  <div className="text-sm text-success">Connected: {JSON.stringify(llmStatus.info)}</div>
+                ) : (
+                  <div className="text-sm text-destructive">Error: {llmStatus.error}</div>
+                )
+              ) : null}
             </div>
           </CardContent>
         </Card>

@@ -16,16 +16,23 @@ interface AddAssetFormProps {
   onCancel?: () => void;
   sites?: Site[];
   existingAssets?: Asset[];
+  initialData?: {
+    name?: string;
+    quantity?: number;
+    category?: string;
+    type?: string;
+    unit?: string;
+  };
 }
 
-export const AddAssetForm = ({ onAddAsset, asset, onSave, onCancel, sites, existingAssets = [] }: AddAssetFormProps) => {
+export const AddAssetForm = ({ onAddAsset, asset, onSave, onCancel, sites, existingAssets = [], initialData }: AddAssetFormProps) => {
   const [formData, setFormData] = useState({
-    name: asset?.name || '',
+    name: initialData?.name || asset?.name || '',
     description: asset?.description || '',
-    quantity: asset?.quantity || 0,
-    unitOfMeasurement: asset?.unitOfMeasurement || 'pcs',
-    category: asset?.category || 'dewatering' as 'dewatering' | 'waterproofing',
-    type: asset?.type || 'equipment' as 'consumable' | 'non-consumable' | 'tools' | 'equipment',
+    quantity: initialData?.quantity || asset?.quantity || 0,
+    unitOfMeasurement: initialData?.unit || asset?.unitOfMeasurement || 'pcs',
+    category: (initialData?.category as 'dewatering' | 'waterproofing') || asset?.category || 'dewatering' as 'dewatering' | 'waterproofing',
+    type: (initialData?.type as 'consumable' | 'non-consumable' | 'tools' | 'equipment') || asset?.type || 'equipment' as 'consumable' | 'non-consumable' | 'tools' | 'equipment',
     location: asset?.location || '',
     lowStockLevel: asset?.lowStockLevel || 10,
     criticalStockLevel: asset?.criticalStockLevel || 5,

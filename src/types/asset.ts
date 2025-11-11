@@ -166,7 +166,7 @@ export interface Activity {
   userId?: string;
   userName?: string;
   action: 'create' | 'update' | 'delete' | 'process_return' | 'add_site' | 'update_site' | 'delete_site' | 'add_asset' | 'update_asset' | 'delete_asset' | 'add_employee' | 'backup' | 'restore' | 'clear';
-  entity: 'waybill' | 'return' | 'site' | 'asset' | 'employee' | 'company_settings' | 'activities' | 'vehicle';
+  entity: 'waybill' | 'return' | 'site' | 'asset' | 'employee' | 'company_settings' | 'activities' | 'vehicle' | 'equipment_log' | 'consumable_log';
   entityId?: string;
   details?: string;
   timestamp: Date;

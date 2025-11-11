@@ -1,5 +1,22 @@
 
+
+
 Changes made via Lovable will be committed automatically to this repo.
+
+## 🚀 AI Assistant Setup
+
+**Important:** This app includes a local offline AI Assistant powered by Mistral 7B. 
+
+To enable the AI features:
+1. Follow the **[Local LLM Setup Guide](./docs/LLM_SETUP.md)** to download and configure the model
+2. Configure paths in Settings → AI Assistant
+3. Click "Test Connection" to verify
+
+The AI assistant will work offline with **zero external API calls**.
+
+For detailed setup instructions, see: [docs/LLM_SETUP.md](./docs/LLM_SETUP.md)
+
+---
 
 **Use your preferred IDE**
 
@@ -21,9 +38,7 @@ npm i
 
 # Step 4: Start the development server with auto-reloading and an instant preview.
 npm run dev
-```
-
-**Edit a file directly in GitHub**
+```**Edit a file directly in GitHub**
 
 - Navigate to the desired file(s).
 - Click the "Edit" button (pencil icon) at the top right of the file view.

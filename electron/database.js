@@ -1,6 +1,25 @@
-
 import knex from 'knex';
 import bcrypt from 'bcrypt';
+import {
+  transformAssetFromDB,
+  transformAssetToDB,
+  transformSiteFromDB,
+  transformSiteToDB,
+  transformEmployeeFromDB,
+  transformEmployeeToDB,
+  transformCompanySettingsFromDB,
+  transformCompanySettingsToDB,
+  transformEquipmentLogFromDB,
+  transformEquipmentLogToDB,
+  transformConsumableLogFromDB,
+  transformConsumableLogToDB,
+  transformWaybillFromDB,
+  transformWaybillToDB,
+  transformSiteTransactionFromDB,
+  transformSiteTransactionToDB,
+  transformActivityFromDB,
+  transformActivityToDB
+} from './dataTransform.js';
 
 let db;
 
@@ -173,24 +192,6 @@ const getVehicles = getAll('vehicles');
 const createVehicle = create('vehicles');
 const updateVehicle = update('vehicles');
 const deleteVehicle = remove('vehicles');
-import {
-  transformAssetFromDB,
-  transformAssetToDB,
-  transformSiteFromDB,
-  transformSiteToDB,
-  transformEmployeeFromDB,
-  transformEmployeeToDB,
-  transformCompanySettingsFromDB,
-  transformCompanySettingsToDB,
-  transformEquipmentLogFromDB,
-  transformEquipmentLogToDB,
-  transformConsumableLogFromDB,
-  transformConsumableLogToDB,
-  transformWaybillFromDB,
-  transformWaybillToDB,
-  transformSiteTransactionFromDB,
-  transformSiteTransactionToDB
-} from './dataTransform.js';
 
 const getAssets = () => {
   if (!db) throw new Error('Database not connected');
@@ -351,12 +352,32 @@ const getEquipmentLogs = () => {
 
 const createEquipmentLog = (data) => {
   if (!db) throw new Error('Database not connected');
-  return db('equipment_logs').insert(transformEquipmentLogToDB(data)).returning('*').then(rows => rows.map(transformEquipmentLogFromDB));
+  
+  // Validate that the equipment exists before inserting
+  const equipmentExists = db('assets').where({ id: data.equipmentId }).first();
+  if (!equipmentExists) {
+    throw new Error(`Cannot create equipment log: Asset with id ${data.equipmentId} does not exist`);
+  }
+  
+  const dbData = transformEquipmentLogToDB(data);
+  // Remove id, created_at, and updated_at for creation - let DB handle them
+  delete dbData.id;
+  delete dbData.created_at;
+  delete dbData.updated_at;
+  return db('equipment_logs').insert(dbData).returning('*').then(rows => rows.map(transformEquipmentLogFromDB));
 }
 
 const updateEquipmentLog = (id, data) => {
   if (!db) throw new Error('Database not connected');
-  return db('equipment_logs').where({ id }).update(transformEquipmentLogToDB(data)).returning('*').then(rows => rows.map(transformEquipmentLogFromDB));
+  const dbData = transformEquipmentLogToDB(data);
+  // Remove id and created_at for updates, keep updated_at
+  delete dbData.id;
+  delete dbData.created_at;
+  // Set updated_at to now if not provided
+  if (!dbData.updated_at) {
+    dbData.updated_at = new Date().toISOString();
+  }
+  return db('equipment_logs').where({ id }).update(dbData).returning('*').then(rows => rows.map(transformEquipmentLogFromDB));
 }
 
 const deleteEquipmentLog = remove('equipment_logs');
@@ -369,12 +390,31 @@ const getConsumableLogs = () => {
 
 const createConsumableLog = (data) => {
   if (!db) throw new Error('Database not connected');
-  return db('consumable_logs').insert(transformConsumableLogToDB(data)).returning('*').then(rows => rows.map(transformConsumableLogFromDB));
+  
+  // Validate that the consumable exists before inserting
+  const consumableExists = db('assets').where({ id: data.consumableId }).first();
+  if (!consumableExists) {
+    throw new Error(`Cannot create consumable log: Asset with id ${data.consumableId} does not exist`);
+  }
+  
+  const dbData = transformConsumableLogToDB(data);
+  // Remove created_at and updated_at for creation - let DB handle them
+  delete dbData.created_at;
+  delete dbData.updated_at;
+  return db('consumable_logs').insert(dbData).returning('*').then(rows => rows.map(transformConsumableLogFromDB));
 }
 
 const updateConsumableLog = (id, data) => {
   if (!db) throw new Error('Database not connected');
-  return db('consumable_logs').where({ id }).update(transformConsumableLogToDB(data)).returning('*').then(rows => rows.map(transformConsumableLogFromDB));
+  const dbData = transformConsumableLogToDB(data);
+  // Remove id and created_at for updates, keep updated_at
+  delete dbData.id;
+  delete dbData.created_at;
+  // Set updated_at to now if not provided
+  if (!dbData.updated_at) {
+    dbData.updated_at = new Date().toISOString();
+  }
+  return db('consumable_logs').where({ id }).update(dbData).returning('*').then(rows => rows.map(transformConsumableLogFromDB));
 }
 
 const deleteConsumableLog = remove('consumable_logs');
@@ -400,12 +440,14 @@ const deleteSiteTransaction = remove('site_transactions');
 // --- ACTIVITIES ---
 const getActivities = () => {
   if (!db) throw new Error('Database not connected');
-  return db('activities').select('*').orderBy('timestamp', 'desc').limit(1000);
+  return db('activities').select('*').orderBy('timestamp', 'desc').limit(1000)
+    .then(activities => activities.map(transformActivityFromDB));
 }
 
 const createActivity = (data) => {
   if (!db) throw new Error('Database not connected');
-  return db('activities').insert(data);
+  const dbData = transformActivityToDB(data);
+  return db('activities').insert(dbData);
 }
 
 const clearActivities = () => {

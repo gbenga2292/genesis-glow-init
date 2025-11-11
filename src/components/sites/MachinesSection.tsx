@@ -18,12 +18,14 @@ import { format, isSameDay } from "date-fns";
 import { SiteMachineAnalytics } from "./SiteMachineAnalytics";
 import { SiteWideMachineAnalytics } from "./SiteWideMachineAnalytics";
 import { useAuth } from "@/contexts/AuthContext";
+import { logActivity } from "@/utils/activityLogger";
 
 interface MachinesSectionProps {
   site: Site;
   assets: Asset[];
   equipmentLogs: EquipmentLogType[];
   employees: Employee[];
+  companySettings?: any;
   onAddEquipmentLog: (log: EquipmentLogType) => void;
   onUpdateEquipmentLog: (log: EquipmentLogType) => void;
 }
@@ -33,6 +35,7 @@ export const MachinesSection = ({
   assets,
   equipmentLogs,
   employees,
+  companySettings,
   onAddEquipmentLog,
   onUpdateEquipmentLog
 }: MachinesSectionProps) => {
@@ -172,8 +175,20 @@ export const MachinesSection = ({
 
     if (existingLog) {
       onUpdateEquipmentLog(logData);
+      logActivity({
+        action: 'update',
+        entity: 'equipment_log',
+        entityId: selectedEquipment.id,
+        details: `Updated log for ${selectedEquipment.name} at ${site.name} on ${format(selectedDate, 'MMM dd, yyyy')} - Status: ${logForm.active ? 'Active' : 'Inactive'}`
+      });
     } else {
       onAddEquipmentLog(logData);
+      logActivity({
+        action: 'create',
+        entity: 'equipment_log',
+        entityId: selectedEquipment.id,
+        details: `Created log for ${selectedEquipment.name} at ${site.name} on ${format(selectedDate, 'MMM dd, yyyy')} - Status: ${logForm.active ? 'Active' : 'Inactive'}`
+      });
     }
 
     setShowLogDialog(false);
@@ -183,20 +198,20 @@ export const MachinesSection = ({
 
   const getLogForEquipmentAndDate = (equipmentId: string, date: Date) => {
     return equipmentLogs.find(log =>
-      log.equipmentId === equipmentId &&
+      String(log.equipmentId) === String(equipmentId) &&
       format(log.date, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
     );
   };
 
   const getLoggedDatesForEquipment = (equipmentId: string) => {
     return equipmentLogs
-      .filter(log => log.equipmentId === equipmentId)
+      .filter(log => String(log.equipmentId) === String(equipmentId))
       .map(log => log.date);
   };
 
   const getLoggedDatesForEquipmentAndSite = (equipmentId: string) => {
     return equipmentLogs
-      .filter(log => log.equipmentId === equipmentId && log.siteId === site.id)
+      .filter(log => String(log.equipmentId) === String(equipmentId) && String(log.siteId) === String(site.id))
       .map(log => log.date);
   };
 
@@ -599,9 +614,14 @@ export const MachinesSection = ({
                             </div>
                           )}
 
-                          {log.issuesOnSite && (
-                            <div className="text-sm">
-                              <strong>Issues on Site:</strong> {log.issuesOnSite}
+                           {log.issuesOnSite && (
+                            <div className="mt-3 p-3 rounded-md bg-destructive/10 border border-destructive/20">
+                              <div className="flex items-start gap-2">
+                                <Badge variant="destructive" className="mt-0.5">⚠️ Issues</Badge>
+                                <div className="flex-1">
+                                  <p className="text-sm font-medium text-destructive">{log.issuesOnSite}</p>
+                                </div>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -629,6 +649,7 @@ export const MachinesSection = ({
               site={site}
               equipment={[selectedEquipment]}
               equipmentLogs={equipmentLogs.filter(log => log.equipmentId === selectedEquipment.id)}
+              companySettings={companySettings}
             />
           )}
         </DialogContent>

@@ -5,7 +5,7 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { Dashboard } from "@/components/dashboard/Dashboard";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Menu, Plus } from "lucide-react";
+import { Menu, Plus, Bot } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AssetTable } from "@/components/assets/AssetTable";
 import { AddAssetForm } from "@/components/assets/AddAssetForm";
@@ -19,7 +19,6 @@ import { ReturnWaybillForm } from "@/components/waybills/ReturnWaybillForm";
 import { ReturnWaybillDocument } from "@/components/waybills/ReturnWaybillDocument";
 import { ReturnProcessingDialog } from "@/components/waybills/ReturnProcessingDialog";
 import { QuickCheckoutForm } from "@/components/checkout/QuickCheckoutForm";
-import { transformAssetFromDB, transformWaybillFromDB } from "@/utils/dataTransform";
 
 import { CompanySettings } from "@/components/settings/CompanySettings";
 import { Asset, Waybill, WaybillItem, QuickCheckout, ReturnBill, Site, CompanySettings as CompanySettingsType, Employee, ReturnItem, SiteTransaction, Vehicle } from "@/types/asset";
@@ -36,6 +35,8 @@ import { SitesPage } from "@/components/sites/SitesPage";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSiteInventory } from "@/hooks/useSiteInventory";
 import { SiteInventoryItem } from "@/types/inventory";
+import { AIAssistantProvider, useAIAssistant } from "@/contexts/AIAssistantContext";
+import { AIAssistantChat } from "@/components/ai/AIAssistantChat";
 
 const Index = () => {
   const { toast } = useToast();
@@ -53,52 +54,40 @@ const Index = () => {
   const [editingReturnWaybill, setEditingReturnWaybill] = useState<Waybill | null>(null);
   const [showAnalyticsDialog, setShowAnalyticsDialog] = useState(false);
   const [selectedAssetForAnalytics, setSelectedAssetForAnalytics] = useState<Asset | null>(null);
+  const [showAIAssistant, setShowAIAssistant] = useState(false);
+  const [aiPrefillData, setAiPrefillData] = useState<any>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
 
   // Load assets from database
-  const loadAssets = async () => {
-    if (window.db) {
-      try {
-        const loadedAssets = await window.db.getAssets();
-        const processedAssets = loadedAssets.map((item: any) => {
-          const asset = {
-            ...item,
-            createdAt: new Date(item.createdAt),
-            updatedAt: new Date(item.updatedAt),
-            siteQuantities: item.site_quantities ? JSON.parse(item.site_quantities) : {}
-          };
-          // Recalculate availableQuantity on load
-          if (!asset.siteId) {
-            const reservedQuantity = asset.reservedQuantity || 0;
-            const damagedCount = asset.damagedCount || 0;
-            const missingCount = asset.missingCount || 0;
-            const totalQuantity = asset.quantity;
-            asset.availableQuantity = totalQuantity - reservedQuantity - damagedCount - missingCount;
-          }
-          return asset;
-        });
-        console.log('Loaded assets with availableQuantity:', processedAssets);
-        setAssets(processedAssets);
-      } catch (error) {
-        logger.error('Failed to load assets from database', error);
+  useEffect(() => {
+    (async () => {
+      if (window.db) {
+        try {
+          const loadedAssets = await window.db.getAssets();
+          const processedAssets = loadedAssets.map((item: any) => {
+            const asset = {
+              ...item,
+              createdAt: new Date(item.createdAt),
+              updatedAt: new Date(item.updatedAt),
+              siteQuantities: item.site_quantities ? JSON.parse(item.site_quantities) : {}
+            };
+            // Recalculate availableQuantity on load
+            if (!asset.siteId) {
+              const reservedQuantity = asset.reservedQuantity || 0;
+              const damagedCount = asset.damagedCount || 0;
+              const missingCount = asset.missingCount || 0;
+              const totalQuantity = asset.quantity;
+              asset.availableQuantity = totalQuantity - reservedQuantity - damagedCount - missingCount;
+            }
+            return asset;
+          });
+          console.log('Loaded assets with availableQuantity:', processedAssets);
+          setAssets(processedAssets);
+        } catch (error) {
+          logger.error('Failed to load assets from database', error);
+        }
       }
-    }
-  };
-
-  useEffect(() => {
-    loadAssets();
-  }, []);
-
-  // Listen for asset refresh events from WaybillsContext
-  useEffect(() => {
-    const handleRefreshAssets = () => {
-      loadAssets();
-    };
-
-    window.addEventListener('refreshAssets', handleRefreshAssets);
-    return () => {
-      window.removeEventListener('refreshAssets', handleRefreshAssets);
-    };
+    })();
   }, []);
 
   const [waybills, setWaybills] = useState<Waybill[]>([]);
@@ -251,22 +240,8 @@ const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLog[]>([]);
       if (window.db) {
         try {
           const logs = await window.db.getEquipmentLogs();
-          setEquipmentLogs(logs.map((item: any) => ({
-            id: item.id,
-            equipmentId: item.equipment_id ? item.equipment_id.toString() : item.equipment_id,
-            equipmentName: item.equipment_name,
-            siteId: item.site_id ? item.site_id.toString() : item.site_id,
-            date: new Date(item.date),
-            active: item.active,
-            downtimeEntries: typeof item.downtime_entries === 'string' ? JSON.parse(item.downtime_entries) : item.downtime_entries || [],
-            maintenanceDetails: item.maintenance_details,
-            dieselEntered: item.diesel_entered,
-            supervisorOnSite: item.supervisor_on_site,
-            clientFeedback: item.client_feedback,
-            issuesOnSite: item.issues_on_site,
-            createdAt: new Date(item.created_at),
-            updatedAt: new Date(item.updated_at)
-          })));
+          // Database already returns transformed data (camelCase), no need to map again
+          setEquipmentLogs(logs);
         } catch (error) {
           logger.error('Failed to load equipment logs from database', error);
         }
@@ -282,21 +257,8 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
       if (window.db) {
         try {
           const logs = await window.db.getConsumableLogs();
-          setConsumableLogs(logs.map((item: any) => ({
-            id: item.id,
-            consumableId: item.consumable_id,
-            consumableName: item.consumable_name,
-            siteId: item.site_id,
-            date: new Date(item.date),
-            quantityUsed: item.quantity_used,
-            quantityRemaining: item.quantity_remaining,
-            unit: item.unit,
-            usedFor: item.used_for,
-            usedBy: item.used_by,
-            notes: item.notes,
-            createdAt: new Date(item.created_at),
-            updatedAt: new Date(item.updated_at)
-          })));
+          // Database already returns transformed data (camelCase), no need to map again
+          setConsumableLogs(logs);
         } catch (error) {
           logger.error('Failed to load consumable logs from database', error);
         }
@@ -1040,8 +1002,9 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
             window.db.getWaybills()
           ]);
           
-          setAssets(updatedAssets.map(transformAssetFromDB));
-          setWaybills(updatedWaybills.map(transformWaybillFromDB));
+          // Data is already transformed by database layer
+          setAssets(updatedAssets);
+          setWaybills(updatedWaybills);
         } else {
           throw new Error(result.error || 'Failed to process return');
         }
@@ -1193,7 +1156,14 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
           }}
         />;
       case "add-asset":
-        return isAuthenticated ? <AddAssetForm onAddAsset={handleAddAsset} sites={sites} existingAssets={assets} /> : <div>You must be logged in to add assets.</div>;
+        return isAuthenticated ? (
+          <AddAssetForm 
+            onAddAsset={handleAddAsset} 
+            sites={sites} 
+            existingAssets={assets}
+            initialData={aiPrefillData?.formType === 'asset' ? aiPrefillData : undefined}
+          />
+        ) : <div>You must be logged in to add assets.</div>;
       case "create-waybill":
         return <WaybillForm
           assets={assets}
@@ -1202,6 +1172,7 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
           vehicles={vehicles}
           onCreateWaybill={handleCreateWaybill}
           onCancel={() => setActiveTab("dashboard")}
+          initialData={aiPrefillData?.formType === 'waybill' ? aiPrefillData : undefined}
         />;
       case "waybills":
         return (
@@ -1417,6 +1388,7 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
           consumableLogs={consumableLogs}
           siteInventory={siteInventory}
           getSiteInventory={getSiteInventory}
+          aiPrefillData={aiPrefillData?.formType === 'site' ? aiPrefillData : undefined}
           onAddSite={async site => {
             if (!isAuthenticated) {
               toast({
@@ -1529,44 +1501,15 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
             
             if (window.db) {
               try {
-                const logData = {
-                  ...log,
-                  equipment_id: log.equipmentId,
-                  equipment_name: log.equipmentName,
-                  site_id: log.siteId,
-                  date: log.date.toISOString(),
-                  active: log.active,
-                  downtime_entries: JSON.stringify(log.downtimeEntries),
-                  maintenance_details: log.maintenanceDetails,
-                  diesel_entered: log.dieselEntered,
-                  supervisor_on_site: log.supervisorOnSite,
-                  client_feedback: log.clientFeedback,
-                  issues_on_site: log.issuesOnSite
-                };
-                await window.db.createEquipmentLog(logData);
+                await window.db.createEquipmentLog(log);
                 const logs = await window.db.getEquipmentLogs();
-                setEquipmentLogs(logs.map((item: any) => ({
-                  id: item.id,
-                  equipmentId: item.equipment_id ? item.equipment_id.toString() : item.equipment_id,
-                  equipmentName: item.equipment_name,
-                  siteId: item.site_id ? item.site_id.toString() : item.site_id,
-                  date: new Date(item.date),
-                  active: item.active,
-                  downtimeEntries: typeof item.downtime_entries === 'string' ? JSON.parse(item.downtime_entries) : item.downtime_entries || [],
-                  maintenanceDetails: item.maintenance_details,
-                  dieselEntered: item.diesel_entered,
-                  supervisorOnSite: item.supervisor_on_site,
-                  clientFeedback: item.client_feedback,
-                  issuesOnSite: item.issues_on_site,
-                  createdAt: new Date(item.created_at),
-                  updatedAt: new Date(item.updated_at)
-                })));
+                setEquipmentLogs(logs);
                 toast({
-                  title: "Log Entry Saved",
-                  description: "Equipment log has been saved successfully."
+                  title: "Equipment Log Added",
+                  description: "Equipment log saved successfully"
                 });
               } catch (error) {
-                console.error('Failed to save equipment log:', error);
+                logger.error('Failed to save equipment log', error);
                 toast({
                   title: "Error",
                   description: "Failed to save equipment log to database.",
@@ -1575,10 +1518,6 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
               }
             } else {
               setEquipmentLogs(prev => [...prev, log]);
-              toast({
-                title: "Log Entry Saved",
-                description: "Equipment log has been saved successfully."
-              });
             }
           }}
           onUpdateEquipmentLog={async (log: EquipmentLog) => {
@@ -1593,44 +1532,15 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
             
             if (window.db) {
               try {
-                const logData = {
-                  ...log,
-                  equipment_id: log.equipmentId,
-                  equipment_name: log.equipmentName,
-                  site_id: log.siteId,
-                  date: log.date.toISOString(),
-                  active: log.active,
-                  downtime_entries: JSON.stringify(log.downtimeEntries),
-                  maintenance_details: log.maintenanceDetails,
-                  diesel_entered: log.dieselEntered,
-                  supervisor_on_site: log.supervisorOnSite,
-                  client_feedback: log.clientFeedback,
-                  issues_on_site: log.issuesOnSite
-                };
-                await window.db.updateEquipmentLog(log.id, logData);
+                await window.db.updateEquipmentLog(log.id, log);
                 const logs = await window.db.getEquipmentLogs();
-                setEquipmentLogs(logs.map((item: any) => ({
-                  id: item.id,
-                  equipmentId: item.equipment_id ? item.equipment_id.toString() : item.equipment_id,
-                  equipmentName: item.equipment_name,
-                  siteId: item.site_id ? item.site_id.toString() : item.site_id,
-                  date: new Date(item.date),
-                  active: item.active,
-                  downtimeEntries: typeof item.downtime_entries === 'string' ? JSON.parse(item.downtime_entries) : item.downtime_entries || [],
-                  maintenanceDetails: item.maintenance_details,
-                  dieselEntered: item.diesel_entered,
-                  supervisorOnSite: item.supervisor_on_site,
-                  clientFeedback: item.client_feedback,
-                  issuesOnSite: item.issues_on_site,
-                  createdAt: new Date(item.created_at),
-                  updatedAt: new Date(item.updated_at)
-                })));
+                setEquipmentLogs(logs);
                 toast({
-                  title: "Log Entry Updated",
-                  description: "Equipment log has been updated successfully."
+                  title: "Equipment Log Updated",
+                  description: "Equipment log updated successfully"
                 });
               } catch (error) {
-                console.error('Failed to update equipment log:', error);
+                logger.error('Failed to update equipment log', error);
                 toast({
                   title: "Error",
                   description: "Failed to update equipment log in database.",
@@ -1639,10 +1549,6 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
               }
             } else {
               setEquipmentLogs(prev => prev.map(l => l.id === log.id ? log : l));
-              toast({
-                title: "Log Entry Updated",
-                description: "Equipment log has been updated successfully."
-              });
             }
           }}
           onAddConsumableLog={async (log: ConsumableUsageLog) => {
@@ -1657,36 +1563,10 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
             
             if (window.db) {
               try {
-                const logData = {
-                  ...log,
-                  consumable_id: log.consumableId,
-                  consumable_name: log.consumableName,
-                  site_id: log.siteId,
-                  date: log.date.toISOString(),
-                  quantity_used: log.quantityUsed,
-                  quantity_remaining: log.quantityRemaining,
-                  unit: log.unit,
-                  used_for: log.usedFor,
-                  used_by: log.usedBy,
-                  notes: log.notes
-                };
-                await window.db.createConsumableLog(logData);
+                await window.db.createConsumableLog(log);
                 const logs = await window.db.getConsumableLogs();
-                setConsumableLogs(logs.map((item: any) => ({
-                  id: item.id,
-                  consumableId: item.consumable_id,
-                  consumableName: item.consumable_name,
-                  siteId: item.site_id,
-                  date: new Date(item.date),
-                  quantityUsed: item.quantity_used,
-                  quantityRemaining: item.quantity_remaining,
-                  unit: item.unit,
-                  usedFor: item.used_for,
-                  usedBy: item.used_by,
-                  notes: item.notes,
-                  createdAt: new Date(item.created_at),
-                  updatedAt: new Date(item.updated_at)
-                })));
+                // Database already returns transformed data (camelCase), no need to map again
+                setConsumableLogs(logs);
                 
                 // Update asset siteQuantities to reflect consumption
                 const asset = assets.find(a => a.id === log.consumableId);
@@ -1700,14 +1580,16 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
                     siteQuantities: updatedSiteQuantities,
                     updatedAt: new Date()
                   };
-                  await window.db.updateAsset(asset.id, {
-                    site_quantities: JSON.stringify(updatedSiteQuantities),
-                    updated_at: new Date().toISOString()
-                  });
+                  await window.db.updateAsset(asset.id, updatedAsset);
                   setAssets(prev => prev.map(a => a.id === asset.id ? updatedAsset : a));
                 }
+                
+                toast({
+                  title: "Consumable Log Added",
+                  description: "Consumable usage log saved successfully"
+                });
               } catch (error) {
-                console.error('Failed to save consumable log:', error);
+                logger.error('Failed to save consumable log', error);
                 toast({
                   title: "Error",
                   description: "Failed to save consumable log to database.",
@@ -1745,21 +1627,8 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
                 };
                 await window.db.updateConsumableLog(log.id, logData);
                 const logs = await window.db.getConsumableLogs();
-                setConsumableLogs(logs.map((item: any) => ({
-                  id: item.id,
-                  consumableId: item.consumable_id,
-                  consumableName: item.consumable_name,
-                  siteId: item.site_id,
-                  date: new Date(item.date),
-                  quantityUsed: item.quantity_used,
-                  quantityRemaining: item.quantity_remaining,
-                  unit: item.unit,
-                  usedFor: item.used_for,
-                  usedBy: item.used_by,
-                  notes: item.notes,
-                  createdAt: new Date(item.created_at),
-                  updatedAt: new Date(item.updated_at)
-                })));
+                // Database already returns transformed data (camelCase), no need to map again
+                setConsumableLogs(logs);
               } catch (error) {
                 console.error('Failed to update consumable log:', error);
                 toast({
@@ -1926,49 +1795,126 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
     setCompanySettings({} as CompanySettingsType);
   };
 
+  // Handle AI assistant actions
+  const handleAIAction = (action: any) => {
+    if (!action) return;
 
+    if (action.type === 'open_form' && action.data) {
+      const { formType, prefillData } = action.data;
+      
+      // Store prefill data with formType embedded
+      setAiPrefillData({ ...prefillData, formType });
+      
+      // Close AI assistant
+      setShowAIAssistant(false);
+
+      // Navigate to appropriate tab
+      switch (formType) {
+        case 'waybill':
+          setActiveTab('create-waybill');
+          toast({
+            title: "Waybill Form Ready",
+            description: "Form populated with AI-extracted data",
+          });
+          break;
+        
+        case 'asset':
+          setActiveTab('add-asset');
+          toast({
+            title: "Asset Form Ready",
+            description: "Form populated with AI-extracted data",
+          });
+          break;
+        
+        case 'return':
+          setActiveTab('waybills');
+          toast({
+            title: "Return Form Ready",
+            description: "Form populated with AI-extracted data",
+          });
+          break;
+        
+        case 'site':
+          setActiveTab('sites');
+          toast({
+            title: "Site Form Ready",
+            description: "Form populated with AI-extracted data",
+          });
+          break;
+        
+        default:
+          toast({
+            title: "Action Triggered",
+            description: `${formType} form will open`,
+          });
+      }
+    } else if (action.type === 'execute_action' && action.data) {
+      const { action: actionType, parameters } = action.data;
+      
+      if (actionType === 'open_analytics') {
+        setActiveTab('dashboard');
+        setShowAIAssistant(false);
+        toast({
+          title: "Opening Analytics",
+          description: parameters.siteName ? `Analytics for ${parameters.siteName}` : "Opening analytics dashboard",
+        });
+      }
+    }
+  };
+
+  // Clear AI prefill data when switching tabs (to prevent stale data)
+  useEffect(() => {
+    setAiPrefillData(null);
+  }, [activeTab]);
 
   const isAssetInventoryTab = activeTab === "assets";
 
   return (
-    <div className="flex h-screen bg-background">
-      {/* Desktop Sidebar */}
-      {!isMobile && (
-        <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
-      )}
-      
-      {/* Mobile Header */}
-      {isMobile && (
-        <div className="fixed top-0 left-0 right-0 z-50 bg-background border-b border-border p-4 flex items-center justify-between">
-          <h1 className="text-lg font-bold bg-gradient-primary bg-clip-text text-transparent">
-            DCEL Asset Manager
-          </h1>
-          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <Menu className="h-5 w-5" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-64 p-0">
-              <Sidebar 
-                activeTab={activeTab} 
-                onTabChange={(tab) => {
-                  setActiveTab(tab);
-                  setMobileMenuOpen(false);
-                }} 
-              />
-            </SheetContent>
-          </Sheet>
-        </div>
-      )}
-      
-      <main className={cn(
-        "flex-1 overflow-y-auto p-4 md:p-6",
-        isMobile && "pt-20"
-      )}>
-        {isAssetInventoryTab && (
-          <div className="flex flex-col space-y-3 md:space-y-0 md:flex-row md:justify-between md:items-center mb-6">
-            <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
+    <AIAssistantProvider
+      assets={assets}
+      sites={sites}
+      employees={employees}
+      vehicles={vehicles}
+      onAction={handleAIAction}
+    >
+      <div className="flex h-screen bg-background">
+        {/* Desktop Sidebar */}
+        {!isMobile && (
+          <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+        )}
+        
+        {/* Mobile Header */}
+        {isMobile && (
+          <div className="fixed top-0 left-0 right-0 z-50 bg-background border-b border-border p-4 flex items-center justify-between">
+            <h1 className="text-lg font-bold bg-gradient-primary bg-clip-text text-transparent">
+              DCEL Asset Manager
+            </h1>
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-64 p-0">
+                <Sidebar 
+                  activeTab={activeTab} 
+                  onTabChange={(tab) => {
+                    setActiveTab(tab);
+                    setMobileMenuOpen(false);
+                  }} 
+                />
+              </SheetContent>
+            </Sheet>
+          </div>
+        )}
+        
+        <main className={cn(
+          "flex-1 overflow-y-auto p-4 md:p-6",
+          isMobile && "pt-20"
+        )}>
+          {isAssetInventoryTab && (
+            <div className="flex flex-col space-y-3 md:space-y-0 md:flex-row md:justify-between md:items-center mb-6">
+              <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
               {isAuthenticated && hasPermission('write_assets') && (
                 <Button
                   variant="default"
@@ -2168,8 +2114,25 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
           open={showAnalyticsDialog}
           onOpenChange={setShowAnalyticsDialog}
         />
+
+        {/* AI Assistant Dialog */}
+        <Dialog open={showAIAssistant} onOpenChange={setShowAIAssistant}>
+          <DialogContent className="max-w-2xl h-[80vh] p-0">
+            <AIAssistantChat />
+          </DialogContent>
+        </Dialog>
+
+        {/* Floating AI Assistant Button */}
+        <Button
+          onClick={() => setShowAIAssistant(true)}
+          className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 z-50 bg-gradient-primary"
+          size="icon"
+        >
+          <Bot className="h-6 w-6" />
+        </Button>
       </main>
     </div>
+    </AIAssistantProvider>
   );
 };
 

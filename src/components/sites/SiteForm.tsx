@@ -16,9 +16,13 @@ interface SiteFormProps {
   onSave: (site: Site) => void;
   onCancel: () => void;
   open: boolean;
+  initialData?: {
+    name?: string;
+    address?: string;
+  };
 }
 
-const SiteForm = ({ site, onSave, onCancel, open }: SiteFormProps) => {
+const SiteForm = ({ site, onSave, onCancel, open, initialData }: SiteFormProps) => {
   const [formData, setFormData] = useState({
     name: site?.name || "",
     location: site?.location || "",
@@ -44,8 +48,8 @@ const SiteForm = ({ site, onSave, onCancel, open }: SiteFormProps) => {
       });
     } else {
       setFormData({
-        name: "",
-        location: "",
+        name: initialData?.name || "",
+        location: initialData?.address || "",
         description: "",
         clientName: "",
         contactPerson: "",
@@ -54,7 +58,7 @@ const SiteForm = ({ site, onSave, onCancel, open }: SiteFormProps) => {
         status: "active"
       });
     }
-  }, [site]);
+  }, [site, initialData]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

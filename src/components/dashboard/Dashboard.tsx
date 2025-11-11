@@ -84,12 +84,13 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
   // Helper function to get site for equipment
   const getSiteForEquipment = (asset: Asset): Site | null => {
     if (asset.siteId) {
-      return sites.find(s => s.id === asset.siteId) || null;
+      // Convert both to strings for comparison
+      return sites.find(s => String(s.id) === String(asset.siteId)) || null;
     }
     // For equipment with siteQuantities, get the first site
     if (asset.siteQuantities) {
       const siteId = Object.keys(asset.siteQuantities)[0];
-      return sites.find(s => s.id === siteId) || null;
+      return sites.find(s => String(s.id) === String(siteId)) || null;
     }
     return null;
   };
@@ -257,53 +258,61 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {equipmentRequiringLogging.map(equipment => {
                 const status = getLatestStatus(equipment.id);
                 const siteName = getSiteName(equipment);
                 const site = getSiteForEquipment(equipment);
                 
                 return (
-                  <div 
+                  <Card 
                     key={equipment.id} 
-                    className="flex justify-between items-center p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors"
+                    className="border-0 shadow-soft hover:shadow-medium transition-all duration-300"
                   >
-                    <div className="flex-1">
-                      <div className="font-medium">{equipment.name}</div>
-                      <div className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
-                        <span>Site: {siteName}</span>
-                        <span>•</span>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center justify-between">
+                        <span className="truncate">{equipment.name}</span>
                         <Badge 
                           variant={status.active ? "default" : "secondary"}
-                          className="text-xs"
+                          className="text-xs ml-2"
                         >
                           {status.active ? "Active" : "Inactive"}
                         </Badge>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="text-sm space-y-1">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Site:</span>
+                          <span className="font-medium truncate ml-2">{siteName}</span>
+                        </div>
                         {status.date && (
-                          <>
-                            <span>•</span>
-                            <span className="text-xs">
-                              Last logged: {format(new Date(status.date), 'MMM dd, yyyy')}
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Last Log:</span>
+                            <span className="font-medium text-xs">
+                              {format(new Date(status.date), 'MMM dd, yyyy')}
                             </span>
-                          </>
+                          </div>
                         )}
                       </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        if (site) {
-                          setSelectedEquipment(equipment);
-                          setSelectedSite(site);
-                          setShowAnalytics(true);
-                        }
-                      }}
-                      disabled={!site}
-                    >
-                      <BarChart3 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full gap-2"
+                        onClick={() => {
+                          if (site) {
+                            setSelectedEquipment(equipment);
+                            setSelectedSite(site);
+                            setShowAnalytics(true);
+                          }
+                        }}
+                        disabled={!site}
+                      >
+                        <BarChart3 className="h-4 w-4" />
+                        View Analytics
+                      </Button>
+                    </CardContent>
+                  </Card>
                 );
               })}
             </div>
@@ -319,30 +328,63 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {activities.slice(0, 5).map(activity => (
-              <div key={activity.id} className="flex justify-between items-center p-3 bg-muted/50 rounded-lg">
-                <div>
-                  <div className="font-medium flex items-center gap-2">
-                    <User className="h-4 w-4 text-primary" />
-                    {activity.userName || activity.userId}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {activity.action.replace('_', ' ').toUpperCase()} on {activity.entity.replace('_', ' ')}
-                    {activity.entityId && ` (${activity.entityId})`}
-                  </div>
-                  {activity.details && (
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {activity.details}
+            {activities.slice(0, 5).map(activity => {
+              // Format the action text to be more readable
+              const formatAction = (action: string): string => {
+                return action
+                  .replace(/_/g, ' ')
+                  .split(' ')
+                  .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                  .join(' ');
+              };
+
+              // Format the entity text
+              const formatEntity = (entity: string): string => {
+                return entity
+                  .replace(/_/g, ' ')
+                  .split(' ')
+                  .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                  .join(' ');
+              };
+
+              // Get site name if entityId is a site ID
+              const getDisplayEntityId = (entityId?: string): string => {
+                if (!entityId) return '';
+                
+                // Check if it's a site ID pattern and get the site name
+                const site = sites.find(s => s.id === entityId);
+                if (site) {
+                  return site.name;
+                }
+                
+                return entityId;
+              };
+
+              return (
+                <div key={activity.id} className="flex justify-between items-center p-3 bg-muted/50 rounded-lg">
+                  <div>
+                    <div className="font-medium flex items-center gap-2">
+                      <User className="h-4 w-4 text-primary" />
+                      {activity.userName || activity.userId}
                     </div>
-                  )}
-                </div>
-                <div className="text-right">
-                  <div className="text-xs text-muted-foreground">
-                    {activity.timestamp.toLocaleDateString()} {activity.timestamp.toLocaleTimeString()}
+                    <div className="text-sm text-muted-foreground">
+                      {formatAction(activity.action)} {formatEntity(activity.entity)}
+                      {activity.entityId && ` - ${getDisplayEntityId(activity.entityId)}`}
+                    </div>
+                    {activity.details && (
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {activity.details}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-muted-foreground">
+                      {activity.timestamp.toLocaleDateString()} {activity.timestamp.toLocaleTimeString()}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             {activities.length === 0 && (
               <div className="text-center py-8 text-muted-foreground">
                 <User className="h-12 w-12 mx-auto mb-4 opacity-50" />

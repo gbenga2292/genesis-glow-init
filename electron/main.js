@@ -1,4 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { spawn } from 'child_process';
+import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -211,6 +213,126 @@ async function main() {
   });
   
   console.log('IPC handlers registered.');
+
+  // --- LLM IPC Handlers ---
+  ipcMain.handle('llm:status', async () => {
+    return {
+      available: !!config.llamaBinaryPath || !!config.llamaLocalHttpUrl,
+      binaryPath: config.llamaBinaryPath || null,
+      localHttpUrl: config.llamaLocalHttpUrl || null
+    };
+  });
+
+  ipcMain.handle('llm:configure', async (event, newCfg) => {
+    // Note: this is a lightweight runtime configure; persistent storage should be done via settings
+    if (newCfg.llamaBinaryPath !== undefined) config.llamaBinaryPath = newCfg.llamaBinaryPath;
+    if (newCfg.llamaModelPath !== undefined) config.llamaModelPath = newCfg.llamaModelPath;
+    if (newCfg.llamaArgs !== undefined) config.llamaArgs = newCfg.llamaArgs;
+    if (newCfg.llamaLocalHttpUrl !== undefined) config.llamaLocalHttpUrl = newCfg.llamaLocalHttpUrl;
+    return { success: true };
+  });
+
+  ipcMain.handle('llm:generate', async (event, { prompt, options = {} } = {}) => {
+    if (!prompt) return { success: false, error: 'No prompt provided' };
+
+    // Prefer local HTTP wrapper if configured
+    if (config.llamaLocalHttpUrl) {
+      try {
+        const res = await fetch(config.llamaLocalHttpUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, options })
+        });
+        const data = await res.json();
+        return { success: true, text: data.text || data.output || JSON.stringify(data), raw: data };
+      } catch (err) {
+        console.error('Local HTTP LLM request failed', err);
+        // fall through to binary spawn attempt
+      }
+    }
+
+    // Next: try spawning configured binary
+    if (config.llamaBinaryPath) {
+      return new Promise((resolve) => {
+        try {
+          const args = Array.isArray(config.llamaArgs) ? config.llamaArgs.slice() : [];
+          // If a model path exists, add a conventional flag for wrappers that accept it
+          if (config.llamaModelPath && !args.includes('--model')) {
+            args.push('--model', config.llamaModelPath);
+          }
+
+          // Give wrapper the prompt via stdin (many wrappers consume stdin)
+          const child = spawn(config.llamaBinaryPath, args, { stdio: ['pipe', 'pipe', 'pipe'] });
+
+          let stdout = '';
+          let stderr = '';
+          let hasResolved = false;
+
+          // Set a timeout of 60 seconds for LLM response
+          const timeoutHandle = setTimeout(() => {
+            if (!hasResolved) {
+              hasResolved = true;
+              console.warn('LLM process timeout after 60s');
+              child.kill('SIGTERM');
+              // Give it 5 seconds to die gracefully, then force kill
+              setTimeout(() => {
+                if (child.exitCode === null) {
+                  child.kill('SIGKILL');
+                }
+              }, 5000);
+              resolve({ success: false, error: 'LLM timeout (>60s) - process killed' });
+            }
+          }, 60000);
+
+          child.stdout.on('data', (chunk) => {
+            stdout += chunk.toString();
+          });
+
+          child.stderr.on('data', (chunk) => {
+            stderr += chunk.toString();
+          });
+
+          child.on('error', (err) => {
+            if (!hasResolved) {
+              hasResolved = true;
+              clearTimeout(timeoutHandle);
+              console.error('LLM child error', err);
+              resolve({ success: false, error: err.message });
+            }
+          });
+
+          child.on('close', (code) => {
+            if (!hasResolved) {
+              hasResolved = true;
+              clearTimeout(timeoutHandle);
+              if (code === 0 || stdout.length > 0) {
+                resolve({ success: true, text: stdout.trim(), rawStdout: stdout, rawStderr: stderr });
+              } else {
+                resolve({ success: false, error: `LLM process exited with code ${code}`, rawStderr: stderr });
+              }
+            }
+          });
+
+          // Write prompt to stdin and close
+          try {
+            child.stdin.write(prompt);
+            child.stdin.end();
+          } catch (err) {
+            console.warn('Failed to write prompt to LLM stdin', err);
+            hasResolved = true;
+            clearTimeout(timeoutHandle);
+            resolve({ success: false, error: err.message });
+          }
+        } catch (err) {
+          console.error('Failed to spawn local LLM', err);
+          resolve({ success: false, error: err.message });
+        }
+      });
+    }
+
+    return { success: false, error: 'No local LLM configured (binary or HTTP URL)' };
+  });
+
 
   // 7. Create the browser window
   createWindow();

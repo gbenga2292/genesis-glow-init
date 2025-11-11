@@ -11,7 +11,7 @@ interface LogOptions {
 }
 
 class Logger {
-  private isDevelopment = process.env.NODE_ENV === 'development';
+  private isDevelopment = import.meta.env.MODE === 'development';
 
   private formatMessage(level: LogLevel, message: string, options?: LogOptions): string {
     const timestamp = new Date().toISOString();

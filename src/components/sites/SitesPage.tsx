@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,8 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import SiteForm from "./SiteForm";
 import { ReturnWaybillForm } from "../waybills/ReturnWaybillForm";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import { generateUnifiedReport } from "@/utils/unifiedReportGenerator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { MachinesSection } from "./MachinesSection";
@@ -56,9 +55,10 @@ interface SitesPageProps {
   onUpdateEquipmentLog: (log: EquipmentLog) => void;
   onAddConsumableLog: (log: ConsumableUsageLog) => void;
   onUpdateConsumableLog: (log: ConsumableUsageLog) => void;
+  aiPrefillData?: any;
 }
 
-export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transactions, equipmentLogs, consumableLogs, siteInventory, getSiteInventory, companySettings, onAddSite, onUpdateSite, onDeleteSite, onUpdateAsset, onCreateWaybill, onCreateReturnWaybill, onProcessReturn, onAddEquipmentLog, onUpdateEquipmentLog, onAddConsumableLog, onUpdateConsumableLog }: SitesPageProps) => {
+export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transactions, equipmentLogs, consumableLogs, siteInventory, getSiteInventory, companySettings, onAddSite, onUpdateSite, onDeleteSite, onUpdateAsset, onCreateWaybill, onCreateReturnWaybill, onProcessReturn, onAddEquipmentLog, onUpdateEquipmentLog, onAddConsumableLog, onUpdateConsumableLog, aiPrefillData }: SitesPageProps) => {
   const [showForm, setShowForm] = useState(false);
   const [editingSite, setEditingSite] = useState<Site | null>(null);
   const [selectedSite, setSelectedSite] = useState<Site | null>(null);
@@ -85,6 +85,14 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
   const [siteFilter, setSiteFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const { isAuthenticated, hasPermission } = useAuth();
   const { toast } = useToast();
+
+  // Auto-open form when AI provides prefill data
+  useEffect(() => {
+    if (aiPrefillData?.formType === 'site') {
+      setEditingSite(null);
+      setShowForm(true);
+    }
+  }, [aiPrefillData]);
 
   const handleAdd = () => {
     setEditingSite(null);
@@ -194,36 +202,60 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
   };
 
   const handleGenerateTransactionsReport = () => {
-    if (selectedSiteForReport) {
-      // Generate PDF directly for transactions
+    if (selectedSiteForReport && companySettings) {
+      // Get and sort transactions
       const siteTransactions = transactions
         .filter(t => t.siteId === selectedSiteForReport.id)
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-      const doc = new jsPDF();
-      doc.setFontSize(18);
-      doc.text("Site Transactions Report", 20, 20);
-      doc.setFontSize(14);
-      doc.text(`${selectedSiteForReport.name} - Transaction History`, 20, 30);
+      // Calculate summary statistics
+      const totalTransactions = siteTransactions.length;
+      const inboundTransactions = siteTransactions.filter(t => t.type === 'in').length;
+      const outboundTransactions = siteTransactions.filter(t => t.type === 'out').length;
+      const totalInQuantity = siteTransactions
+        .filter(t => t.type === 'in')
+        .reduce((sum, t) => sum + t.quantity, 0);
+      const totalOutQuantity = siteTransactions
+        .filter(t => t.type === 'out')
+        .reduce((sum, t) => sum + t.quantity, 0);
 
-      const tableData = siteTransactions.map(transaction => [
-        new Date(transaction.createdAt).toLocaleString(),
-        transaction.type.toUpperCase(),
-        transaction.assetName,
-        transaction.quantity.toString(),
-        transaction.referenceId,
-        transaction.notes || ''
-      ]);
+      // Transform data for unified generator
+      const reportData = siteTransactions.map(transaction => ({
+        createdAt: new Date(transaction.createdAt).toLocaleString(),
+        type: transaction.type.toUpperCase(),
+        assetName: transaction.assetName,
+        quantity: transaction.quantity,
+        referenceId: transaction.referenceId,
+        condition: transaction.condition || '-',
+        notes: transaction.notes || '-'
+      }));
 
-      autoTable(doc, {
-        startY: 40,
-        head: [['Date', 'Type', 'Asset', 'Quantity', 'Reference', 'Notes']],
-        body: tableData,
-        styles: { fontSize: 8 },
-        headStyles: { fillColor: [22, 160, 133] }
+      generateUnifiedReport({
+        title: 'Site Transactions Report',
+        subtitle: `${selectedSiteForReport.name} - Transaction History`,
+        reportType: 'SITE TRANSACTIONS',
+        companySettings,
+        orientation: 'landscape',
+        columns: [
+          { header: 'Date', dataKey: 'createdAt', width: 35 },
+          { header: 'Type', dataKey: 'type', width: 20 },
+          { header: 'Asset', dataKey: 'assetName', width: 40 },
+          { header: 'Quantity', dataKey: 'quantity', width: 20 },
+          { header: 'Reference ID', dataKey: 'referenceId', width: 35 },
+          { header: 'Condition', dataKey: 'condition', width: 25 },
+          { header: 'Notes', dataKey: 'notes', width: 40 }
+        ],
+        data: reportData,
+        summaryStats: [
+          { label: 'Total Transactions', value: totalTransactions },
+          { label: 'Inbound Transactions', value: inboundTransactions },
+          { label: 'Outbound Transactions', value: outboundTransactions },
+          { label: 'Total Quantity In', value: totalInQuantity },
+          { label: 'Total Quantity Out', value: totalOutQuantity },
+          { label: 'Net Quantity', value: totalInQuantity - totalOutQuantity }
+        ]
       });
 
-      doc.save(`${selectedSiteForReport.name}_transactions_report.pdf`);
       setShowReportTypeDialog(false);
     }
   };
@@ -239,61 +271,100 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
   };
 
   const generateReport = (assetsToReport: Asset[], title: string) => {
-    const doc = new jsPDF();
+    if (!companySettings) return;
 
-    doc.setFontSize(18);
-    doc.text("Site Materials Report", 20, 20);
-    doc.setFontSize(14);
-    doc.text(title, 20, 30);
+    // Calculate summary statistics
+    const totalAssets = assetsToReport.length;
+    const totalQuantity = assetsToReport.reduce((sum, asset) => sum + asset.quantity, 0);
+    const totalValue = assetsToReport.reduce((sum, asset) => sum + (asset.cost * asset.quantity), 0);
+    const equipmentCount = assetsToReport.filter(a => a.type === 'equipment').length;
+    const consumablesCount = assetsToReport.filter(a => a.type === 'consumable').length;
+    const toolsCount = assetsToReport.filter(a => a.type === 'tools').length;
 
-    const tableData = assetsToReport.map(asset => [
-      asset.name,
-      asset.quantity.toString()
-    ]);
+    // Transform data for unified generator
+    const reportData = assetsToReport.map(asset => ({
+      name: asset.name,
+      description: asset.description || '-',
+      quantity: asset.quantity,
+      unit: asset.unitOfMeasurement,
+      category: asset.category,
+      type: asset.type,
+      status: asset.status,
+      condition: asset.condition,
+      cost: asset.cost || 0
+    }));
 
-    autoTable(doc, {
-      startY: 40,
-      head: [['Name', 'Quantity']],
-      body: tableData,
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [22, 160, 133] }
+    generateUnifiedReport({
+      title: 'Site Materials Report',
+      subtitle: title,
+      reportType: 'MATERIALS ON SITE',
+      companySettings,
+      orientation: 'landscape',
+      columns: [
+        { header: 'Name', dataKey: 'name', width: 35 },
+        { header: 'Description', dataKey: 'description', width: 40 },
+        { header: 'Quantity', dataKey: 'quantity', width: 20 },
+        { header: 'Unit', dataKey: 'unit', width: 20 },
+        { header: 'Category', dataKey: 'category', width: 25 },
+        { header: 'Type', dataKey: 'type', width: 25 },
+        { header: 'Status', dataKey: 'status', width: 22 },
+        { header: 'Condition', dataKey: 'condition', width: 22 },
+        { header: 'Unit Cost', dataKey: 'cost', width: 20 }
+      ],
+      data: reportData,
+      summaryStats: [
+        { label: 'Total Assets', value: totalAssets },
+        { label: 'Total Quantity', value: totalQuantity },
+        { label: 'Total Value', value: `$${totalValue.toFixed(2)}` },
+        { label: 'Equipment Items', value: equipmentCount },
+        { label: 'Consumables', value: consumablesCount },
+        { label: 'Tools', value: toolsCount }
+      ]
     });
-
-    doc.save(`${title.replace(/\s+/g, '_').toLowerCase()}.pdf`);
   };
 
   const generateWaybillPDF = (waybill: Waybill) => {
-    const doc = new jsPDF();
+    if (!companySettings) return;
 
-    doc.setFontSize(18);
-    doc.text(`${waybill.type === 'return' ? 'Return Waybill' : 'Waybill'} - ${waybill.id}`, 20, 20);
-    doc.setFontSize(12);
-    doc.text(`Driver: ${waybill.driverName}`, 20, 30);
-    doc.text(`Vehicle: ${waybill.vehicle}`, 20, 35);
-    doc.text(`Site: ${sites.find(s => s.id === waybill.siteId)?.name || 'Unknown Site'}`, 20, 40);
-    doc.text(`Issue Date: ${waybill.issueDate.toLocaleDateString()}`, 20, 45);
-    doc.text(`Status: ${waybill.status.replace('_', ' ').toUpperCase()}`, 20, 50);
-    if (waybill.purpose) {
-      doc.text(`Purpose: ${waybill.purpose}`, 20, 55);
-    }
-    if (waybill.expectedReturnDate) {
-      doc.text(`Expected Return: ${waybill.expectedReturnDate.toLocaleDateString()}`, 20, 60);
-    }
+    const site = sites.find(s => s.id === waybill.siteId);
+    const siteName = site?.name || 'Unknown Site';
 
-    const tableData = waybill.items.map(item => [
-      item.assetName,
-      item.quantity.toString()
-    ]);
+    // Transform items data
+    const reportData = waybill.items.map(item => ({
+      assetName: item.assetName,
+      quantity: item.quantity,
+      returnedQuantity: item.returnedQuantity || 0,
+      status: item.status?.replace('_', ' ').toUpperCase() || 'OUTSTANDING'
+    }));
 
-    autoTable(doc, {
-      startY: 70,
-      head: [['Asset Name', 'Quantity']],
-      body: tableData,
-      styles: { fontSize: 10 },
-      headStyles: { fillColor: [22, 160, 133] }
+    // Calculate summary statistics
+    const totalItems = waybill.items.length;
+    const totalQuantity = waybill.items.reduce((sum, item) => sum + item.quantity, 0);
+    const totalReturned = waybill.items.reduce((sum, item) => sum + (item.returnedQuantity || 0), 0);
+    const outstandingQty = totalQuantity - totalReturned;
+
+    generateUnifiedReport({
+      title: waybill.type === 'return' ? 'Return Waybill' : 'Waybill',
+      subtitle: `Waybill #${waybill.id} | Driver: ${waybill.driverName} | Vehicle: ${waybill.vehicle}`,
+      reportType: `${waybill.type === 'return' ? 'RETURN' : 'OUTBOUND'} | Site: ${siteName}`,
+      companySettings,
+      orientation: 'landscape',
+      columns: [
+        { header: 'Asset Name', dataKey: 'assetName', width: 60 },
+        { header: 'Quantity', dataKey: 'quantity', width: 30 },
+        { header: 'Returned', dataKey: 'returnedQuantity', width: 30 },
+        { header: 'Status', dataKey: 'status', width: 35 }
+      ],
+      data: reportData,
+      summaryStats: [
+        { label: 'Total Items', value: totalItems },
+        { label: 'Total Quantity', value: totalQuantity },
+        { label: 'Returned Quantity', value: totalReturned },
+        { label: 'Outstanding Quantity', value: outstandingQty },
+        { label: 'Issue Date', value: waybill.issueDate.toLocaleDateString() },
+        { label: 'Purpose', value: waybill.purpose || '-' }
+      ]
     });
-
-    doc.save(`${waybill.type === 'return' ? 'return_' : ''}waybill_${waybill.id}.pdf`);
   };
 
   // Filter sites based on status
@@ -415,6 +486,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
                 assets={assets}
                 equipmentLogs={equipmentLogs}
                 employees={employees}
+                companySettings={companySettings}
                 onAddEquipmentLog={onAddEquipmentLog}
                 onUpdateEquipmentLog={onUpdateEquipmentLog}
               />
@@ -424,6 +496,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
                 site={selectedSite}
                 assets={assets}
                 employees={employees}
+                waybills={waybills}
                 consumableLogs={consumableLogs}
                 onAddConsumableLog={onAddConsumableLog}
                 onUpdateConsumableLog={onUpdateConsumableLog}
@@ -893,6 +966,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
         onSave={handleSave}
         onCancel={() => setShowForm(false)}
         open={showForm}
+        initialData={aiPrefillData?.formType === 'site' ? aiPrefillData : undefined}
       />
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

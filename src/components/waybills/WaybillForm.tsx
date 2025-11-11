@@ -18,6 +18,16 @@ interface WaybillFormProps {
   vehicles: Vehicle[];
   onCreateWaybill: (waybill: Omit<Waybill, 'id' | 'createdAt' | 'updatedAt'>) => void;
   onCancel: () => void;
+  initialData?: {
+    siteId?: string;
+    siteName?: string;
+    driverId?: string;
+    driver?: string;
+    vehicleId?: string;
+    vehicle?: string;
+    purpose?: string;
+    items?: Array<{ id: string; name: string; quantity?: number }>;
+  };
 }
 
 interface WaybillFormData {
@@ -30,18 +40,34 @@ interface WaybillFormData {
   items: WaybillItem[];
 }
 
-export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybill, onCancel }: WaybillFormProps) => {
+export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybill, onCancel, initialData }: WaybillFormProps) => {
   const { isAuthenticated } = useAuth();
   const [formData, setFormData] = useState<WaybillFormData>(() => {
     const activeEmployees = employees.filter(emp => emp.status === 'active');
+    
+    // Use AI-suggested data if available
+    const siteId = initialData?.siteId || (sites.length > 0 ? String(sites[0].id) : '');
+    const driverName = initialData?.driver || (activeEmployees.length > 0 ? activeEmployees[0].name : '');
+    const vehicleName = initialData?.vehicle || (vehicles.length > 0 ? vehicles[0].name : '');
+    const purpose = initialData?.purpose || 'For Operational Purpose';
+    
+    // Convert AI items to waybill items
+    const items: WaybillItem[] = initialData?.items?.map(aiItem => ({
+      assetId: aiItem.id,
+      assetName: aiItem.name,
+      quantity: aiItem.quantity || 1,
+      returnedQuantity: 0,
+      status: 'outstanding' as const
+    })) || [];
+    
     return {
-      siteId: sites.length > 0 ? sites[0].id : '',
-      driverName: activeEmployees.length > 0 ? activeEmployees[0].name : '',
-      vehicle: vehicles.length > 0 ? vehicles[0].name : '',
+      siteId,
+      driverName,
+      vehicle: vehicleName,
       expectedReturnDate: '',
-      purpose: 'For Operational Purpose',
+      purpose,
       service: 'dewatering',
-      items: []
+      items
     };
   });
 
@@ -178,7 +204,7 @@ export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybil
                 <div className="space-y-2">
                   <Label htmlFor="siteId">Site *</Label>
                   <Select
-                    value={formData.siteId}
+                    value={String(formData.siteId)}
                     onValueChange={(value) => setFormData({...formData, siteId: value})}
                   >
                     <SelectTrigger className="border-0 bg-muted/50 focus:bg-background transition-all duration-300">
@@ -186,7 +212,7 @@ export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybil
                     </SelectTrigger>
                     <SelectContent>
                       {sites.map((site) => (
-                        <SelectItem key={site.id} value={site.id}>
+                        <SelectItem key={site.id} value={String(site.id)}>
                           {site.name}
                         </SelectItem>
                       ))}

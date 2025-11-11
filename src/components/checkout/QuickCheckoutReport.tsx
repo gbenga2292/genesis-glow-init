@@ -7,8 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { QuickCheckout, CompanySettings } from "@/types/asset";
 import { FileText, Download, FileSpreadsheet } from "lucide-react";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import { generateUnifiedReport } from "@/utils/unifiedReportGenerator";
 import * as XLSX from 'xlsx';
 
 interface QuickCheckoutReportProps {
@@ -40,85 +39,55 @@ export const QuickCheckoutReport = ({ quickCheckouts, companySettings }: QuickCh
 
   const generatePDFReport = (filteredCheckouts: QuickCheckout[], title: string) => {
     setLoading(true);
-    const doc = new jsPDF('landscape');
 
-    // Add company logo in top left corner if available
-    if (defaultCompanySettings.logo) {
-      try {
-        doc.addImage(defaultCompanySettings.logo, 'PNG', 10, 10, 80, 25);
-      } catch (e) {
-        logger.warn('Logo error in QuickCheckoutReport', { context: 'QuickCheckoutReport' });
-        // Ignore logo errors
-      }
-    }
+    const effectiveSettings = companySettings || defaultCompanySettings;
 
-    // Company name and title positioned to the right of logo
-    doc.setFont("times", "normal");
-    doc.setFontSize(18);
-    doc.text(defaultCompanySettings.companyName, 100, 20);
-    doc.setFontSize(14);
-    doc.text(title, 100, 30);
-
-    // Add generation date
-    doc.setFontSize(10);
-    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 100, 40);
-
-    const tableData = filteredCheckouts.map(checkout => [
-      checkout.assetName,
-      checkout.quantity.toString(),
-      checkout.returnedQuantity.toString(),
-      checkout.employee,
-      checkout.checkoutDate.toLocaleDateString(),
-      checkout.returnDate ? checkout.returnDate.toLocaleDateString() : 'Not returned',
-      checkout.expectedReturnDays.toString(),
-      checkout.status.replace('_', ' ').toUpperCase()
-    ]);
-
-    autoTable(doc, {
-      startY: 50,
-      head: [['Asset Name', 'Qty Checked Out', 'Qty Returned', 'Employee', 'Checkout Date', 'Return Date', 'Expected Days', 'Status']],
-      body: tableData,
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [43, 101, 236] },
-      columnStyles: {
-        0: { cellWidth: 50 }, // Asset Name
-        1: { cellWidth: 20 }, // Qty Checked Out
-        2: { cellWidth: 20 }, // Qty Returned
-        3: { cellWidth: 35 }, // Employee
-        4: { cellWidth: 35 }, // Checkout Date
-        5: { cellWidth: 35 }, // Return Date
-        6: { cellWidth: 30 }, // Expected Days
-        7: { cellWidth: 35 }  // Status
-      }
-    });
-
-    // Add summary statistics
-    const finalY = (doc as any).lastAutoTable.finalY || 100;
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Summary Statistics:', 20, finalY + 20);
-
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-
+    // Calculate summary statistics
     const totalCheckouts = filteredCheckouts.length;
     const outstandingCheckouts = filteredCheckouts.filter(c => c.status === 'outstanding').length;
     const returnedCheckouts = filteredCheckouts.filter(c => c.status === 'return_completed').length;
-    const lostCheckouts = filteredCheckouts.filter(c => c.status === 'lost').length;
-    const damagedCheckouts = filteredCheckouts.filter(c => c.status === 'damaged').length;
     const totalItemsCheckedOut = filteredCheckouts.reduce((sum, c) => sum + c.quantity, 0);
     const totalItemsReturned = filteredCheckouts.reduce((sum, c) => sum + c.returnedQuantity, 0);
 
-    const summaryY = finalY + 30;
-    doc.text(`Total Checkouts: ${totalCheckouts}`, 20, summaryY);
-    doc.text(`Outstanding: ${outstandingCheckouts}`, 20, summaryY + 8);
-    doc.text(`Returned: ${returnedCheckouts}`, 20, summaryY + 16);
-    doc.text(`Lost: ${lostCheckouts}`, 120, summaryY);
-    doc.text(`Damaged: ${damagedCheckouts}`, 120, summaryY + 8);
-    doc.text(`Total Items Out: ${totalItemsCheckedOut}`, 20, summaryY + 24);
-    doc.text(`Total Items Returned: ${totalItemsReturned}`, 120, summaryY + 16);
+    // Transform data
+    const reportData = filteredCheckouts.map(checkout => ({
+      assetName: checkout.assetName,
+      quantityOut: checkout.quantity,
+      quantityReturned: checkout.returnedQuantity,
+      employee: checkout.employee,
+      checkoutDate: checkout.checkoutDate.toLocaleDateString(),
+      returnDate: checkout.returnDate ? checkout.returnDate.toLocaleDateString() : 'Not returned',
+      expectedDays: checkout.expectedReturnDays,
+      status: checkout.status.replace('_', ' ').toUpperCase()
+    }));
 
-    doc.save(`${title.replace(/\s+/g, '_').toLowerCase()}.pdf`);
+    generateUnifiedReport({
+      title: 'Quick Checkout Report',
+      subtitle: title,
+      reportType: 'CHECKOUTS',
+      companySettings: effectiveSettings,
+      orientation: 'landscape',
+      columns: [
+        { header: 'Asset Name', dataKey: 'assetName', width: 50 },
+        { header: 'Qty Out', dataKey: 'quantityOut', width: 20 },
+        { header: 'Qty Returned', dataKey: 'quantityReturned', width: 25 },
+        { header: 'Employee', dataKey: 'employee', width: 35 },
+        { header: 'Checkout Date', dataKey: 'checkoutDate', width: 30 },
+        { header: 'Return Date', dataKey: 'returnDate', width: 30 },
+        { header: 'Expected Days', dataKey: 'expectedDays', width: 28 },
+        { header: 'Status', dataKey: 'status', width: 30 }
+      ],
+      data: reportData,
+      summaryStats: [
+        { label: 'Total Checkouts', value: totalCheckouts },
+        { label: 'Outstanding', value: outstandingCheckouts },
+        { label: 'Returned', value: returnedCheckouts },
+        { label: 'Total Items Out', value: totalItemsCheckedOut },
+        { label: 'Total Items Returned', value: totalItemsReturned },
+        { label: 'Outstanding Items', value: totalItemsCheckedOut - totalItemsReturned }
+      ]
+    });
+
     setLoading(false);
   };
 

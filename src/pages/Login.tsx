@@ -91,10 +91,10 @@ const Login = () => {
             <div className="space-y-2">
               <Label htmlFor="user-select">Select User</Label>
               <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                <SelectTrigger className="bg-background">
+                <SelectTrigger>
                   <SelectValue placeholder="Choose a user or enter credentials" />
                 </SelectTrigger>
-                <SelectContent className="bg-popover z-50">
+                <SelectContent>
                   {users.map((user) => (
                     <SelectItem key={user.id} value={user.id}>
                       {user.name}
