@@ -10,8 +10,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { CompanySettings as CompanySettingsType, Employee, Asset, Waybill, QuickCheckout, Site, SiteTransaction, Activity, Vehicle } from "@/types/asset";
-import { Settings, Upload, Save, Building, Phone, Globe, Trash2, Download, UploadCloud, Loader2, Sun, FileText, Activity as ActivityIcon, Users, UserPlus, Edit, UserMinus } from "lucide-react";
+import { Settings, Upload, Save, Building, Phone, Globe, Trash2, Download, UploadCloud, Loader2, Sun, FileText, Activity as ActivityIcon, Users, UserPlus, Edit, UserMinus, Car, Database } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "next-themes";
 import { Switch } from "@/components/ui/switch";
@@ -898,501 +899,448 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         </p>
       </div>
 
-      {/* User Management */}
-      {hasPermission('manage_users') && (
-        <>
+      <Tabs defaultValue="company" className="w-full">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="company" className="flex items-center gap-2">
+            <Building className="h-4 w-4" />
+            Company
+          </TabsTrigger>
+          {hasPermission('manage_users') && (
+            <TabsTrigger value="users" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Users
+            </TabsTrigger>
+          )}
+          <TabsTrigger value="employees" className="flex items-center gap-2">
+            <UserPlus className="h-4 w-4" />
+            Employees
+          </TabsTrigger>
+          <TabsTrigger value="vehicles" className="flex items-center gap-2">
+            <Car className="h-4 w-4" />
+            Vehicles
+          </TabsTrigger>
+          <TabsTrigger value="data" className="flex items-center gap-2">
+            <Database className="h-4 w-4" />
+            Data
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Company Information + Logo Tab */}
+        <TabsContent value="company" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Company Information */}
+            <Card className="border-0 shadow-soft">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building className="h-5 w-5" />
+                  Company Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Company Name</Label>
+                  <p className="text-lg font-medium">{defaultSettings.companyName}</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Address</Label>
+                  <p className="text-sm text-muted-foreground">{defaultSettings.address}</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Phone className="h-4 w-4" />
+                      Phone
+                    </Label>
+                    <p className="text-sm">{defaultSettings.phone}</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Globe className="h-4 w-4" />
+                      Website
+                    </Label>
+                    <p className="text-sm">
+                      <a href={defaultSettings.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                        {defaultSettings.website}
+                      </a>
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Company Logo */}
+            <Card className="border-0 shadow-soft">
+              <CardHeader>
+                <CardTitle>Company Logo</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-col items-center space-y-4">
+                  <div className="w-32 h-32 border-2 border-dashed border-muted-foreground/25 rounded-lg overflow-hidden">
+                    <img
+                      src="./logo.png"
+                      alt="Company Logo"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="flex justify-end">
+            <Button
+              onClick={handleSave}
+              className="bg-gradient-primary hover:scale-105 transition-all duration-300 shadow-medium"
+              disabled={isLoading}
+            >
+              <Save className="h-4 w-4 mr-2" />
+              Save Settings
+            </Button>
+          </div>
+        </TabsContent>
+
+        {/* User Management Tab */}
+        {hasPermission('manage_users') && (
+          <TabsContent value="users" className="space-y-6">
+            <Card className="border-0 shadow-soft">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  User Management
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <h4 className="font-medium">User Management</h4>
+                  <div className="flex gap-2">
+                    <Button onClick={() => setIsAddUserDialogOpen(true)} className="gap-2">
+                      <UserPlus className="h-4 w-4" />
+                      Add User
+                    </Button>
+                    <Button variant="outline" onClick={() => setShowPermissionsTable(!showPermissionsTable)}>
+                      {showPermissionsTable ? 'View Users List' : 'View Permissions Table'}
+                    </Button>
+                  </div>
+                </div>
+
+                {showPermissionsTable ? (
+                  <div className="space-y-2">
+                    <h4 className="font-medium">User Permissions</h4>
+                    {users.length === 0 ? (
+                      <p className="text-muted-foreground">No users created yet.</p>
+                    ) : (
+                      <div className="border rounded-lg overflow-hidden">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Name</TableHead>
+                              <TableHead>Username</TableHead>
+                              <TableHead>Role</TableHead>
+                              <TableHead>Email</TableHead>
+                              <TableHead>Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {users.map(user => (
+                              <TableRow key={user.id}>
+                                {editingUserId === user.id ? (
+                                  <>
+                                    <TableCell>
+                                      <Input
+                                        value={editUserName}
+                                        onChange={(e) => setEditUserName(e.target.value)}
+                                        placeholder="Full Name"
+                                      />
+                                    </TableCell>
+                                    <TableCell>
+                                      <Input
+                                        value={editUserUsername}
+                                        onChange={(e) => setEditUserUsername(e.target.value)}
+                                        placeholder="Username"
+                                      />
+                                    </TableCell>
+                                    <TableCell>
+                                      <Select value={editUserRole} onValueChange={(value: UserRole) => setEditUserRole(value)}>
+                                        <SelectTrigger>
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="admin">Admin</SelectItem>
+                                          <SelectItem value="data_entry_supervisor">Data Entry Supervisor</SelectItem>
+                                          <SelectItem value="regulatory">Regulatory</SelectItem>
+                                          <SelectItem value="manager">Manager</SelectItem>
+                                          <SelectItem value="staff">Staff</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Input
+                                        value={editUserEmail}
+                                        onChange={(e) => setEditUserEmail(e.target.value)}
+                                        placeholder="Email"
+                                      />
+                                    </TableCell>
+                                    <TableCell>
+                                      <div className="flex gap-1">
+                                        <Button size="sm" onClick={handleSaveUserEdit}>Save</Button>
+                                        <Button size="sm" variant="outline" onClick={handleCancelUserEdit}>Cancel</Button>
+                                      </div>
+                                    </TableCell>
+                                  </>
+                                ) : (
+                                  <>
+                                    <TableCell>{user.name}</TableCell>
+                                    <TableCell>@{user.username}</TableCell>
+                                    <TableCell className="capitalize">{user.role.replace('_', ' ')}</TableCell>
+                                    <TableCell>{user.email || 'No email'}</TableCell>
+                                    <TableCell>
+                                      <div className="flex gap-1">
+                                        <Button size="sm" variant="outline" onClick={() => handleEditUser(user.id)}>
+                                          <Edit className="h-3 w-3" />
+                                        </Button>
+                                        {user.id !== 'admin' && (
+                                          <Button size="sm" variant="destructive" onClick={() => handleDeleteUser(user.id)}>
+                                            <UserMinus className="h-3 w-3" />
+                                          </Button>
+                                        )}
+                                      </div>
+                                    </TableCell>
+                                  </>
+                                )}
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <h4 className="font-medium">Existing Users</h4>
+                    {users.length === 0 ? (
+                      <p className="text-muted-foreground">No users created yet.</p>
+                    ) : (
+                      <div className="space-y-2 max-h-96 overflow-y-auto">
+                        {users.map(user => (
+                          <div key={user.id} className="flex items-center justify-between border p-3 rounded">
+                            {editingUserId === user.id ? (
+                              <div className="flex gap-2 flex-1">
+                                <Input
+                                  value={editUserName}
+                                  onChange={(e) => setEditUserName(e.target.value)}
+                                  placeholder="Full Name"
+                                  className="flex-1"
+                                />
+                                <Input
+                                  value={editUserUsername}
+                                  onChange={(e) => setEditUserUsername(e.target.value)}
+                                  placeholder="Username"
+                                  className="flex-1"
+                                />
+                                <Input
+                                  type="password"
+                                  value={editUserPassword}
+                                  onChange={(e) => setEditUserPassword(e.target.value)}
+                                  placeholder="New Password (optional)"
+                                  className="flex-1"
+                                />
+                                <Select value={editUserRole} onValueChange={(value: UserRole) => setEditUserRole(value)}>
+                                  <SelectTrigger className="w-32">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="admin">Admin</SelectItem>
+                                    <SelectItem value="data_entry_supervisor">Data Entry Supervisor</SelectItem>
+                                    <SelectItem value="regulatory">Regulatory</SelectItem>
+                                    <SelectItem value="manager">Manager</SelectItem>
+                                    <SelectItem value="staff">Staff</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <Input
+                                  value={editUserEmail}
+                                  onChange={(e) => setEditUserEmail(e.target.value)}
+                                  placeholder="Email"
+                                  className="flex-1"
+                                />
+                                <Button size="sm" onClick={handleSaveUserEdit}>Save</Button>
+                                <Button size="sm" variant="outline" onClick={handleCancelUserEdit}>Cancel</Button>
+                              </div>
+                            ) : (
+                              <>
+                                <div>
+                                  <div className="font-medium">{user.name}</div>
+                                  <div className="text-sm text-muted-foreground">
+                                    @{user.username} • {user.role.replace('_', ' ')} • {user.email || 'No email'}
+                                  </div>
+                                </div>
+                                <div className="flex gap-1">
+                                  <Button size="sm" variant="outline" onClick={() => handleEditUser(user.id)}>
+                                    <Edit className="h-3 w-3" />
+                                  </Button>
+                                  {user.id !== 'admin' && (
+                                    <Button size="sm" variant="destructive" onClick={() => handleDeleteUser(user.id)}>
+                                      <UserMinus className="h-3 w-3" />
+                                    </Button>
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Dialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add New User</DialogTitle>
+                  <DialogDescription>Enter the details for the new user.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <Select value={newUserName} onValueChange={(value) => setNewUserName(value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Employee" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {employees.filter(employee => employee.status === 'active').map(employee => (
+                        <SelectItem key={employee.id} value={employee.name}>
+                          {employee.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    value={newUserUsername}
+                    onChange={(e) => setNewUserUsername(e.target.value)}
+                    placeholder="Username"
+                  />
+                  <Input
+                    type="password"
+                    value={newUserPassword}
+                    onChange={(e) => setNewUserPassword(e.target.value)}
+                    placeholder="Password"
+                  />
+                  <Select value={newUserRole} onValueChange={(value: UserRole) => setNewUserRole(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="data_entry_supervisor">Data Entry Supervisor</SelectItem>
+                      <SelectItem value="regulatory">Regulatory</SelectItem>
+                      <SelectItem value="manager">Manager</SelectItem>
+                      <SelectItem value="staff">Staff</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    value={newUserEmail}
+                    onChange={(e) => setNewUserEmail(e.target.value)}
+                    placeholder="Email (optional)"
+                  />
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsAddUserDialogOpen(false)}>Cancel</Button>
+                  <Button onClick={handleCreateUser}>Create User</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            <div className="flex justify-end">
+              <Button
+                onClick={handleSave}
+                className="bg-gradient-primary hover:scale-105 transition-all duration-300 shadow-medium"
+                disabled={isLoading}
+              >
+                <Save className="h-4 w-4 mr-2" />
+                Save Settings
+              </Button>
+            </div>
+          </TabsContent>
+        )}
+
+        {/* Employees Tab */}
+        <TabsContent value="employees" className="space-y-6">
           <Card className="border-0 shadow-soft">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                User Management
+                <UserPlus className="h-5 w-5" />
+                Employee Management
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex justify-between items-center">
-                <h4 className="font-medium">User Management</h4>
-                <div className="flex gap-2">
-                  <Button onClick={() => setIsAddUserDialogOpen(true)} className="gap-2">
-                    <UserPlus className="h-4 w-4" />
-                    Add User
-                  </Button>
-                  <Button variant="outline" onClick={() => setShowPermissionsTable(!showPermissionsTable)}>
-                    {showPermissionsTable ? 'View Users List' : 'View Permissions Table'}
-                  </Button>
-                </div>
+                <h4 className="font-medium">Active Employees</h4>
+                <Button onClick={() => setIsAddEmployeeDialogOpen(true)} className="gap-2">
+                  <UserPlus className="h-4 w-4" />
+                  Add Employee
+                </Button>
               </div>
-
-              {showPermissionsTable ? (
-                <div className="space-y-2">
-                  <h4 className="font-medium">User Permissions</h4>
-                  {users.length === 0 ? (
-                    <p className="text-muted-foreground">No users created yet.</p>
-                  ) : (
-                    <div className="border rounded-lg overflow-hidden">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Name</TableHead>
-                            <TableHead>Username</TableHead>
-                            <TableHead>Role</TableHead>
-                            <TableHead>Email</TableHead>
-                            <TableHead>Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {users.map(user => (
-                            <TableRow key={user.id}>
-                              {editingUserId === user.id ? (
-                                <>
-                                  <TableCell>
-                                    <Input
-                                      value={editUserName}
-                                      onChange={(e) => setEditUserName(e.target.value)}
-                                      placeholder="Full Name"
-                                    />
-                                  </TableCell>
-                                  <TableCell>
-                                    <Input
-                                      value={editUserUsername}
-                                      onChange={(e) => setEditUserUsername(e.target.value)}
-                                      placeholder="Username"
-                                    />
-                                  </TableCell>
-                                  <TableCell>
-                                    <Select value={editUserRole} onValueChange={(value: UserRole) => setEditUserRole(value)}>
-                                      <SelectTrigger>
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="admin">Admin</SelectItem>
-                                        <SelectItem value="data_entry_supervisor">Data Entry Supervisor</SelectItem>
-                                        <SelectItem value="regulatory">Regulatory</SelectItem>
-                                        <SelectItem value="manager">Manager</SelectItem>
-                                        <SelectItem value="staff">Staff</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </TableCell>
-                                  <TableCell>
-                                    <Input
-                                      value={editUserEmail}
-                                      onChange={(e) => setEditUserEmail(e.target.value)}
-                                      placeholder="Email"
-                                    />
-                                  </TableCell>
-                                  <TableCell>
-                                    <div className="flex gap-1">
-                                      <Button size="sm" onClick={handleSaveUserEdit}>Save</Button>
-                                      <Button size="sm" variant="outline" onClick={handleCancelUserEdit}>Cancel</Button>
-                                    </div>
-                                  </TableCell>
-                                </>
-                              ) : (
-                                <>
-                                  <TableCell className="font-medium">{user.name}</TableCell>
-                                  <TableCell>@{user.username}</TableCell>
-                                  <TableCell className="capitalize">{user.role.replace('_', ' ')}</TableCell>
-                                  <TableCell>{user.email || 'No email'}</TableCell>
-                                  <TableCell>
-                                    <div className="flex gap-1">
-                                      <Button size="sm" variant="outline" onClick={() => handleEditUser(user.id)}>
-                                        <Edit className="h-3 w-3" />
-                                      </Button>
-                                      {user.id !== 'admin' && (
-                                        <Button size="sm" variant="destructive" onClick={() => handleDeleteUser(user.id)}>
-                                          <UserMinus className="h-3 w-3" />
-                                        </Button>
-                                      )}
-                                    </div>
-                                  </TableCell>
-                                </>
-                              )}
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <h4 className="font-medium">Existing Users</h4>
-                  {users.length === 0 ? (
-                    <p className="text-muted-foreground">No users created yet.</p>
-                  ) : (
-                    <div className="space-y-2 max-h-96 overflow-y-auto">
-                      {users.map(user => (
-                        <div key={user.id} className="flex items-center justify-between border p-3 rounded">
-                          {editingUserId === user.id ? (
-                            <div className="flex gap-2 flex-1">
-                              <Input
-                                value={editUserName}
-                                onChange={(e) => setEditUserName(e.target.value)}
-                                placeholder="Full Name"
-                                className="flex-1"
-                              />
-                              <Input
-                                value={editUserUsername}
-                                onChange={(e) => setEditUserUsername(e.target.value)}
-                                placeholder="Username"
-                                className="flex-1"
-                              />
-                              <Input
-                                type="password"
-                                value={editUserPassword}
-                                onChange={(e) => setEditUserPassword(e.target.value)}
-                                placeholder="New Password (optional)"
-                                className="flex-1"
-                              />
-                              <Select value={editUserRole} onValueChange={(value: UserRole) => setEditUserRole(value)}>
-                                <SelectTrigger className="w-32">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="admin">Admin</SelectItem>
-                                  <SelectItem value="data_entry_supervisor">Data Entry Supervisor</SelectItem>
-                                  <SelectItem value="regulatory">Regulatory</SelectItem>
-                                  <SelectItem value="manager">Manager</SelectItem>
-                                  <SelectItem value="staff">Staff</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <Input
-                                value={editUserEmail}
-                                onChange={(e) => setEditUserEmail(e.target.value)}
-                                placeholder="Email"
-                                className="flex-1"
-                              />
-                              <Button size="sm" onClick={handleSaveUserEdit}>Save</Button>
-                              <Button size="sm" variant="outline" onClick={handleCancelUserEdit}>Cancel</Button>
-                            </div>
-                          ) : (
-                            <>
-                              <div>
-                                <div className="font-medium">{user.name}</div>
-                                <div className="text-sm text-muted-foreground">
-                                  @{user.username} • {user.role.replace('_', ' ')} • {user.email || 'No email'}
-                                </div>
-                              </div>
-                              <div className="flex gap-1">
-                                <Button size="sm" variant="outline" onClick={() => handleEditUser(user.id)}>
-                                  <Edit className="h-3 w-3" />
-                                </Button>
-                                {user.id !== 'admin' && (
-                                  <Button size="sm" variant="destructive" onClick={() => handleDeleteUser(user.id)}>
-                                    <UserMinus className="h-3 w-3" />
-                                  </Button>
-                                )}
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-              )}
-
-            </CardContent>
-
-          </Card>
-
-          <Dialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen}>
-
-            <DialogContent>
-
-              <DialogHeader>
-
-                <DialogTitle>Add New User</DialogTitle>
-
-                <DialogDescription>Enter the details for the new user.</DialogDescription>
-
-              </DialogHeader>
-
-              <div className="space-y-4">
-
-                <Select value={newUserName} onValueChange={(value) => setNewUserName(value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select Employee" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {employees.filter(employee => employee.status === 'active').map(employee => (
-                      <SelectItem key={employee.id} value={employee.name}>
-                        {employee.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Input
-
-                  value={newUserUsername}
-
-                  onChange={(e) => setNewUserUsername(e.target.value)}
-
-                  placeholder="Username"
-
-                />
-
-                <Input
-
-                  type="password"
-
-                  value={newUserPassword}
-
-                  onChange={(e) => setNewUserPassword(e.target.value)}
-
-                  placeholder="Password"
-
-                />
-
-                <Select value={newUserRole} onValueChange={(value: UserRole) => setNewUserRole(value)}>
-
-                  <SelectTrigger>
-
-                    <SelectValue />
-
-                  </SelectTrigger>
-
-                  <SelectContent>
-
-                    <SelectItem value="admin">Admin</SelectItem>
-
-                    <SelectItem value="data_entry_supervisor">Data Entry Supervisor</SelectItem>
-
-                    <SelectItem value="regulatory">Regulatory</SelectItem>
-
-                    <SelectItem value="manager">Manager</SelectItem>
-
-                    <SelectItem value="staff">Staff</SelectItem>
-
-                  </SelectContent>
-
-                </Select>
-
-                <Input
-
-                  value={newUserEmail}
-
-                  onChange={(e) => setNewUserEmail(e.target.value)}
-
-                  placeholder="Email (optional)"
-
-                />
-
-              </div>
-
-              <DialogFooter>
-
-                <Button variant="outline" onClick={() => setIsAddUserDialogOpen(false)}>Cancel</Button>
-
-                <Button onClick={handleCreateUser}>Create User</Button>
-
-              </DialogFooter>
-
-            </DialogContent>
-
-          </Dialog>
-        </>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Company Information */}
-        <Card className="border-0 shadow-soft">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building className="h-5 w-5" />
-              Company Information
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Company Name</Label>
-              <p className="text-lg font-medium">{defaultSettings.companyName}</p>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Address</Label>
-              <p className="text-sm text-muted-foreground">{defaultSettings.address}</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <Phone className="h-4 w-4" />
-                  Phone
-                </Label>
-                <p className="text-sm">{defaultSettings.phone}</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <Globe className="h-4 w-4" />
-                  Website
-                </Label>
-                <p className="text-sm">
-                  <a href={defaultSettings.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                    {defaultSettings.website}
-                  </a>
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Company Logo */}
-        <Card className="border-0 shadow-soft">
-          <CardHeader>
-            <CardTitle>Company Logo</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col items-center space-y-4">
-              <div className="w-32 h-32 border-2 border-dashed border-muted-foreground/25 rounded-lg overflow-hidden">
-                <img
-                  src="./logo.png"
-                  alt="Company Logo"
-                  className="w-full h-full object-contain"
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* AI Assistant (Local LLM) */}
-        <Card className="border-0 shadow-soft">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              AI Assistant (Local LLM)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Local HTTP Endpoint (optional)</Label>
-              <Input placeholder="http://127.0.0.1:8080/generate" value={llmHttpUrl} onChange={(e) => setLlmHttpUrl(e.target.value)} />
-              <p className="text-xs text-muted-foreground">If you run a local HTTP wrapper (recommended), set its URL here.</p>
-            </div>
-
-            <div className="space-y-2">
-              <Label>LLM Binary Path (optional)</Label>
-              <Input placeholder="C:\\path\\to\\llama.exe" value={llmBinaryPath} onChange={(e) => setLlmBinaryPath(e.target.value)} />
-              <p className="text-xs text-muted-foreground">Path to a local LLM wrapper binary. Use this OR the HTTP endpoint.</p>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Model Path (optional)</Label>
-              <Input placeholder="models/mistral-7b.gguf" value={llmModelPath} onChange={(e) => setLlmModelPath(e.target.value)} />
-              <p className="text-xs text-muted-foreground">Path to the quantized model file used by the binary.</p>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Extra Args</Label>
-              <Input placeholder="--threads 4 --n_predict 256" value={llmArgs} onChange={(e) => setLlmArgs(e.target.value)} />
-              <p className="text-xs text-muted-foreground">Additional CLI flags to pass to the binary (space-separated).</p>
-            </div>
-
-            <div className="flex gap-2">
-              <Button onClick={async () => {
-                setLlmStatus({ loading: true });
-                try {
-                  if ((window as any).llm?.status) {
-                    const s = await (window as any).llm.status();
-                    setLlmStatus({ loading: false, ok: true, info: s });
-                  } else {
-                    setLlmStatus({ loading: false, ok: false, error: 'LLM bridge not available' });
-                  }
-                } catch (err) {
-                  setLlmStatus({ loading: false, ok: false, error: (err as Error).message });
-                }
-              }} size="sm">Test Connection</Button>
-              <Button onClick={() => setLlmStatus(null)} variant="outline" size="sm">Clear</Button>
-              {llmStatus && llmStatus.loading ? (
-                <div className="text-sm text-muted-foreground">Testing...</div>
-              ) : llmStatus ? (
-                llmStatus.ok ? (
-                  <div className="text-sm text-success">Connected: {JSON.stringify(llmStatus.info)}</div>
-                ) : (
-                  <div className="text-sm text-destructive">Error: {llmStatus.error}</div>
-                )
-              ) : null}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Employee Management */}
-        <Card className="border-0 shadow-soft">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              Employees
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h4 className="font-medium">Active Employees</h4>
-              <Button onClick={() => setIsAddEmployeeDialogOpen(true)} className="gap-2">
-                <UserPlus className="h-4 w-4" />
-                Add Employee
-              </Button>
-            </div>
-            <div>
-              {employees.filter(emp => emp.status === 'active').length === 0 ? (
-                <p className="text-muted-foreground">No active employees added yet.</p>
-              ) : (
-                <ul className="space-y-2 max-h-48 overflow-y-auto">
-                  {employees.filter(emp => emp.status === 'active').map(emp => (
-                    <li key={emp.id} className="flex justify-between items-center border p-2 rounded">
-                      {editingEmployeeId === emp.id ? (
-                        <div className="flex gap-2 flex-1">
-                          <Input
-                            value={tempEmployeeName}
-                            onChange={(e) => setTempEmployeeName(e.target.value)}
-                            placeholder="Employee Name"
-                            className="flex-1"
-                          />
-                          <Select
-                            value={tempEmployeeRole}
-                            onValueChange={(value) => setTempEmployeeRole(value)}
-                          >
-                            <SelectTrigger className="w-24">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="driver">Driver</SelectItem>
-                              <SelectItem value="manager">Manager</SelectItem>
-                              <SelectItem value="staff">Staff</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <Button size="sm" onClick={handleSaveEmployeeEdit}>Save</Button>
-                          <Button size="sm" variant="outline" onClick={handleCancelEmployeeEdit}>Cancel</Button>
-                        </div>
-                      ) : (
-                        <>
-                          <span>{emp.name} ({emp.role}) {emp.email && `- ${emp.email}`}</span>
-                          <div className="flex gap-1">
-                            <Button size="sm" variant="outline" onClick={() => handleEditEmployee(emp.id)}>Edit</Button>
-                            <Button size="sm" variant="destructive" onClick={() => { setEmployeeToDelist(emp); setIsDelistEmployeeDialogOpen(true); }}>Delist</Button>
-                          </div>
-                        </>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            {employees.filter(emp => emp.status === 'inactive').length > 0 && (
               <div>
-                <h4 className="font-medium mt-4">Past Employees</h4>
-                <ul className="space-y-2 max-h-48 overflow-y-auto">
-                  {employees.filter(emp => emp.status === 'inactive').map(emp => (
-                    <li key={emp.id} className="flex justify-between items-center border p-2 rounded opacity-75">
-                      <span>{emp.name} ({emp.role}) {emp.email && `- ${emp.email}`} - Delisted: {emp.delistedDate ? new Date(emp.delistedDate).toLocaleDateString() : 'N/A'}</span>
-                    </li>
-                  ))}
-                </ul>
+                {employees.filter(emp => emp.status === 'active').length === 0 ? (
+                  <p className="text-muted-foreground">No active employees added yet.</p>
+                ) : (
+                  <ul className="space-y-2 max-h-96 overflow-y-auto">
+                    {employees.filter(emp => emp.status === 'active').map(emp => (
+                      <li key={emp.id} className="flex justify-between items-center border p-2 rounded">
+                        {editingEmployeeId === emp.id ? (
+                          <div className="flex gap-2 flex-1">
+                            <Input
+                              value={tempEmployeeName}
+                              onChange={(e) => setTempEmployeeName(e.target.value)}
+                              placeholder="Employee Name"
+                              className="flex-1"
+                            />
+                            <Select
+                              value={tempEmployeeRole}
+                              onValueChange={(value) => setTempEmployeeRole(value)}
+                            >
+                              <SelectTrigger className="w-24">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="driver">Driver</SelectItem>
+                                <SelectItem value="manager">Manager</SelectItem>
+                                <SelectItem value="staff">Staff</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Button size="sm" onClick={handleSaveEmployeeEdit}>Save</Button>
+                            <Button size="sm" variant="outline" onClick={handleCancelEmployeeEdit}>Cancel</Button>
+                          </div>
+                        ) : (
+                          <>
+                            <span>{emp.name} ({emp.role}) {emp.email && `- ${emp.email}`}</span>
+                            <div className="flex gap-1">
+                              <Button size="sm" variant="outline" onClick={() => handleEditEmployee(emp.id)}>Edit</Button>
+                              <Button size="sm" variant="destructive" onClick={() => { setEmployeeToDelist(emp); setIsDelistEmployeeDialogOpen(true); }}>Delist</Button>
+                            </div>
+                          </>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
-            )}
-          </CardContent>
-        </Card>
+              {employees.filter(emp => emp.status === 'inactive').length > 0 && (
+                <div>
+                  <h4 className="font-medium mt-4">Past Employees</h4>
+                  <ul className="space-y-2 max-h-48 overflow-y-auto">
+                    {employees.filter(emp => emp.status === 'inactive').map(emp => (
+                      <li key={emp.id} className="flex justify-between items-center border p-2 rounded opacity-75">
+                        <span>{emp.name} ({emp.role}) {emp.email && `- ${emp.email}`} - Delisted: {emp.delistedDate ? new Date(emp.delistedDate).toLocaleDateString() : 'N/A'}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
         <Dialog open={isAddEmployeeDialogOpen} onOpenChange={setIsAddEmployeeDialogOpen}>
           <DialogContent>
@@ -1465,12 +1413,25 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           </DialogContent>
         </Dialog>
 
-        {/* Vehicle Management */}
+        <div className="flex justify-end">
+          <Button
+            onClick={handleSave}
+            className="bg-gradient-primary hover:scale-105 transition-all duration-300 shadow-medium"
+            disabled={isLoading}
+          >
+            <Save className="h-4 w-4 mr-2" />
+            Save Settings
+          </Button>
+        </div>
+      </TabsContent>
+
+      {/* Vehicles Tab */}
+      <TabsContent value="vehicles" className="space-y-6">
         <Card className="border-0 shadow-soft">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              Vehicles
+              <Car className="h-5 w-5" />
+              Vehicle Management
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -1487,7 +1448,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
               {vehicles.length === 0 ? (
                 <p className="text-muted-foreground">No vehicles added yet.</p>
               ) : (
-                <ul className="space-y-2 max-h-48 overflow-y-auto">
+                <ul className="space-y-2 max-h-96 overflow-y-auto">
                   {vehicles.map((vehicle) => (
                     <li key={vehicle.id} className="flex justify-between items-center border p-2 rounded">
                       {editingVehicleIndex === vehicles.indexOf(vehicle) ? (
@@ -1517,238 +1478,380 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
             </div>
           </CardContent>
         </Card>
-      </div>
 
+        <div className="flex justify-end">
+          <Button
+            onClick={handleSave}
+            className="bg-gradient-primary hover:scale-105 transition-all duration-300 shadow-medium"
+            disabled={isLoading}
+          >
+            <Save className="h-4 w-4 mr-2" />
+            Save Settings
+          </Button>
+        </div>
+      </TabsContent>
 
+      {/* Data Management Tab */}
+      <TabsContent value="data" className="space-y-6">
+                    <SelectItem value="Projects Supervisor">Projects Supervisor</SelectItem>
+                    <SelectItem value="Logistics and Warehouse Officer">Logistics and Warehouse Officer</SelectItem>
+                    <SelectItem value="Admin Manager">Admin Manager</SelectItem>
+                    <SelectItem value="Admin Assistant">Admin Assistant</SelectItem>
+                    <SelectItem value="Foreman">Foreman</SelectItem>
+                    <SelectItem value="Engineer">Engineer</SelectItem>
+                    <SelectItem value="Trainee Site Manager">Trainee Site Manager</SelectItem>
+                    <SelectItem value="Site Supervisor">Site Supervisor</SelectItem>
+                    <SelectItem value="Admin Clerk">Admin Clerk</SelectItem>
+                    <SelectItem value="Assistant Supervisor">Assistant Supervisor</SelectItem>
+                    <SelectItem value="Site Worker">Site Worker</SelectItem>
+                    <SelectItem value="Driver">Driver</SelectItem>
+                    <SelectItem value="Security">Security</SelectItem>
+                    <SelectItem value="Adhoc Staff">Adhoc Staff</SelectItem>
+                    <SelectItem value="Consultant">Consultant</SelectItem>
+                    <SelectItem value="IT Student">IT Student</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  value={employeeEmail}
+                  onChange={(e) => setEmployeeEmail(e.target.value)}
+                  placeholder="Email (optional)"
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsAddEmployeeDialogOpen(false)}>Cancel</Button>
+                <Button onClick={handleAddEmployee}>Add Employee</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
-      {/* Data Management */}
-      <Card className="border-0 shadow-soft">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            Data Management
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Backup, restore, or reset all your inventory data. Use these features carefully as some actions cannot be undone.
-          </p>
-          
-          <div className="flex flex-wrap gap-3">
-            <AlertDialog open={isResetOpen} onOpenChange={setIsResetOpen}>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" disabled={isLoading} className="gap-2">
-                  <Trash2 className="h-4 w-4" />
-                  Reset All Data
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Reset All Data</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will permanently delete all assets, waybills, returns, sites, employees, vehicles, and settings data. This action cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleReset} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                    Reset All Data
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+          <Dialog open={isDelistEmployeeDialogOpen} onOpenChange={setIsDelistEmployeeDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Delist Employee</DialogTitle>
+                <DialogDescription>Enter the delisting date for {employeeToDelist?.name}.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <Input
+                  type="date"
+                  value={delistDate}
+                  onChange={(e) => setDelistDate(e.target.value)}
+                  placeholder="Delisting Date"
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsDelistEmployeeDialogOpen(false)}>Cancel</Button>
+                <Button onClick={handleDelistEmployee}>Delist Employee</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
-            <Dialog open={isBackupDialogOpen} onOpenChange={setIsBackupDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" disabled={isLoading} className="gap-2">
-                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4" />}
-                  Backup Data
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Select Backup Items</DialogTitle>
-                  <DialogDescription>
-                    Choose which data types to include in the backup. All are selected by default.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  {backupOptions.map((option) => (
-                    <div key={option.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={option.id}
-                        checked={selectedBackupItems.has(option.id)}
-                        onCheckedChange={(checked) => {
-                          const newSet = new Set(selectedBackupItems);
-                          if (checked) {
-                            newSet.add(option.id);
-                          } else {
-                            newSet.delete(option.id);
-                          }
-                          setSelectedBackupItems(newSet);
-                        }}
-                      />
-                      <Label htmlFor={option.id} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                        {option.label}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={handleBackupCancel}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleBackupConfirm} disabled={isLoading || selectedBackupItems.size === 0}>
-                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                    Create Backup
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-
-
-
-            <Dialog open={isRestoreOpen} onOpenChange={setIsRestoreOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" disabled={isLoading} className="gap-2">
-                  <UploadCloud className="h-4 w-4" />
-                  Restore Data
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Restore Data from Backup</DialogTitle>
-                  <DialogDescription>
-                    Select a JSON backup file to restore your data. This will replace all current data.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="restore-file">Backup File</Label>
-                    <Input
-                      id="restore-file"
-                      type="file"
-                      accept=".json"
-                      onChange={handleFileSelect}
-                      className="mt-1"
-                    />
-                    {restoreFile && (
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Selected: {restoreFile.name}
-                      </p>
-                    )}
-                  </div>
-                  {error && (
-                    <p className="text-sm text-destructive">{error}</p>
-                  )}
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsRestoreOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleRestore} disabled={!restoreFile || isLoading}>
-                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                    Restore Data
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Save Button */}
-      <div className="flex justify-end gap-2">
-        <Dialog open={showActivityLog} onOpenChange={setShowActivityLog}>
-          <DialogTrigger asChild>
-            <Button variant="outline" className="gap-2">
-              <ActivityIcon className="h-4 w-4" />
-              View Activity Log
+          <div className="flex justify-end">
+            <Button
+              onClick={handleSave}
+              className="bg-gradient-primary hover:scale-105 transition-all duration-300 shadow-medium"
+              disabled={isLoading}
+            >
+              <Save className="h-4 w-4 mr-2" />
+              Save Settings
             </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col">
-            <DialogHeader>
-              <DialogTitle>Activity Log</DialogTitle>
-              <DialogDescription>
-                View all system activities and user actions. {activities.length} total activities.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="flex-1 overflow-hidden">
-              <div className="flex justify-between items-center mb-4">
-                <Button variant="outline" onClick={handleBackupActivities} size="sm">
-                  <Download className="h-3 w-3 mr-1" />
-                  Export TXT
-                </Button>
-                <AlertDialog open={isClearConfirmOpen} onOpenChange={setIsClearConfirmOpen}>
+          </div>
+        </TabsContent>
+
+        {/* Vehicles Tab */}
+        <TabsContent value="vehicles" className="space-y-6">
+          <Card className="border-0 shadow-soft">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Car className="h-5 w-5" />
+                Vehicle Management
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Vehicle Name/Plate"
+                  value={vehicleName}
+                  onChange={(e) => setVehicleName(e.target.value)}
+                  className="flex-1"
+                />
+                <Button onClick={handleAddVehicle}>Add</Button>
+              </div>
+              <div>
+                {vehicles.length === 0 ? (
+                  <p className="text-muted-foreground">No vehicles added yet.</p>
+                ) : (
+                  <ul className="space-y-2 max-h-96 overflow-y-auto">
+                    {vehicles.map((vehicle) => (
+                      <li key={vehicle.id} className="flex justify-between items-center border p-2 rounded">
+                        {editingVehicleIndex === vehicles.indexOf(vehicle) ? (
+                          <div className="flex gap-2 flex-1">
+                            <Input
+                              value={tempVehicleName}
+                              onChange={(e) => setTempVehicleName(e.target.value)}
+                              placeholder="Vehicle Name/Plate"
+                              className="flex-1"
+                            />
+                            <Button size="sm" onClick={handleSaveVehicleEdit}>Save</Button>
+                            <Button size="sm" variant="outline" onClick={handleCancelVehicleEdit}>Cancel</Button>
+                          </div>
+                        ) : (
+                          <>
+                            <span>{vehicle.name}</span>
+                            <div className="flex gap-1">
+                              <Button size="sm" variant="outline" onClick={() => handleEditVehicle(vehicle.id)}>Edit</Button>
+                              <Button size="sm" variant="destructive" onClick={() => handleRemoveVehicle(vehicle.id)}>Remove</Button>
+                            </div>
+                          </>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="flex justify-end">
+            <Button
+              onClick={handleSave}
+              className="bg-gradient-primary hover:scale-105 transition-all duration-300 shadow-medium"
+              disabled={isLoading}
+            >
+              <Save className="h-4 w-4 mr-2" />
+              Save Settings
+            </Button>
+          </div>
+        </TabsContent>
+
+        {/* Data Management Tab */}
+        <TabsContent value="data" className="space-y-6">
+          <Card className="border-0 shadow-soft">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Database className="h-5 w-5" />
+                Data Management
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Backup, restore, or reset all your inventory data. Use these features carefully as some actions cannot be undone.
+              </p>
+              
+              <div className="flex flex-wrap gap-3">
+                <AlertDialog open={isResetOpen} onOpenChange={setIsResetOpen}>
                   <AlertDialogTrigger asChild>
-                    <Button variant="destructive" size="sm" disabled={!isAdmin}>
-                      <Trash2 className="h-3 w-3 mr-1" />
-                      Clear Log
+                    <Button variant="destructive" disabled={isLoading} className="gap-2">
+                      <Trash2 className="h-4 w-4" />
+                      Reset All Data
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Clear Activity Log</AlertDialogTitle>
+                      <AlertDialogTitle>Reset All Data</AlertDialogTitle>
                       <AlertDialogDescription>
-                        This will permanently delete all activity logs. This action cannot be undone.
+                        This will permanently delete all assets, waybills, returns, sites, employees, vehicles, and settings data. This action cannot be undone.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleClearActivities} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                        Clear Log
+                      <AlertDialogAction onClick={handleReset} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                        {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                        Reset All Data
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
-              </div>
-              {activities.length === 0 ? (
-                <div className="flex items-center justify-center h-48 text-muted-foreground">
-                  No activities recorded yet.
-                </div>
-              ) : (
-                <div className="overflow-auto max-h-[calc(80vh-200px)]">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Timestamp</TableHead>
-                        <TableHead>User</TableHead>
-                        <TableHead>Action</TableHead>
-                        <TableHead>Entity</TableHead>
-                        <TableHead>Entity ID</TableHead>
-                        <TableHead>Details</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {[...activities].reverse().map((activity) => (
-                        <TableRow key={activity.id}>
-                          <TableCell className="font-mono text-xs">
-                            {new Date(activity.timestamp).toLocaleString()}
-                          </TableCell>
-                          <TableCell>{activity.userName}</TableCell>
-                          <TableCell className="capitalize">{activity.action}</TableCell>
-                          <TableCell className="capitalize">{activity.entity}</TableCell>
-                          <TableCell>{activity.entityId || '-'}</TableCell>
-                          <TableCell className="max-w-xs truncate">{activity.details}</TableCell>
-                        </TableRow>
+
+                <Dialog open={isBackupDialogOpen} onOpenChange={setIsBackupDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" disabled={isLoading} className="gap-2">
+                      {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4" />}
+                      Backup Data
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Select Backup Items</DialogTitle>
+                      <DialogDescription>
+                        Choose which data types to include in the backup. All are selected by default.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      {backupOptions.map((option) => (
+                        <div key={option.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={option.id}
+                            checked={selectedBackupItems.has(option.id)}
+                            onCheckedChange={(checked) => {
+                              const newSet = new Set(selectedBackupItems);
+                              if (checked) {
+                                newSet.add(option.id);
+                              } else {
+                                newSet.delete(option.id);
+                              }
+                              setSelectedBackupItems(newSet);
+                            }}
+                          />
+                          <Label htmlFor={option.id} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                            {option.label}
+                          </Label>
+                        </div>
                       ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-        <Button
-          onClick={handleSave}
-          className="bg-gradient-primary hover:scale-105 transition-all duration-300 shadow-medium"
-          disabled={isLoading}
-        >
-          <Save className="h-4 w-4 mr-2" />
-          Save Settings
-        </Button>
-      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={handleBackupCancel}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleBackupConfirm} disabled={isLoading || selectedBackupItems.size === 0}>
+                        {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                        Create Backup
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+
+                <Dialog open={isRestoreOpen} onOpenChange={setIsRestoreOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" disabled={isLoading} className="gap-2">
+                      <UploadCloud className="h-4 w-4" />
+                      Restore Data
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Restore Data from Backup</DialogTitle>
+                      <DialogDescription>
+                        Select a JSON backup file to restore your data. This will replace all current data.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="restore-file">Backup File</Label>
+                        <Input
+                          id="restore-file"
+                          type="file"
+                          accept=".json"
+                          onChange={handleFileSelect}
+                          className="mt-1"
+                        />
+                        {restoreFile && (
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Selected: {restoreFile.name}
+                          </p>
+                        )}
+                      </div>
+                      {error && (
+                        <p className="text-sm text-destructive">{error}</p>
+                      )}
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setIsRestoreOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleRestore} disabled={!restoreFile || isLoading}>
+                        {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                        Restore Data
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+
+                <Dialog open={showActivityLog} onOpenChange={setShowActivityLog}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="gap-2">
+                      <ActivityIcon className="h-4 w-4" />
+                      View Activity Log
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col">
+                    <DialogHeader>
+                      <DialogTitle>Activity Log</DialogTitle>
+                      <DialogDescription>
+                        View all system activities and user actions. {activities.length} total activities.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex-1 overflow-hidden">
+                      <div className="flex justify-between items-center mb-4">
+                        <Button variant="outline" onClick={handleBackupActivities} size="sm">
+                          <Download className="h-3 w-3 mr-1" />
+                          Export TXT
+                        </Button>
+                        <AlertDialog open={isClearConfirmOpen} onOpenChange={setIsClearConfirmOpen}>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="destructive" size="sm" disabled={!isAdmin}>
+                              <Trash2 className="h-3 w-3 mr-1" />
+                              Clear Log
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Clear Activity Log</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will permanently delete all activity logs. This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={handleClearActivities} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                Clear Log
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                      {activities.length === 0 ? (
+                        <div className="flex items-center justify-center h-48 text-muted-foreground">
+                          No activities recorded yet.
+                        </div>
+                      ) : (
+                        <div className="overflow-auto max-h-[calc(80vh-200px)]">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Timestamp</TableHead>
+                                <TableHead>User</TableHead>
+                                <TableHead>Action</TableHead>
+                                <TableHead>Entity</TableHead>
+                                <TableHead>Entity ID</TableHead>
+                                <TableHead>Details</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {[...activities].reverse().map((activity) => (
+                                <TableRow key={activity.id}>
+                                  <TableCell className="font-mono text-xs">
+                                    {new Date(activity.timestamp).toLocaleString()}
+                                  </TableCell>
+                                  <TableCell>{activity.userName}</TableCell>
+                                  <TableCell className="capitalize">{activity.action}</TableCell>
+                                  <TableCell className="capitalize">{activity.entity}</TableCell>
+                                  <TableCell>{activity.entityId || '-'}</TableCell>
+                                  <TableCell className="max-w-xs truncate">{activity.details}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      )}
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="flex justify-end">
+            <Button
+              onClick={handleSave}
+              className="bg-gradient-primary hover:scale-105 transition-all duration-300 shadow-medium"
+              disabled={isLoading}
+            >
+              <Save className="h-4 w-4 mr-2" />
+              Save Settings
+            </Button>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
