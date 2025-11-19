@@ -1,15 +1,20 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { Asset, Waybill, QuickCheckout, Activity, Site, Employee } from "@/types/asset";
 import { EquipmentLog } from "@/types/equipment";
-import { Package, FileText, ShoppingCart, AlertTriangle, TrendingDown, CheckCircle, User, Wrench, BarChart3, ChevronDown, ChevronUp } from "lucide-react";
+import { Package, FileText, ShoppingCart, AlertTriangle, TrendingDown, CheckCircle, User, Wrench, BarChart3, ChevronDown, ChevronUp, CalendarIcon } from "lucide-react";
 import { getActivities } from "@/utils/activityLogger";
 import { SiteMachineAnalytics } from "@/components/sites/SiteMachineAnalytics";
 import { NotificationPanel } from "./NotificationPanel";
-import { format } from "date-fns";
+import { TrendChart } from "./TrendChart";
+import { QuickActionsPanel } from "./QuickActionsPanel";
+import { format, subDays } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
 
 interface DashboardProps {
   assets: Asset[];
@@ -27,6 +32,9 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
   const [selectedSite, setSelectedSite] = useState<Site | null>(null);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+  const [activityDateRange, setActivityDateRange] = useState({ from: subDays(new Date(), 7), to: new Date() });
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const { toast } = useToast();
 
   // Load activities on mount
   useEffect(() => {
@@ -44,6 +52,27 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
   
   const outstandingWaybills = (waybills || []).filter(w => w.status === 'outstanding').length;
   const outstandingCheckouts = (quickCheckouts || []).filter(c => c.status === 'outstanding').length;
+
+  // Generate mock trend data (in production, this would come from historical data)
+  const generateTrendData = (current: number, variation: number = 10) => {
+    const data = [];
+    let value = current * 0.9;
+    for (let i = 0; i < 7; i++) {
+      value += (Math.random() - 0.5) * variation;
+      data.push(Math.max(0, Math.round(value)));
+    }
+    return data;
+  };
+
+  const getTrend = (data: number[]): { trend: "up" | "down" | "neutral", percentage: number } => {
+    const first = data[0];
+    const last = data[data.length - 1];
+    const diff = last - first;
+    const percentage = first === 0 ? 0 : Math.round((diff / first) * 100);
+    
+    if (Math.abs(percentage) < 5) return { trend: "neutral", percentage: 0 };
+    return { trend: diff > 0 ? "up" : "down", percentage };
+  };
   
   // Calculate categories
   const dewateringAssets = assets.filter(a => a.category === 'dewatering');
@@ -167,50 +196,91 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
     return null;
   };
   
-  const stats = [
+  const stats = useMemo(() => [
     {
       title: "Total Assets",
       value: totalAssets,
       description: "Items in inventory",
       icon: Package,
-      color: "text-primary"
+      color: "text-primary",
+      trendData: generateTrendData(totalAssets, 5),
+      getTrendInfo: function() { return getTrend(this.trendData); }
     },
     {
       title: "Total Quantity",
       value: totalQuantity,
       description: "Units in stock",
       icon: Package,
-      color: "text-success"
+      color: "text-success",
+      trendData: generateTrendData(totalQuantity, 20),
+      getTrendInfo: function() { return getTrend(this.trendData); }
     },
     {
       title: "Outstanding Waybills",
       value: outstandingWaybills,
       description: "Items out for projects",
       icon: FileText,
-      color: "text-warning"
+      color: "text-warning",
+      trendData: generateTrendData(outstandingWaybills, 3),
+      getTrendInfo: function() { return getTrend(this.trendData); }
     },
     {
       title: "Quick Checkouts",
       value: outstandingCheckouts,
       description: "Items checked out",
       icon: ShoppingCart,
-      color: "text-primary"
+      color: "text-primary",
+      trendData: generateTrendData(outstandingCheckouts, 2),
+      getTrendInfo: function() { return getTrend(this.trendData); }
     },
     {
       title: "Out of Stock",
       value: outOfStockCount,
       description: "Items needing reorder",
       icon: AlertTriangle,
-      color: "text-destructive"
+      color: "text-destructive",
+      trendData: generateTrendData(outOfStockCount, 2),
+      getTrendInfo: function() { return getTrend(this.trendData); }
     },
     {
       title: "Low Stock",
       value: lowStockCount,
       description: "Items running low",
       icon: TrendingDown,
-      color: "text-warning"
+      color: "text-warning",
+      trendData: generateTrendData(lowStockCount, 3),
+      getTrendInfo: function() { return getTrend(this.trendData); }
     }
-  ];
+  ], [totalAssets, totalQuantity, outstandingWaybills, outstandingCheckouts, outOfStockCount, lowStockCount]);
+
+  // Filter activities by date range
+  const filteredActivities = useMemo(() => {
+    return activities.filter(activity => {
+      const activityDate = activity.timestamp;
+      return activityDate >= activityDateRange.from && activityDate <= activityDateRange.to;
+    });
+  }, [activities, activityDateRange]);
+
+  const handleBulkLog = () => {
+    toast({
+      title: "Bulk Log Equipment",
+      description: "This feature allows you to log multiple equipment at once. Coming soon!",
+    });
+  };
+
+  const handleQuickRestock = () => {
+    toast({
+      title: "Quick Restock",
+      description: "This feature allows you to quickly restock low inventory items. Coming soon!",
+    });
+  };
+
+  const handleExportDashboard = () => {
+    toast({
+      title: "Export Dashboard",
+      description: "Exporting dashboard data to PDF. Coming soon!",
+    });
+  };
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -226,29 +296,44 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {stats.map((stat, index) => (
-          <Card
-            key={stat.title}
-            className="border-0 shadow-soft hover:shadow-medium transition-all duration-300 animate-slide-up"
-            style={{animationDelay: `${index * 0.1}s`}}
-          >
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <stat.icon className={`h-4 w-4 ${stat.color}`} />
-                {stat.title}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className={`text-3xl font-bold ${stat.color}`}>
-                {stat.value}
-              </div>
-              <CardDescription className="mt-2">
-                {stat.description}
-              </CardDescription>
-            </CardContent>
-          </Card>
-        ))}
+        {stats.map((stat, index) => {
+          const trendInfo = stat.getTrendInfo();
+          return (
+            <Card
+              key={stat.title}
+              className="border-0 shadow-soft hover:shadow-medium transition-all duration-300 animate-slide-up"
+              style={{animationDelay: `${index * 0.1}s`}}
+            >
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <stat.icon className={`h-4 w-4 ${stat.color}`} />
+                  {stat.title}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className={`text-3xl font-bold ${stat.color}`}>
+                  {stat.value}
+                </div>
+                <CardDescription className="mt-2 mb-3">
+                  {stat.description}
+                </CardDescription>
+                <TrendChart 
+                  data={stat.trendData}
+                  trend={trendInfo.trend}
+                  percentage={trendInfo.percentage}
+                />
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
+
+      {/* Quick Actions Panel */}
+      <QuickActionsPanel
+        onBulkLog={handleBulkLog}
+        onQuickRestock={handleQuickRestock}
+        onExportDashboard={handleExportDashboard}
+      />
 
       {/* Notification Panel */}
       <NotificationPanel
@@ -346,12 +431,37 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
       {/* Recent Activity */}
       <Card className="border-0 shadow-soft animate-slide-up" style={{animationDelay: '0.9s'}}>
         <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
-          <CardDescription>Latest system activities and user actions</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Recent Activity</CardTitle>
+              <CardDescription>Latest system activities and user actions</CardDescription>
+            </div>
+            <Popover open={showDatePicker} onOpenChange={setShowDatePicker}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <CalendarIcon className="h-4 w-4" />
+                  {format(activityDateRange.from, "MMM dd")} - {format(activityDateRange.to, "MMM dd")}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <Calendar
+                  mode="range"
+                  selected={{ from: activityDateRange.from, to: activityDateRange.to }}
+                  onSelect={(range) => {
+                    if (range?.from && range?.to) {
+                      setActivityDateRange({ from: range.from, to: range.to });
+                      setShowDatePicker(false);
+                    }
+                  }}
+                  numberOfMonths={2}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {activities.slice(0, 5).map(activity => {
+            {filteredActivities.slice(0, 10).map(activity => {
               // Format the action text to be more readable
               const formatAction = (action: string): string => {
                 return action
@@ -408,10 +518,10 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
                 </div>
               );
             })}
-            {activities.length === 0 && (
+            {filteredActivities.length === 0 && (
               <div className="text-center py-8 text-muted-foreground">
                 <User className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No recent activities</p>
+                <p>No activities in selected date range</p>
               </div>
             )}
           </div>
