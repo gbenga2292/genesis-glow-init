@@ -27,6 +27,11 @@ export class PermissionChecker {
   constructor(private userRole: UserRole) {}
 
   checkPermission(action: AIIntent['action']): { allowed: boolean; message: string } {
+    // Admins have permission to execute all actions, including unknown ones
+    if (this.userRole === 'admin') {
+      return { allowed: true, message: '' };
+    }
+
     const allowed = this.rolePermissions[this.userRole]?.includes(action) || false;
 
     if (!allowed) {

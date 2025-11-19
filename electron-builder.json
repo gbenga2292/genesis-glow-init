@@ -11,6 +11,13 @@
     "node_modules/**/*",
     "package.json"
   ],
+  "extraResources": [
+    {
+      "from": "resources/llm",
+      "to": "llm",
+      "filter": ["**/*"]
+    }
+  ],
   "extraMetadata": {
     "main": "electron/main.js"
   },

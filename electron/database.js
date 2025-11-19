@@ -1,5 +1,7 @@
 import knex from 'knex';
 import bcrypt from 'bcrypt';
+import path from 'path';
+import os from 'os';
 import {
   transformAssetFromDB,
   transformAssetToDB,
@@ -424,9 +426,25 @@ const getCompanySettings = () => {
   return db('company_settings').first().then(settings => settings ? transformCompanySettingsFromDB(settings) : null);
 }
 
+const createCompanySettings = (data) => {
+  if (!db) throw new Error('Database not connected');
+  const dbData = transformCompanySettingsToDB(data);
+  return db('company_settings').insert(dbData).returning('*').then(rows => rows.map(transformCompanySettingsFromDB));
+}
+
 const updateCompanySettings = (id, data) => {
   if (!db) throw new Error('Database not connected');
-  return db('company_settings').where({ id }).update(transformCompanySettingsToDB(data)).returning('*').then(rows => rows.map(transformCompanySettingsFromDB));
+  // If id is not provided or settings don't exist, try to create instead of update
+  if (!id) {
+    return createCompanySettings(data);
+  }
+  return db('company_settings').where({ id }).update(transformCompanySettingsToDB(data)).returning('*').then(rows => {
+    // If no rows updated, try to create instead
+    if (rows.length === 0) {
+      return createCompanySettings(data);
+    }
+    return rows.map(transformCompanySettingsFromDB);
+  });
 }
 
 const getSiteTransactions = () => {
@@ -780,6 +798,121 @@ const createReturnWaybill = async (data) => {
   }
 }
 
+// --- SAVED API KEYS ---
+const getSavedApiKeys = () => {
+  if (!db) throw new Error('Database not connected');
+  // Ensure table exists (helpful for upgrades / older DBs)
+  return ensureSavedApiKeysTable().then(() => db('saved_api_keys').select('*').orderBy('created_at', 'desc'));
+};
+
+const createSavedApiKey = (data) => {
+  if (!db) throw new Error('Database not connected');
+  const { key_name, provider, api_key, endpoint, model } = data;
+  return ensureSavedApiKeysTable().then(() => db('saved_api_keys').insert({
+    key_name,
+    provider,
+    api_key,
+    endpoint: endpoint || null,
+    model: model || null,
+    is_active: false
+  }).returning('*'));
+};
+
+const updateSavedApiKey = (id, data) => {
+  if (!db) throw new Error('Database not connected');
+  const { key_name, provider, api_key, endpoint, model, is_active } = data;
+  return ensureSavedApiKeysTable().then(() => db('saved_api_keys').where({ id }).update({
+    key_name,
+    provider,
+    api_key,
+    endpoint: endpoint || null,
+    model: model || null,
+    is_active,
+    updated_at: db.fn.now()
+  }).returning('*'));
+};
+
+const setActiveApiKey = async (id) => {
+  if (!db) throw new Error('Database not connected');
+  // First, deactivate all keys
+  await ensureSavedApiKeysTable();
+  await db('saved_api_keys').update({ is_active: false });
+  // Then set the specified key as active
+  return db('saved_api_keys').where({ id }).update({ is_active: true, updated_at: db.fn.now() }).returning('*');
+};
+
+const deleteSavedApiKey = (id) => {
+  if (!db) throw new Error('Database not connected');
+  return ensureSavedApiKeysTable().then(() => db('saved_api_keys').where({ id }).del());
+};
+
+const getActiveApiKey = () => {
+  if (!db) throw new Error('Database not connected');
+  return ensureSavedApiKeysTable().then(() => db('saved_api_keys').where({ is_active: true }).first());
+};
+
+// Helper: ensure saved_api_keys table exists (used defensively at runtime)
+const ensureSavedApiKeysTable = async () => {
+  if (!db) throw new Error('Database not connected');
+  const exists = await db.schema.hasTable('saved_api_keys');
+  if (!exists) {
+    await db.schema.createTable('saved_api_keys', (table) => {
+      table.increments('id').primary();
+      table.string('key_name').notNullable().unique();
+      table.string('provider').notNullable();
+      table.text('api_key').notNullable();
+      table.string('key_ref');
+      table.text('endpoint');
+      table.string('model');
+      table.boolean('is_active').defaultTo(false);
+      table.timestamps(true, true);
+    });
+    console.log('Created missing table: saved_api_keys');
+  }
+  // Ensure key_ref column exists for older DBs
+  const hasKeyRef = await db.schema.hasColumn('saved_api_keys', 'key_ref');
+  if (!hasKeyRef) {
+    await db.schema.table('saved_api_keys', (t) => {
+      t.string('key_ref');
+    });
+    console.log('Added missing column key_ref to saved_api_keys');
+  }
+};
+
+// Move plain-text API keys stored in the DB into the OS secure store (keytar)
+const migrateSavedKeysToKeytar = async () => {
+  if (!db) throw new Error('Database not connected');
+  await ensureSavedApiKeysTable();
+  // dynamic import keytar to avoid optional dependency at startup
+  const keytarModule = await import('keytar');
+  const keytar = keytarModule.default || keytarModule;
+  const SERVICE = process.env.KEYTAR_SERVICE || 'hi-there-project-09-keys';
+
+  const rows = await db('saved_api_keys').select('*').whereNotNull('api_key');
+  for (const row of rows) {
+    try {
+      const account = `saved_api_key:${row.id}`;
+      // store in keytar
+      await keytar.setPassword(SERVICE, account, String(row.api_key));
+      // update DB: set key_ref and null api_key
+      await db('saved_api_keys').where({ id: row.id }).update({ key_ref: account, api_key: null, updated_at: db.fn.now() });
+      console.log(`Migrated saved_api_key id=${row.id} into secure store as ${account}`);
+    } catch (err) {
+      console.error('Failed to migrate saved_api_key id=', row.id, err);
+    }
+  }
+  return { migrated: rows.length };
+};
+
+const getApiKeyFromKeyRef = async (keyRef) => {
+  if (!db) throw new Error('Database not connected');
+  if (!keyRef) return null;
+  const keytarModule = await import('keytar');
+  const keytar = keytarModule.default || keytarModule;
+  const SERVICE = process.env.KEYTAR_SERVICE || 'hi-there-project-09-keys';
+  return keytar.getPassword(SERVICE, keyRef);
+};
+
 export {
     connect,
     disconnect,
@@ -836,6 +969,7 @@ export {
     updateConsumableLog,
     deleteConsumableLog,
     getCompanySettings,
+    createCompanySettings,
     updateCompanySettings,
     getSiteTransactions,
     addSiteTransaction,
@@ -849,4 +983,12 @@ export {
     processReturnWithTransaction,
     deleteWaybillWithTransaction,
     updateWaybillWithTransaction,
+    getSavedApiKeys,
+    createSavedApiKey,
+    updateSavedApiKey,
+    setActiveApiKey,
+    deleteSavedApiKey,
+    getActiveApiKey,
+  migrateSavedKeysToKeytar,
+  getApiKeyFromKeyRef,
 };

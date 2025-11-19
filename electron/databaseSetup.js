@@ -226,9 +226,23 @@ async function initializeDatabase(dbPath) {
       table.string('theme').defaultTo('system');
       table.boolean('notifications_email').defaultTo(true);
       table.boolean('notifications_push').defaultTo(true);
+      table.text('ai_config'); // JSON string for AI config (remote settings)
       table.timestamps(true, true);
     });
     console.log('Created "company_settings" table.');
+
+    // Saved API Keys Table
+    await db.schema.createTable('saved_api_keys', (table) => {
+      table.increments('id').primary();
+      table.string('key_name').notNullable().unique(); // User-friendly name like "Work OpenAI"
+      table.string('provider').notNullable(); // 'openai', 'custom', etc.
+      table.text('api_key').notNullable(); // The actual API key
+      table.text('endpoint'); // Custom endpoint if applicable
+      table.string('model'); // Model name like 'gpt-3.5-turbo'
+      table.boolean('is_active').defaultTo(false); // Only one can be active
+      table.timestamps(true, true);
+    });
+    console.log('Created "saved_api_keys" table.');
 
     // Site Transactions Table
     await db.schema.createTable('site_transactions', (table) => {

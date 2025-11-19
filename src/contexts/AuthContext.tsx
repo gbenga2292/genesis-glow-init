@@ -140,7 +140,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           'print_documents'
         ],
         staff: [
-          'read_assets',
+          'read_assets', 'write_assets',
           'read_waybills',
           'read_returns',
           'read_sites',

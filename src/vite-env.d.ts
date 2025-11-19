@@ -54,6 +54,7 @@ interface Window {
     updateConsumableLog: (id: string, data: any) => Promise<any>;
     deleteConsumableLog: (id: string) => Promise<any>;
     getCompanySettings: () => Promise<any>;
+    createCompanySettings: (data: any) => Promise<any[]>;
     updateCompanySettings: (id: string, data: any) => Promise<any>;
     getSiteTransactions: () => Promise<any[]>;
     addSiteTransaction: (transaction: any) => Promise<{ success: boolean }>;
@@ -67,6 +68,14 @@ interface Window {
     sendToSiteWithTransaction: (waybillId: string, sentToSiteDate?: string) => Promise<{ success: boolean; error?: string }>;
     deleteWaybillWithTransaction: (waybillId: string) => Promise<{ success: boolean; error?: string }>;
     updateWaybillWithTransaction: (waybillId: string, updatedData: any) => Promise<{ success: boolean; error?: string }>;
+    getSavedApiKeys: () => Promise<any[]>;
+    createSavedApiKey: (data: { key_name: string; provider: string; api_key: string; endpoint?: string; model?: string }) => Promise<any[]>;
+    updateSavedApiKey: (id: number, data: any) => Promise<any[]>;
+    setActiveApiKey: (id: number) => Promise<any[]>;
+    deleteSavedApiKey: (id: number) => Promise<any>;
+    getActiveApiKey: () => Promise<any>;
+  migrateSavedKeysToKeytar: () => Promise<{ migrated: number }>;
+  getApiKeyFromKeyRef: (keyRef: string) => Promise<string | null>;
     getDatabaseInfo: () => Promise<{ storageType: string; dbPath: string; masterDbPath: string; localDbPath: string; lockingEnabled: boolean }>;
     wipeLocalDatabase: () => Promise<{ success: boolean; message?: string; error?: string }>;
   };

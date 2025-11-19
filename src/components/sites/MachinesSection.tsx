@@ -13,12 +13,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Site, Asset, Employee } from "@/types/asset";
 import { EquipmentLog as EquipmentLogType, DowntimeEntry } from "@/types/equipment";
-import { Wrench, Calendar as CalendarIcon, Plus, Eye, BarChart3, Package, ChevronDown, LineChart } from "lucide-react";
+import { Wrench, Calendar as CalendarIcon, Plus, Eye, BarChart3, Package, ChevronDown, LineChart, Zap } from "lucide-react";
 import { format, isSameDay } from "date-fns";
 import { SiteMachineAnalytics } from "./SiteMachineAnalytics";
 import { SiteWideMachineAnalytics } from "./SiteWideMachineAnalytics";
 import { useAuth } from "@/contexts/AuthContext";
 import { logActivity } from "@/utils/activityLogger";
+import { createDefaultOperationalLog, applyDefaultTemplate, calculateDieselRefill, getDieselOverdueDays } from "@/utils/defaultLogTemplate";
 
 interface MachinesSectionProps {
   site: Site;
@@ -215,6 +216,47 @@ export const MachinesSection = ({
       .map(log => log.date);
   };
 
+  const handleQuickLog = (equipment: Asset) => {
+    // Check if there's already a log for today
+    const today = new Date();
+    const existingLog = equipmentLogs.find(log =>
+      log.equipmentId === equipment.id &&
+      format(log.date, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')
+    );
+
+    // Calculate diesel refill based on schedule (60L every 4 days)
+    const dieselRefill = calculateDieselRefill(equipmentLogs, equipment.id);
+
+    if (existingLog) {
+      // Update existing log with default template
+      const defaultTemplate = createDefaultOperationalLog(undefined, dieselRefill);
+      const updatedLog = applyDefaultTemplate(existingLog, defaultTemplate);
+      onUpdateEquipmentLog(updatedLog);
+      logActivity({
+        action: 'update',
+        entity: 'equipment_log',
+        entityId: equipment.id,
+        details: `Quick log applied to ${equipment.name} at ${site.name} on ${format(today, 'MMM dd, yyyy')} - Default operational template${dieselRefill ? ` with ${dieselRefill}L diesel refill` : ''}`
+      });
+    } else {
+      // Create new log with default template
+      const defaultTemplate = createDefaultOperationalLog(undefined, dieselRefill);
+      const newLog = applyDefaultTemplate({
+        equipmentId: equipment.id,
+        equipmentName: equipment.name,
+        siteId: site.id,
+        date: today
+      }, defaultTemplate);
+      onAddEquipmentLog(newLog);
+      logActivity({
+        action: 'create',
+        entity: 'equipment_log',
+        entityId: equipment.id,
+        details: `Quick log created for ${equipment.name} at ${site.name} on ${format(today, 'MMM dd, yyyy')} - Default operational template${dieselRefill ? ` with ${dieselRefill}L diesel refill` : ''}`
+      });
+    }
+  };
+
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-4">
       <div className="flex items-center justify-between">
@@ -256,16 +298,33 @@ export const MachinesSection = ({
                 <div className="text-sm text-muted-foreground">
                   Serial: {equipment.id}
                 </div>
+                {(() => {
+                  const overdueDays = getDieselOverdueDays(equipmentLogs, equipment.id);
+                  return overdueDays > 0 ? (
+                    <div className="text-xs text-orange-600 font-medium">
+                      ⚠️ Diesel refill overdue by {overdueDays} day{overdueDays > 1 ? 's' : ''}
+                    </div>
+                  ) : null;
+                })()}
                 <div className="flex gap-2">
                   <Button
                     onClick={() => handleEquipmentSelect(equipment)}
                     variant="outline"
                     size="sm"
                     className="flex-1"
-                    disabled={!hasPermission('print_documents')}
+                    disabled={!hasPermission('write_assets')}
                   >
                     <CalendarIcon className="h-4 w-4 mr-2" />
                     Month
+                  </Button>
+                  <Button
+                    onClick={() => handleQuickLog(equipment)}
+                    variant="ghost"
+                    size="sm"
+                    className="px-2"
+                    title="Quick Log - Apply default operational template"
+                  >
+                    <Zap className="h-4 w-4" />
                   </Button>
                   <Button
                     onClick={() => {

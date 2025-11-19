@@ -31,6 +31,9 @@ console.log('Locking Enabled:', config.enableLocking);
 console.log('============================');
 
 let mainWindow;
+// LLM manager instance is created during main() but we keep a module-scoped reference
+// so shutdown handlers outside main() can access it.
+let llmManager;
 
 async function main() {
   // Ensure the database directory exists
@@ -214,123 +217,162 @@ async function main() {
   
   console.log('IPC handlers registered.');
 
-  // --- LLM IPC Handlers ---
+  // --- LLM Manager Integration ---
+  // Dynamically import the ESM LLM manager module (main.js is ESM)
+  const { LLMManager } = await import('./llmManager.js');
+  llmManager = new LLMManager();
+
+  // Try to migrate API key from company settings (DB) into OS secure store (keytar)
+  // This keeps the DB copy for cross-machine sync while also populating keytar for secure local use.
+  const tryMigrateApiKeyFromDB = async () => {
+    try {
+      if (!db || typeof db.getCompanySettings !== 'function') return;
+      const cs = await db.getCompanySettings();
+      if (!cs || !cs.ai || !cs.ai.remote) return;
+      const remote = cs.ai.remote;
+      if (!remote.apiKey) return; // nothing to migrate
+
+      // If keytar already has it, nothing to do
+      try {
+        const keytarModule = await import('keytar');
+        const keytar = keytarModule.default || keytarModule;
+        const SERVICE = 'hi-there-project-09-ai';
+        const ACCOUNT = (cs && cs.id) ? String(cs.id) : 'default';
+        const stored = await keytar.getPassword(SERVICE, ACCOUNT);
+        if (stored) {
+          console.log('LLM: API key already present in secure store for account', ACCOUNT);
+          return;
+        }
+        // Ask llmManager to persist remote config (it will attempt to store via keytar too)
+        const res = await llmManager.updateModelPath({ remote });
+        if (res && res.success) {
+          console.log('LLM: Migrated API key into secure store via llmManager');
+          // Mark the company settings record to indicate secure-store presence (optional)
+          try {
+            const updated = { ...(cs || {}), ai: { ...(cs.ai || {}), remote: { ...remote, storedInSecureStore: true } } };
+            if (cs.id && db.updateCompanySettings) {
+              await db.updateCompanySettings(cs.id, updated);
+              console.log('LLM: Updated company settings to mark storedInSecureStore');
+            }
+          } catch (err) {
+            console.warn('LLM: Failed to mark company settings after migration', err);
+          }
+        } else {
+          console.warn('LLM: llmManager.updateModelPath reported failure during migration', res && res.error);
+        }
+      } catch (err) {
+        console.warn('LLM: keytar unavailable or migration failed; leaving API key in DB for cross-machine use', err);
+      }
+    } catch (err) {
+      console.error('LLM: Unexpected error while migrating API key from DB', err);
+    }
+  };
+
+  // Auto-start LLM server on app startup
+  llmManager.start().then(result => {
+    if (result.success) {
+      console.log('✓ LLM server auto-started successfully');
+    } else {
+      console.warn('⚠ LLM server auto-start failed:', result.error);
+      console.warn('  AI Assistant will not be available until LLM is configured.');
+    }
+  }).catch(err => {
+    console.error('LLM auto-start error:', err);
+  });
+
+  // Attempt immediate migration from DB into keytar so runtime operations find the key
+  tryMigrateApiKeyFromDB().catch(err => console.warn('LLM: migration task failed', err));
+
+  // --- LLM IPC Handlers (New Bundled Runtime Approach) ---
   ipcMain.handle('llm:status', async () => {
-    return {
-      available: !!config.llamaBinaryPath || !!config.llamaLocalHttpUrl,
-      binaryPath: config.llamaBinaryPath || null,
-      localHttpUrl: config.llamaLocalHttpUrl || null
-    };
+    return llmManager.getStatus();
   });
 
   ipcMain.handle('llm:configure', async (event, newCfg) => {
-    // Note: this is a lightweight runtime configure; persistent storage should be done via settings
-    if (newCfg.llamaBinaryPath !== undefined) config.llamaBinaryPath = newCfg.llamaBinaryPath;
-    if (newCfg.llamaModelPath !== undefined) config.llamaModelPath = newCfg.llamaModelPath;
-    if (newCfg.llamaArgs !== undefined) config.llamaArgs = newCfg.llamaArgs;
-    if (newCfg.llamaLocalHttpUrl !== undefined) config.llamaLocalHttpUrl = newCfg.llamaLocalHttpUrl;
-    return { success: true };
+    // Allow updating modelPath or remote configuration via a single payload
+    if (!newCfg) return { success: false, error: 'No config provided' };
+    return llmManager.updateModelPath(newCfg);
+  });
+
+  // Migrate API key(s) from company settings (DB) into secure store (keytar). Returns a short report.
+  ipcMain.handle('llm:migrate-keys', async () => {
+    try {
+      await tryMigrateApiKeyFromDB();
+      return { success: true, message: 'Migration attempted. Check logs for details.' };
+    } catch (err) {
+      return { success: false, error: String(err) };
+    }
+  });
+
+  // Check where the API key exists: secure store and/or DB
+  ipcMain.handle('llm:get-key-status', async () => {
+    try {
+      const cs = await db.getCompanySettings();
+      const dbHas = !!(cs && cs.ai && cs.ai.remote && cs.ai.remote.apiKey);
+      let secureHas = false;
+      try {
+        const keytarModule = await import('keytar');
+        const keytar = keytarModule.default || keytarModule;
+        const SERVICE = 'hi-there-project-09-ai';
+        const ACCOUNT = (cs && cs.id) ? String(cs.id) : 'default';
+        const stored = await keytar.getPassword(SERVICE, ACCOUNT);
+        secureHas = !!stored;
+      } catch (err) {
+        // keytar not available
+      }
+      return { success: true, inDB: dbHas, inSecureStore: secureHas };
+    } catch (err) {
+      return { success: false, error: String(err) };
+    }
+  });
+
+  // Clear API key from secure store and (optionally) from DB. If removeFromDB true, will null out the DB copy.
+  ipcMain.handle('llm:clear-key', async (event, { removeFromDB = false } = {}) => {
+    try {
+      const cs = await db.getCompanySettings();
+      if (cs) {
+        try {
+          const keytarModule = await import('keytar');
+          const keytar = keytarModule.default || keytarModule;
+          const SERVICE = 'hi-there-project-09-ai';
+          const ACCOUNT = (cs && cs.id) ? String(cs.id) : 'default';
+          await keytar.deletePassword(SERVICE, ACCOUNT);
+        } catch (err) {
+          console.warn('LLM: Failed to clear key from secure store (or keytar missing)', err);
+        }
+
+        if (removeFromDB) {
+          try {
+            const updated = { ...(cs || {}), ai: { ...(cs.ai || {}), remote: { ...(cs.ai?.remote || {}), apiKey: null, storedInSecureStore: false } } };
+            if (cs.id && db.updateCompanySettings) {
+              await db.updateCompanySettings(cs.id, updated);
+            }
+          } catch (err) {
+            console.warn('LLM: Failed to clear API key from DB', err);
+          }
+        }
+      }
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: String(err) };
+    }
   });
 
   ipcMain.handle('llm:generate', async (event, { prompt, options = {} } = {}) => {
     if (!prompt) return { success: false, error: 'No prompt provided' };
+    return await llmManager.generate(prompt, options);
+  });
 
-    // Prefer local HTTP wrapper if configured
-    if (config.llamaLocalHttpUrl) {
-      try {
-        const res = await fetch(config.llamaLocalHttpUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt, options })
-        });
-        const data = await res.json();
-        return { success: true, text: data.text || data.output || JSON.stringify(data), raw: data };
-      } catch (err) {
-        console.error('Local HTTP LLM request failed', err);
-        // fall through to binary spawn attempt
-      }
-    }
+  ipcMain.handle('llm:start', async () => {
+    return await llmManager.start();
+  });
 
-    // Next: try spawning configured binary
-    if (config.llamaBinaryPath) {
-      return new Promise((resolve) => {
-        try {
-          const args = Array.isArray(config.llamaArgs) ? config.llamaArgs.slice() : [];
-          // If a model path exists, add a conventional flag for wrappers that accept it
-          if (config.llamaModelPath && !args.includes('--model')) {
-            args.push('--model', config.llamaModelPath);
-          }
+  ipcMain.handle('llm:stop', async () => {
+    return llmManager.stop();
+  });
 
-          // Give wrapper the prompt via stdin (many wrappers consume stdin)
-          const child = spawn(config.llamaBinaryPath, args, { stdio: ['pipe', 'pipe', 'pipe'] });
-
-          let stdout = '';
-          let stderr = '';
-          let hasResolved = false;
-
-          // Set a timeout of 60 seconds for LLM response
-          const timeoutHandle = setTimeout(() => {
-            if (!hasResolved) {
-              hasResolved = true;
-              console.warn('LLM process timeout after 60s');
-              child.kill('SIGTERM');
-              // Give it 5 seconds to die gracefully, then force kill
-              setTimeout(() => {
-                if (child.exitCode === null) {
-                  child.kill('SIGKILL');
-                }
-              }, 5000);
-              resolve({ success: false, error: 'LLM timeout (>60s) - process killed' });
-            }
-          }, 60000);
-
-          child.stdout.on('data', (chunk) => {
-            stdout += chunk.toString();
-          });
-
-          child.stderr.on('data', (chunk) => {
-            stderr += chunk.toString();
-          });
-
-          child.on('error', (err) => {
-            if (!hasResolved) {
-              hasResolved = true;
-              clearTimeout(timeoutHandle);
-              console.error('LLM child error', err);
-              resolve({ success: false, error: err.message });
-            }
-          });
-
-          child.on('close', (code) => {
-            if (!hasResolved) {
-              hasResolved = true;
-              clearTimeout(timeoutHandle);
-              if (code === 0 || stdout.length > 0) {
-                resolve({ success: true, text: stdout.trim(), rawStdout: stdout, rawStderr: stderr });
-              } else {
-                resolve({ success: false, error: `LLM process exited with code ${code}`, rawStderr: stderr });
-              }
-            }
-          });
-
-          // Write prompt to stdin and close
-          try {
-            child.stdin.write(prompt);
-            child.stdin.end();
-          } catch (err) {
-            console.warn('Failed to write prompt to LLM stdin', err);
-            hasResolved = true;
-            clearTimeout(timeoutHandle);
-            resolve({ success: false, error: err.message });
-          }
-        } catch (err) {
-          console.error('Failed to spawn local LLM', err);
-          resolve({ success: false, error: err.message });
-        }
-      });
-    }
-
-    return { success: false, error: 'No local LLM configured (binary or HTTP URL)' };
+  ipcMain.handle('llm:restart', async () => {
+    return await llmManager.restart();
   });
 
 
@@ -375,6 +417,19 @@ app.on('activate', () => {
 // Handle the "Check-In" process on quit
 app.on('before-quit', (event) => {
   console.log('Starting shutdown process...');
+  
+  // Stop LLM server first
+  try {
+    console.log('Shutting down LLM server...');
+    if (typeof llmManager !== 'undefined' && llmManager) {
+      llmManager.stop();
+      console.log('✓ LLM server stopped');
+    } else {
+      console.log('No LLM manager instance available to stop.');
+    }
+  } catch (err) {
+    console.error('Error stopping LLM server:', err);
+  }
   
   try {
     console.log('Copying local database back to master...');

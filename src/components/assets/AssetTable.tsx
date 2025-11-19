@@ -63,7 +63,7 @@ export const AssetTable = ({ assets, onEdit, onDelete, onUpdateAsset, onViewAnal
   const { isAuthenticated, hasPermission } = useAuth();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterCategory, setFilterCategory] = useState<'all' | 'dewatering' | 'waterproofing'>('all');
+  const [filterCategory, setFilterCategory] = useState<'all' | 'dewatering' | 'waterproofing' | 'tiling' | 'ppe' | 'office'>('all');
   const [filterType, setFilterType] = useState<'all' | 'consumable' | 'non-consumable' | 'tools' | 'equipment'>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'damaged' | 'missing' | 'maintenance' | 'out-of-stock' | 'low-stock' | 'in-stock'>('all');
   const [sortField, setSortField] = useState<SortField>('name');
@@ -255,6 +255,9 @@ export const AssetTable = ({ assets, onEdit, onDelete, onUpdateAsset, onViewAnal
                 <SelectItem value="all">All Categories</SelectItem>
                 <SelectItem value="dewatering">Dewatering</SelectItem>
                 <SelectItem value="waterproofing">Waterproofing</SelectItem>
+                <SelectItem value="tiling">Tiling</SelectItem>
+                <SelectItem value="ppe">PPE</SelectItem>
+                <SelectItem value="office">Office</SelectItem>
               </SelectContent>
             </Select>
 

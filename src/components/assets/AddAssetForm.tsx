@@ -31,7 +31,7 @@ export const AddAssetForm = ({ onAddAsset, asset, onSave, onCancel, sites, exist
     description: asset?.description || '',
     quantity: initialData?.quantity || asset?.quantity || 0,
     unitOfMeasurement: initialData?.unit || asset?.unitOfMeasurement || 'pcs',
-    category: (initialData?.category as 'dewatering' | 'waterproofing') || asset?.category || 'dewatering' as 'dewatering' | 'waterproofing',
+    category: (initialData?.category as 'dewatering' | 'waterproofing' | 'tiling' | 'ppe' | 'office') || asset?.category || 'dewatering' as 'dewatering' | 'waterproofing' | 'tiling' | 'ppe' | 'office',
     type: (initialData?.type as 'consumable' | 'non-consumable' | 'tools' | 'equipment') || asset?.type || 'equipment' as 'consumable' | 'non-consumable' | 'tools' | 'equipment',
     location: asset?.location || '',
     lowStockLevel: asset?.lowStockLevel || 10,
@@ -248,7 +248,7 @@ export const AddAssetForm = ({ onAddAsset, asset, onSave, onCancel, sites, exist
                 <Label htmlFor="category">Category</Label>
                 <Select
                   value={formData.category}
-                  onValueChange={(value: 'dewatering' | 'waterproofing') =>
+                  onValueChange={(value: 'dewatering' | 'waterproofing' | 'tiling' | 'ppe' | 'office') =>
                     setFormData({...formData, category: value})
                   }
                 >
@@ -258,6 +258,9 @@ export const AddAssetForm = ({ onAddAsset, asset, onSave, onCancel, sites, exist
                   <SelectContent>
                     <SelectItem value="dewatering">Dewatering</SelectItem>
                     <SelectItem value="waterproofing">Waterproofing</SelectItem>
+                    <SelectItem value="tiling">Tiling</SelectItem>
+                    <SelectItem value="ppe">PPE</SelectItem>
+                    <SelectItem value="office">Office</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

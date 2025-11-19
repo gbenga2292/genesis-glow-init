@@ -6,7 +6,7 @@ export interface ExcelAssetData {
   description?: string;
   quantity: number;
   unitOfMeasurement: string;
-  category: 'dewatering' | 'waterproofing';
+  category: 'dewatering' | 'waterproofing' | 'tiling';
   type: 'consumable' | 'non-consumable' | 'tools' | 'equipment';
   location?: string;
   service?: string;
@@ -76,8 +76,8 @@ export const parseExcelFile = (file: File): Promise<ExcelAssetData[]> => {
                     asset[fieldName] = parseFloat(value) || 0;
                     break;
                   case 'category':
-                    if (['dewatering', 'waterproofing'].includes(value.toLowerCase())) {
-                      asset[fieldName] = value.toLowerCase() as 'dewatering' | 'waterproofing';
+                    if (['dewatering', 'waterproofing', 'tiling'].includes(value.toLowerCase())) {
+                      asset[fieldName] = value.toLowerCase() as 'dewatering' | 'waterproofing' | 'tiling';
                     }
                     break;
                   case 'type':

@@ -3,11 +3,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Asset, Waybill, QuickCheckout, Activity, Site } from "@/types/asset";
+import { Asset, Waybill, QuickCheckout, Activity, Site, Employee } from "@/types/asset";
 import { EquipmentLog } from "@/types/equipment";
-import { Package, FileText, ShoppingCart, AlertTriangle, TrendingDown, CheckCircle, User, Wrench, BarChart3 } from "lucide-react";
+import { Package, FileText, ShoppingCart, AlertTriangle, TrendingDown, CheckCircle, User, Wrench, BarChart3, ChevronDown, ChevronUp } from "lucide-react";
 import { getActivities } from "@/utils/activityLogger";
 import { SiteMachineAnalytics } from "@/components/sites/SiteMachineAnalytics";
+import { NotificationPanel } from "./NotificationPanel";
 import { format } from "date-fns";
 
 interface DashboardProps {
@@ -16,13 +17,16 @@ interface DashboardProps {
   quickCheckouts: QuickCheckout[];
   sites: Site[];
   equipmentLogs: EquipmentLog[];
+  employees: Employee[];
+  onQuickLogEquipment: (log: EquipmentLog) => void;
 }
 
-export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLogs }: DashboardProps) => {
+export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLogs, employees, onQuickLogEquipment }: DashboardProps) => {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [selectedEquipment, setSelectedEquipment] = useState<Asset | null>(null);
   const [selectedSite, setSelectedSite] = useState<Site | null>(null);
   const [showAnalytics, setShowAnalytics] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
 
   // Load activities on mount
   useEffect(() => {
@@ -44,6 +48,74 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
   // Calculate categories
   const dewateringAssets = assets.filter(a => a.category === 'dewatering');
   const waterproofingAssets = assets.filter(a => a.category === 'waterproofing');
+  const tilingAssets = assets.filter(a => a.category === 'tiling');
+  const ppeAssets = assets.filter(a => a.category === 'ppe');
+  const officeAssets = assets.filter(a => a.category === 'office');
+
+  // Helper function to toggle category expansion
+  const toggleCategoryExpansion = (category: string) => {
+    setExpandedCategories(prev => ({
+      ...prev,
+      [category]: !prev[category]
+    }));
+  };
+
+  // Helper function to render category card
+  const renderCategoryCard = (title: string, assets: Asset[], icon: any, category: string, delay: string) => {
+    const isExpanded = expandedCategories[category];
+    const displayAssets = isExpanded ? assets : assets.slice(0, 3);
+
+    return (
+      <Card className="border-0 shadow-soft animate-slide-up" style={{animationDelay: delay}}>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {icon}
+              {title}
+            </div>
+            {assets.length > 3 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => toggleCategoryExpansion(category)}
+                className="h-6 w-6 p-0"
+              >
+                {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
+            )}
+          </CardTitle>
+          <CardDescription>
+            {assets.length} items - {assets.reduce((sum, a) => sum + a.quantity, 0)} units
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {displayAssets.map(asset => (
+              <div key={asset.id} className="flex justify-between items-center">
+                <span className="text-sm">{asset.name}</span>
+                <span className={`text-sm font-medium ${
+                  asset.quantity === 0 ? 'text-destructive' :
+                  asset.quantity < 10 ? 'text-warning' : 'text-success'
+                }`}>
+                  {asset.quantity} {asset.unitOfMeasurement}
+                </span>
+              </div>
+            ))}
+            {assets.length > 3 && !isExpanded && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => toggleCategoryExpansion(category)}
+                className="w-full text-sm text-muted-foreground hover:text-foreground"
+              >
+                +{assets.length - 3} more items
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
   
   // Get all equipment requiring logging
   const equipmentRequiringLogging = assets.filter(
@@ -155,8 +227,8 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {stats.map((stat, index) => (
-          <Card 
-            key={stat.title} 
+          <Card
+            key={stat.title}
             className="border-0 shadow-soft hover:shadow-medium transition-all duration-300 animate-slide-up"
             style={{animationDelay: `${index * 0.1}s`}}
           >
@@ -178,71 +250,22 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
         ))}
       </div>
 
-      {/* Category Breakdown */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="border-0 shadow-soft animate-slide-up" style={{animationDelay: '0.6s'}}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5 text-primary" />
-              Dewatering Equipment
-            </CardTitle>
-            <CardDescription>
-              {dewateringAssets.length} items - {dewateringAssets.reduce((sum, a) => sum + a.quantity, 0)} units
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {dewateringAssets.slice(0, 3).map(asset => (
-                <div key={asset.id} className="flex justify-between items-center">
-                  <span className="text-sm">{asset.name}</span>
-                  <span className={`text-sm font-medium ${
-                    asset.quantity === 0 ? 'text-destructive' : 
-                    asset.quantity < 10 ? 'text-warning' : 'text-success'
-                  }`}>
-                    {asset.quantity} {asset.unitOfMeasurement}
-                  </span>
-                </div>
-              ))}
-              {dewateringAssets.length > 3 && (
-                <div className="text-sm text-muted-foreground">
-                  +{dewateringAssets.length - 3} more items
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+      {/* Notification Panel */}
+      <NotificationPanel
+        assets={assets}
+        sites={sites}
+        equipmentLogs={equipmentLogs}
+        employees={employees}
+        onQuickLogEquipment={onQuickLogEquipment}
+      />
 
-        <Card className="border-0 shadow-soft animate-slide-up" style={{animationDelay: '0.7s'}}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-accent" />
-              Waterproofing Materials
-            </CardTitle>
-            <CardDescription>
-              {waterproofingAssets.length} items - {waterproofingAssets.reduce((sum, a) => sum + a.quantity, 0)} units
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {waterproofingAssets.slice(0, 3).map(asset => (
-                <div key={asset.id} className="flex justify-between items-center">
-                  <span className="text-sm">{asset.name}</span>
-                  <span className={`text-sm font-medium ${
-                    asset.quantity === 0 ? 'text-destructive' : 
-                    asset.quantity < 10 ? 'text-warning' : 'text-success'
-                  }`}>
-                    {asset.quantity} {asset.unitOfMeasurement}
-                  </span>
-                </div>
-              ))}
-              {waterproofingAssets.length > 3 && (
-                <div className="text-sm text-muted-foreground">
-                  +{waterproofingAssets.length - 3} more items
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+      {/* Category Breakdown */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+        {renderCategoryCard("Dewatering Equipment", dewateringAssets, <Package className="h-5 w-5 text-primary" />, "dewatering", "0.6s")}
+        {renderCategoryCard("Waterproofing Materials", waterproofingAssets, <CheckCircle className="h-5 w-5 text-accent" />, "waterproofing", "0.7s")}
+        {renderCategoryCard("Tiling Materials", tilingAssets, <Package className="h-5 w-5 text-blue-500" />, "tiling", "0.8s")}
+        {renderCategoryCard("PPE & Safety", ppeAssets, <User className="h-5 w-5 text-orange-500" />, "ppe", "0.9s")}
+        {renderCategoryCard("Office Supplies", officeAssets, <FileText className="h-5 w-5 text-green-500" />, "office", "1.0s")}
       </div>
 
       {/* Equipment Requiring Logging */}

@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { CompanySettings as CompanySettingsType, Employee, Asset, Waybill, QuickCheckout, Site, SiteTransaction, Activity, Vehicle } from "@/types/asset";
-import { Settings, Upload, Save, Building, Phone, Globe, Trash2, Download, UploadCloud, Loader2, Sun, FileText, Activity as ActivityIcon, Users, UserPlus, Edit, UserMinus, Car, Database } from "lucide-react";
+import { Settings, Upload, Save, Building, Phone, Globe, Trash2, Download, UploadCloud, Loader2, Sun, FileText, Activity as ActivityIcon, Users, UserPlus, Edit, UserMinus, Car, Database, Bot } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "next-themes";
 import { Switch } from "@/components/ui/switch";
@@ -56,6 +56,8 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
+  const { currentUser, hasPermission, getUsers, createUser, updateUser, deleteUser } = useAuth();
+  const isAdmin = currentUser?.role === 'admin';
   const [formData, setFormData] = useState<CompanySettingsType>({ ...defaultSettings, ...settings });
   const [employeeName, setEmployeeName] = useState("");
   const [employeeRole, setEmployeeRole] = useState("driver");
@@ -72,6 +74,20 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserUsername, setNewUserUsername] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [newUserRole, setNewUserRole] = useState<UserRole>('staff');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editUserName, setEditUserName] = useState('');
+  const [editUserUsername, setEditUserUsername] = useState('');
+  const [editUserPassword, setEditUserPassword] = useState('');
+  const [editUserRole, setEditUserRole] = useState<UserRole>('staff');
+  const [editUserEmail, setEditUserEmail] = useState('');
+  const [showPermissionsTable, setShowPermissionsTable] = useState(true);
 
   const [selectedBackupItems, setSelectedBackupItems] = useState(new Set([
     'assets', 'waybills', 'quickCheckouts', 'sites', 'siteTransactions', 'employees', 'vehicles', 'companySettings'
@@ -83,12 +99,163 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
-  // LLM settings (local-only)
-  const [llmBinaryPath, setLlmBinaryPath] = useState<string>((settings as any)?.ai?.binaryPath || '');
-  const [llmModelPath, setLlmModelPath] = useState<string>((settings as any)?.ai?.modelPath || '');
-  const [llmArgs, setLlmArgs] = useState<string>((settings as any)?.ai?.args ? (settings as any).ai.args.join(' ') : '');
-  const [llmHttpUrl, setLlmHttpUrl] = useState<string>((settings as any)?.ai?.httpUrl || '');
-  const [llmStatus, setLlmStatus] = useState<any>(null);
+  // AI (remote) settings - simplified: enable remote AI via API key
+  const [aiEnabled, setAiEnabled] = useState<boolean>(false);
+  const [aiProvider, setAiProvider] = useState<string>('openai');
+  const [aiApiKey, setAiApiKey] = useState<string>('');
+  const [aiEndpoint, setAiEndpoint] = useState<string>('');
+  const [aiModel, setAiModel] = useState<string>('');
+  const [aiStatus, setAiStatus] = useState<any>(null);
+  const [keyStatus, setKeyStatus] = useState<any>(null);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [googleModels, setGoogleModels] = useState<string[]>([]);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+
+  // Function to fetch Google AI models
+  const fetchGoogleModels = async () => {
+    if (!aiApiKey || aiProvider !== 'google') {
+      toast({
+        title: "Error",
+        description: "API key required and provider must be Google",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setModelsLoading(true);
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${aiApiKey}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      const models = data.models?.map((model: any) => model.name.replace('models/', '')) || [];
+      setGoogleModels(models);
+      toast({
+        title: "Models Fetched",
+        description: `Found ${models.length} Google AI models`
+      });
+    } catch (error) {
+      console.error('Failed to fetch Google models:', error);
+      toast({
+        title: "Fetch Failed",
+        description: "Failed to fetch models from Google AI",
+        variant: "destructive"
+      });
+      setGoogleModels([]);
+    } finally {
+      setModelsLoading(false);
+    }
+  };
+  
+  // Multi-key management
+  const [savedApiKeys, setSavedApiKeys] = useState<Record<string, any>>({});
+  const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
+  const [newKeyName, setNewKeyName] = useState<string>('');
+  const [newKeyValue, setNewKeyValue] = useState<string>('');
+  const [newKeyProvider, setNewKeyProvider] = useState<string>('openai');
+  const [newKeyEndpoint, setNewKeyEndpoint] = useState<string>('');
+  const [newKeyModel, setNewKeyModel] = useState<string>('');
+  const [editingKeyId, setEditingKeyId] = useState<number | null>(null);
+  const [selectedSavedKey, setSelectedSavedKey] = useState<string>('');
+  const [showSavedClientsDialog, setShowSavedClientsDialog] = useState(false);
+  const [usingSavedClient, setUsingSavedClient] = useState<boolean>(false);
+
+  // Initialize AI settings from props on component mount
+  useEffect(() => {
+    if (settings && (settings as any)?.ai?.remote) {
+      const remote = (settings as any).ai.remote;
+      setAiEnabled(!!remote.enabled);
+      setAiProvider(remote.provider || 'openai');
+      setAiApiKey(remote.apiKey || '');
+      setAiEndpoint(remote.endpoint || '');
+      setAiModel(remote.model || '');
+    }
+
+    // Load saved API keys from database
+    (async () => {
+      try {
+        if (window.db?.getSavedApiKeys) {
+          const savedKeys = await window.db.getSavedApiKeys();
+          const keysMap: Record<string, any> = {};
+          savedKeys.forEach((key: any) => {
+            keysMap[key.key_name] = key;
+          });
+          setSavedApiKeys(keysMap);
+          // set selectedSavedKey to active if present, or from settings
+          const active = savedKeys.find((k: any) => k.is_active);
+          const settingsSelected = (settings as any)?.ai?.remote?.selectedSavedKey;
+          if (settingsSelected && keysMap[settingsSelected]) {
+            setSelectedSavedKey(settingsSelected);
+            // Auto-load the selected client's details
+            handleSelectSavedKey(settingsSelected);
+          } else if (active) {
+            setSelectedSavedKey(active.key_name);
+            handleSelectSavedKey(active.key_name);
+          } else {
+            setSelectedSavedKey('');
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load saved API keys', err);
+        // Fallback to localStorage
+        const savedKeys = localStorage.getItem('ai_api_keys');
+        if (savedKeys) {
+          setSavedApiKeys(JSON.parse(savedKeys));
+        }
+      }
+    })();
+  }, [settings]);
+
+  // Fetch Google models when provider is Google and API key is available
+  useEffect(() => {
+    if (aiProvider === 'google' && aiApiKey.trim()) {
+      fetchGoogleModels();
+    }
+  }, [aiProvider, aiApiKey]);
+
+  // Set default endpoint for providers if not set
+  useEffect(() => {
+    if (!aiEndpoint.trim()) {
+      if (aiProvider === 'openai') {
+        setAiEndpoint('https://api.openai.com/v1/chat/completions');
+      } else if (aiProvider === 'anthropic') {
+        setAiEndpoint('https://api.anthropic.com/v1/messages');
+      } else if (aiProvider === 'google') {
+        setAiEndpoint('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent');
+      } else if (aiProvider === 'grok') {
+        setAiEndpoint('https://api.x.ai/v1/chat/completions');
+      }
+    }
+  }, [aiProvider, aiEndpoint]);
+
+  // Set default model for providers if not set
+  useEffect(() => {
+    if (!aiModel.trim()) {
+      if (aiProvider === 'openai') {
+        setAiModel('gpt-3.5-turbo');
+      } else if (aiProvider === 'anthropic') {
+        setAiModel('claude-3-haiku-20240307');
+      } else if (aiProvider === 'google') {
+        setAiModel('gemini-1.5-flash');
+      } else if (aiProvider === 'grok') {
+        setAiModel('grok-beta');
+      }
+    }
+  }, [aiProvider, aiModel]);
+
+  // Derive provider from endpoint when endpoint changes
+  useEffect(() => {
+    if (!aiEndpoint.trim()) return;
+    let derived = 'custom';
+    if (aiEndpoint.includes('openai.com')) derived = 'openai';
+    else if (aiEndpoint.includes('googleapis.com') || aiEndpoint.includes('generativelanguage.googleapis.com')) derived = 'google';
+    else if (aiEndpoint.includes('api.anthropic.com')) derived = 'anthropic';
+    else if (aiEndpoint.includes('api.x.ai')) derived = 'grok';
+    if (derived !== aiProvider) {
+      setAiProvider(derived);
+    }
+  }, [aiEndpoint, aiProvider]);
 
   const [showActivityLog, setShowActivityLog] = useState(false);
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
@@ -471,7 +638,6 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
   };
 
   const handleSave = () => {
-    onSave(formData);
     toast({
       title: "Settings Saved",
       description: "Company settings have been updated successfully."
@@ -479,25 +645,57 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
     // Persist AI settings into company settings record (best-effort)
     const aiConfigToSave: any = {
-      binaryPath: llmBinaryPath || null,
-      modelPath: llmModelPath || null,
-      args: llmArgs ? llmArgs.split(/\s+/) : [],
-      httpUrl: llmHttpUrl || null
+      remote: {
+        enabled: !!aiEnabled,
+        provider: aiProvider,
+        apiKey: aiApiKey || null,
+        endpoint: aiEndpoint || null,
+        model: aiModel || null
+      }
     };
 
     (async () => {
       try {
-        // Persist to DB if the company settings record has an id
+        // Merge AI config with existing form data
+        const updated = { ...(formData as any), ai: aiConfigToSave };
+        
+        // Try to update if ID exists, otherwise create new record
+        let savedSettings: any = null;
         if ((formData as any)?.id && window?.db?.updateCompanySettings) {
-          const updated = { ...(formData as any), ai: aiConfigToSave };
-          await window.db.updateCompanySettings((formData as any).id, updated);
+          const result = await window.db.updateCompanySettings((formData as any).id, updated);
+          savedSettings = Array.isArray(result) ? result[0] : result;
+          console.log('AI settings updated to DB (existing record)', savedSettings);
+        } else if (window?.db?.updateCompanySettings) {
+          // updateCompanySettings now handles creation if ID is missing
+          const result = await window.db.updateCompanySettings(null, updated);
+          savedSettings = Array.isArray(result) ? result[0] : result;
+          console.log('AI settings saved to DB (new record created)', savedSettings);
         }
+        
+        // Reload fresh settings from DB and pass back to parent to ensure consistency
+        if (window?.db?.getCompanySettings) {
+          const reloadedSettings = await window.db.getCompanySettings();
+          // Update parent state with the fresh data from DB
+          onSave(reloadedSettings || updated);
+          console.log('Reloaded company settings from DB after save', reloadedSettings);
+        }
+        
+        // Show success message
+        toast({
+          title: "AI Settings Saved",
+          description: "Your AI configuration has been persisted."
+        });
       } catch (err) {
-        console.warn('Failed to persist AI settings to DB', err);
+        console.error('Failed to persist AI settings to DB', err);
+        toast({
+          title: "Save Failed",
+          description: "Failed to save AI settings. Please try again.",
+          variant: "destructive"
+        });
       }
     })();
 
-    // Configure runtime via IPC bridge
+    // Configure runtime via IPC bridge (main process will accept remote config)
     try {
       if ((window as any).llm?.configure) {
         (window as any).llm.configure(aiConfigToSave).catch(() => {});
@@ -505,6 +703,279 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     } catch (err) {
       // ignore
     }
+  };
+
+  const handleAddApiKey = () => {
+    if (!newKeyName.trim() || !newKeyValue.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter both a name and API key",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate API key format based on endpoint
+    let endpoint = newKeyEndpoint.trim();
+    let derivedProvider = 'custom';
+    if (endpoint.includes('openai.com')) {
+      derivedProvider = 'openai';
+    } else if (endpoint.includes('googleapis.com') || endpoint.includes('generativelanguage.googleapis.com')) {
+      derivedProvider = 'google';
+    } else if (endpoint.includes('api.anthropic.com')) {
+      derivedProvider = 'anthropic';
+    } else if (endpoint.includes('api.x.ai')) {
+      derivedProvider = 'grok';
+    }
+
+    // Set default endpoint if not provided
+    if (!endpoint) {
+      if (derivedProvider === 'openai') endpoint = 'https://api.openai.com/v1/chat/completions';
+      else if (derivedProvider === 'anthropic') endpoint = 'https://api.anthropic.com/v1/messages';
+      else if (derivedProvider === 'grok') endpoint = 'https://api.x.ai/v1/chat/completions';
+      else if (derivedProvider === 'google') endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
+    }
+
+    // Validate key format
+    const key = newKeyValue.trim();
+    let isValidKey = true;
+    let keyError = '';
+
+    if (derivedProvider === 'openai' && !key.startsWith('sk-')) {
+      isValidKey = false;
+      keyError = 'OpenAI API keys should start with "sk-". Please check your key.';
+    } else if (derivedProvider === 'google' && !key.startsWith('AIzaSy')) {
+      isValidKey = false;
+      keyError = 'Google API keys should start with "AIzaSy". Please check your key.';
+    } else if (derivedProvider === 'anthropic' && !key.startsWith('sk-ant-')) {
+      isValidKey = false;
+      keyError = 'Anthropic API keys should start with "sk-ant-". Please check your key.';
+    } else if (derivedProvider === 'grok' && !key.startsWith('xai-')) {
+      isValidKey = false;
+      keyError = 'Grok API keys should start with "xai-". Please check your key.';
+    }
+
+    if (!isValidKey) {
+      toast({
+        title: "Invalid API Key Format",
+        description: keyError,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    (async () => {
+      try {
+        // Save to database (create or update depending on editingKeyId)
+        const payload = {
+          key_name: newKeyName.trim(),
+          provider: derivedProvider,
+          api_key: key,
+          endpoint: endpoint,
+          model: newKeyModel || aiModel || 'gpt-3.5-turbo'
+        };
+        let result: any;
+        if (editingKeyId) {
+          result = await window.db.updateSavedApiKey(editingKeyId, payload);
+        } else {
+          result = await window.db.createSavedApiKey(payload);
+        }
+
+        // Reload saved keys from database
+        const updatedKeys = await window.db.getSavedApiKeys();
+        const keysMap: Record<string, any> = {};
+        updatedKeys.forEach((key: any) => {
+          keysMap[key.key_name] = key;
+        });
+        setSavedApiKeys(keysMap);
+
+        // Mark newly created/updated key as active
+        try {
+          let newId: number | null = null;
+          if (editingKeyId) {
+            newId = editingKeyId;
+          } else if (result && Array.isArray(result) && result[0] && result[0].id) {
+            newId = result[0].id;
+          } else if (result && result.id) {
+            newId = result.id;
+          }
+          if (newId && window.db?.setActiveApiKey) {
+            await window.db.setActiveApiKey(newId);
+            // reflect active flag in local state
+            const refreshed = await window.db.getSavedApiKeys();
+            const refreshedMap: Record<string, any> = {};
+            refreshed.forEach((k: any) => { refreshedMap[k.key_name] = k; });
+            setSavedApiKeys(refreshedMap);
+            setSelectedSavedKey(newKeyName.trim());
+          }
+        } catch (err) {
+          console.warn('Failed to set active key after save', err);
+        }
+
+        toast({
+          title: "Key Saved",
+          description: `API key "${newKeyName.trim()}" has been saved to database.`
+        });
+
+  // Reset form
+  setNewKeyName('');
+  setNewKeyValue('');
+  setNewKeyEndpoint('');
+  setNewKeyModel('gpt-4');
+  setEditingKeyId(null);
+  setShowApiKeyDialog(false);
+      } catch (err) {
+        console.error('Failed to save API key', err);
+        toast({
+          title: "Save Failed",
+          description: "Failed to save API key to database",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+  };
+
+  const handleSelectSavedKey = async (keyName: string, providedKeyData?: any, isAutoLoad = false) => {
+    try {
+      const keyData = providedKeyData || savedApiKeys[keyName];
+      if (!keyData) {
+        console.warn('Saved key not found', keyName);
+        return;
+      }
+      if (typeof keyData === 'string') {
+        // Old localStorage format
+        const parsed = JSON.parse(keyData);
+        setAiProvider(parsed.provider || 'openai');
+        setAiApiKey(parsed.apiKey || '');
+        setAiEndpoint(parsed.endpoint || '');
+        setAiModel(parsed.model || 'gpt-3.5-turbo');
+      } else {
+        // New database format: prefer key_ref (secure store) if present
+        setAiProvider(keyData.provider || 'openai');
+        setAiEndpoint(keyData.endpoint || '');
+        setAiModel(keyData.model || 'gpt-3.5-turbo');
+        if (keyData.key_ref && window.db?.getApiKeyFromKeyRef) {
+          // retrieve from secure store
+          try {
+            const secret = await window.db.getApiKeyFromKeyRef(keyData.key_ref);
+            if (secret) setAiApiKey(secret);
+          } catch (err) {
+            console.error('Failed to retrieve API key from secure store', err);
+          }
+        } else {
+          setAiApiKey(keyData.api_key || '');
+        }
+      }
+
+      if (!isAutoLoad) {
+        toast({
+          title: "Key Loaded",
+          description: `API key "${keyName}" has been loaded.`
+        });
+      }
+      // Auto-enable remote AI when a saved client is loaded
+      setAiEnabled(true);
+      setUsingSavedClient(true);
+
+      // Auto-configure and start the LLM
+      try {
+        const aiConfigToSave: any = {
+          remote: {
+            enabled: true,
+            provider: aiProvider,
+            apiKey: aiApiKey || null,
+            endpoint: aiEndpoint || null,
+            model: aiModel || null
+          }
+        };
+        await (window as any).llm?.configure(aiConfigToSave);
+        const startRes = await (window as any).llm?.start();
+        if (!isAutoLoad && startRes?.success) {
+          toast({
+            title: 'AI Ready',
+            description: startRes.message || 'Remote AI provider configured and started.'
+          });
+        }
+      } catch (err) {
+        console.warn('Auto-configure/start failed', err);
+      }
+    } catch (err) {
+      console.error('Failed to load key', err);
+      // Suppress API key related error notifications
+      if (!err.message?.includes('API key') && !err.message?.includes('Authentication failed')) {
+        toast({
+          title: "Error",
+          description: "Failed to load saved key",
+          variant: "destructive"
+        });
+      }
+    }
+  };
+
+  const handleEditSavedKey = (keyName: string) => {
+    try {
+      const keyData = savedApiKeys[keyName];
+      if (!keyData) return;
+      // keyData may be string (old) or object (db)
+      let parsed: any = keyData;
+      if (typeof keyData === 'string') parsed = JSON.parse(keyData);
+
+      setEditingKeyId(parsed.id || null);
+      setNewKeyName(keyName);
+  setNewKeyValue(parsed.api_key || parsed.apiKey || '');
+  setNewKeyEndpoint(parsed.endpoint || '');
+      setNewKeyModel(parsed.model || 'gpt-3.5-turbo');
+      setShowApiKeyDialog(true);
+    } catch (err) {
+      console.error('Failed to open edit dialog', err);
+      toast({ title: 'Error', description: 'Failed to open edit dialog', variant: 'destructive' });
+    }
+  };
+
+  const handleDeleteApiKey = (keyName: string) => {
+    setIsLoading(true);
+    (async () => {
+      try {
+        const keyData = savedApiKeys[keyName];
+        let keyId = keyData?.id;
+
+        if (!keyId && typeof keyData === 'string') {
+          // Old localStorage format, just delete from state
+          const updatedKeys = { ...savedApiKeys };
+          delete updatedKeys[keyName];
+          setSavedApiKeys(updatedKeys);
+          localStorage.setItem('ai_api_keys', JSON.stringify(updatedKeys));
+        } else if (keyId) {
+          // Delete from database
+          await window.db.deleteSavedApiKey(keyId);
+
+          // Reload saved keys from database
+          const updatedKeys = await window.db.getSavedApiKeys();
+          const keysMap: Record<string, any> = {};
+          updatedKeys.forEach((key: any) => {
+            keysMap[key.key_name] = key;
+          });
+          setSavedApiKeys(keysMap);
+        }
+
+        toast({
+          title: "Key Deleted",
+          description: `API key "${keyName}" has been removed.`
+        });
+      } catch (err) {
+        console.error('Failed to delete API key', err);
+        toast({
+          title: "Delete Failed",
+          description: "Failed to delete API key",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    })();
   };
 
   const handleReset = async () => {
@@ -751,25 +1222,6 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     }
   };
 
-  const { currentUser, hasPermission, getUsers, createUser, updateUser, deleteUser } = useAuth();
-  const isAdmin = currentUser?.role === 'admin';
-
-  // User management state
-  const [users, setUsers] = useState<User[]>([]);
-  const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
-  const [newUserName, setNewUserName] = useState('');
-  const [newUserUsername, setNewUserUsername] = useState('');
-  const [newUserPassword, setNewUserPassword] = useState('');
-  const [newUserRole, setNewUserRole] = useState<UserRole>('staff');
-  const [newUserEmail, setNewUserEmail] = useState('');
-  const [editingUserId, setEditingUserId] = useState<string | null>(null);
-  const [editUserName, setEditUserName] = useState('');
-  const [editUserUsername, setEditUserUsername] = useState('');
-  const [editUserPassword, setEditUserPassword] = useState('');
-  const [editUserRole, setEditUserRole] = useState<UserRole>('staff');
-  const [editUserEmail, setEditUserEmail] = useState('');
-  const [showPermissionsTable, setShowPermissionsTable] = useState(true);
-
   useEffect(() => {
     const fetchUsers = async () => {
       if (hasPermission('manage_users')) {
@@ -779,6 +1231,20 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     };
     fetchUsers();
   }, [hasPermission, getUsers]);
+
+  // Fetch key status from main (secure store / DB) for display
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const s = await (window as any).llm?.getKeyStatus();
+        if (mounted) setKeyStatus(s);
+      } catch (err) {
+        // ignore
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   const handleCreateUser = async () => {
     if (!newUserName.trim() || !newUserUsername.trim() || !newUserPassword.trim()) return;
@@ -900,7 +1366,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       </div>
 
       <Tabs defaultValue="company" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="company" className="flex items-center gap-2">
             <Building className="h-4 w-4" />
             Company
@@ -918,6 +1384,10 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           <TabsTrigger value="vehicles" className="flex items-center gap-2">
             <Car className="h-4 w-4" />
             Vehicles
+          </TabsTrigger>
+          <TabsTrigger value="ai" className="flex items-center gap-2">
+            <Bot className="h-4 w-4" />
+            AI Assistant
           </TabsTrigger>
           <TabsTrigger value="data" className="flex items-center gap-2">
             <Database className="h-4 w-4" />
@@ -1491,140 +1961,298 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         </div>
       </TabsContent>
 
-      {/* Data Management Tab */}
-      <TabsContent value="data" className="space-y-6">
-                    <SelectItem value="Projects Supervisor">Projects Supervisor</SelectItem>
-                    <SelectItem value="Logistics and Warehouse Officer">Logistics and Warehouse Officer</SelectItem>
-                    <SelectItem value="Admin Manager">Admin Manager</SelectItem>
-                    <SelectItem value="Admin Assistant">Admin Assistant</SelectItem>
-                    <SelectItem value="Foreman">Foreman</SelectItem>
-                    <SelectItem value="Engineer">Engineer</SelectItem>
-                    <SelectItem value="Trainee Site Manager">Trainee Site Manager</SelectItem>
-                    <SelectItem value="Site Supervisor">Site Supervisor</SelectItem>
-                    <SelectItem value="Admin Clerk">Admin Clerk</SelectItem>
-                    <SelectItem value="Assistant Supervisor">Assistant Supervisor</SelectItem>
-                    <SelectItem value="Site Worker">Site Worker</SelectItem>
-                    <SelectItem value="Driver">Driver</SelectItem>
-                    <SelectItem value="Security">Security</SelectItem>
-                    <SelectItem value="Adhoc Staff">Adhoc Staff</SelectItem>
-                    <SelectItem value="Consultant">Consultant</SelectItem>
-                    <SelectItem value="IT Student">IT Student</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Input
-                  value={employeeEmail}
-                  onChange={(e) => setEmployeeEmail(e.target.value)}
-                  placeholder="Email (optional)"
-                />
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsAddEmployeeDialogOpen(false)}>Cancel</Button>
-                <Button onClick={handleAddEmployee}>Add Employee</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+      {/* AI Assistant (Remote/API key) Configuration Tab */}
+      <TabsContent value="ai" className="space-y-6">
+        {/* Top-level controls: Add / View saved AI clients are now compact dialogs */}
 
-          <Dialog open={isDelistEmployeeDialogOpen} onOpenChange={setIsDelistEmployeeDialogOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Delist Employee</DialogTitle>
-                <DialogDescription>Enter the delisting date for {employeeToDelist?.name}.</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <Input
-                  type="date"
-                  value={delistDate}
-                  onChange={(e) => setDelistDate(e.target.value)}
-                  placeholder="Delisting Date"
-                />
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsDelistEmployeeDialogOpen(false)}>Cancel</Button>
-                <Button onClick={handleDelistEmployee}>Delist Employee</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+        <Card className="border-0 shadow-soft">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bot className="h-5 w-5" />
+              AI Assistant Configuration
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground mb-2">Compact AI client manager — add clients, choose which client to use, then test/start the remote provider.</p>
 
-          <div className="flex justify-end">
-            <Button
-              onClick={handleSave}
-              className="bg-gradient-primary hover:scale-105 transition-all duration-300 shadow-medium"
-              disabled={isLoading}
-            >
-              <Save className="h-4 w-4 mr-2" />
-              Save Settings
-            </Button>
-          </div>
-        </TabsContent>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => setShowApiKeyDialog(true)}>
+                <Upload className="h-4 w-4 mr-2" /> Add AI Client
+              </Button>
 
-        {/* Vehicles Tab */}
-        <TabsContent value="vehicles" className="space-y-6">
-          <Card className="border-0 shadow-soft">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Car className="h-5 w-5" />
-                Vehicle Management
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Vehicle Name/Plate"
-                  value={vehicleName}
-                  onChange={(e) => setVehicleName(e.target.value)}
-                  className="flex-1"
-                />
-                <Button onClick={handleAddVehicle}>Add</Button>
+              <Button variant="ghost" onClick={() => setShowSavedClientsDialog(true)}>
+                View Saved AI Clients
+              </Button>
+            </div>
+
+            {/* Add / Edit AI Client Dialog */}
+            <Dialog open={showApiKeyDialog} onOpenChange={setShowApiKeyDialog}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>{editingKeyId ? 'Edit AI Client' : 'Add AI Client'}</DialogTitle>
+                  <DialogDescription>Provide a name, API key, endpoint (optional) and model (optional).</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div>
+                    <Label htmlFor="keyName">Name</Label>
+                    <Input id="keyName" placeholder="e.g., Work OpenAI" value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} />
+                  </div>
+
+                  {/* Provider is now derived from endpoint: if an endpoint is provided the client is treated as 'custom', otherwise 'openai' */}
+
+                  <div>
+                    <Label htmlFor="keyValue">API Key</Label>
+                    <Input id="keyValue" type="password" placeholder="sk-..." value={newKeyValue} onChange={(e) => setNewKeyValue(e.target.value)} />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="keyEndpoint">Endpoint (optional)</Label>
+                    <Input id="keyEndpoint" placeholder="https://api.openai.com/v1/chat/completions" value={newKeyEndpoint} onChange={(e) => setNewKeyEndpoint(e.target.value)} />
+                  </div>
+
+
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => { setShowApiKeyDialog(false); setEditingKeyId(null); }}>Cancel</Button>
+                  <Button onClick={handleAddApiKey} className="bg-gradient-primary">{editingKeyId ? 'Save Changes' : 'Save Client'}</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            <div className="mt-2">
+              <Label htmlFor="aiClientSelect">Select AI Client</Label>
+              <Select value={selectedSavedKey || undefined} onValueChange={(v) => {
+                setSelectedSavedKey(v);
+                handleSelectSavedKey(v);
+              }}>
+                <SelectTrigger id="aiClientSelect">
+                  <SelectValue placeholder="Choose client" />
+                </SelectTrigger>
+                <SelectContent>
+                  {/* Saved AI clients (select to auto-load) */}
+                  {Object.keys(savedApiKeys).map(k => {
+                    const d = savedApiKeys[k];
+                    const provider = typeof d === 'string' ? JSON.parse(d).provider : d.provider;
+                    return <SelectItem key={k} value={k}>{`${k} (${provider})`}</SelectItem>;
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <div>
+                <Label htmlFor="apiKey">API Key</Label>
+                <Input id="apiKey" type="password" value={aiApiKey} onChange={(e) => setAiApiKey(e.target.value)} placeholder="Enter API Key" />
               </div>
               <div>
-                {vehicles.length === 0 ? (
-                  <p className="text-muted-foreground">No vehicles added yet.</p>
-                ) : (
-                  <ul className="space-y-2 max-h-96 overflow-y-auto">
-                    {vehicles.map((vehicle) => (
-                      <li key={vehicle.id} className="flex justify-between items-center border p-2 rounded">
-                        {editingVehicleIndex === vehicles.indexOf(vehicle) ? (
-                          <div className="flex gap-2 flex-1">
-                            <Input
-                              value={tempVehicleName}
-                              onChange={(e) => setTempVehicleName(e.target.value)}
-                              placeholder="Vehicle Name/Plate"
-                              className="flex-1"
-                            />
-                            <Button size="sm" onClick={handleSaveVehicleEdit}>Save</Button>
-                            <Button size="sm" variant="outline" onClick={handleCancelVehicleEdit}>Cancel</Button>
-                          </div>
-                        ) : (
-                          <>
-                            <span>{vehicle.name}</span>
-                            <div className="flex gap-1">
-                              <Button size="sm" variant="outline" onClick={() => handleEditVehicle(vehicle.id)}>Edit</Button>
-                              <Button size="sm" variant="destructive" onClick={() => handleRemoveVehicle(vehicle.id)}>Remove</Button>
-                            </div>
-                          </>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <Label htmlFor="endpoint">Endpoint</Label>
+                <Input id="endpoint" value={aiEndpoint} onChange={(e) => setAiEndpoint(e.target.value)} placeholder="https://api.openai.com/v1/chat/completions" />
               </div>
-            </CardContent>
-          </Card>
+            </div>
+
+            <div className="mt-4">
+              <Label htmlFor="model">Model</Label>
+              {aiProvider === 'google' && googleModels.length > 0 ? (
+                <Select value={aiModel} onValueChange={setAiModel}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Google Model" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {googleModels.map(model => <SelectItem key={model} value={model}>{model}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input id="model" value={aiModel} onChange={(e) => setAiModel(e.target.value)} placeholder="gpt-3.5-turbo" />
+              )}
+            </div>
+
+
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  setIsLoading(true);
+                  try {
+                    // Configure remote settings first (persist key to secure store if possible)
+                    // Ensure remote is enabled for the test; also reflect in UI toggle
+                    setAiEnabled(true);
+                    const cfg = { remote: { enabled: true, provider: aiProvider, apiKey: aiApiKey || null, endpoint: aiEndpoint || null, model: aiModel || null } };
+                    await (window as any).llm?.configure(cfg).catch(() => {});
+
+                    // Use start() which now runs a detailed connectivity check and returns a message
+                    const startRes = await (window as any).llm?.start();
+                    const status = await (window as any).llm?.status();
+                    setAiStatus(status);
+
+                    if (startRes?.success) {
+                      toast({ title: 'AI Ready', description: startRes.message || 'Remote AI provider configured and reachable.' });
+                    } else {
+                      toast({ title: 'AI Not Reachable', description: startRes?.error || 'The provider did not respond as expected. Check your API key and endpoint.', variant: 'destructive' });
+                    }
+                  } catch (err) {
+                    toast({ title: 'Connection Failed', description: String(err), variant: 'destructive' });
+                  } finally { setIsLoading(false); }
+                }}
+              >
+                Test Connection
+              </Button>
+
+              <Button
+                onClick={async () => {
+                  setIsLoading(true);
+                  try {
+                    const res = await (window as any).llm?.start();
+                    if (res?.success) toast({ title: 'AI Started', description: res.message });
+                    else toast({ title: 'Start Failed', description: res?.error || 'Failed to start', variant: 'destructive' });
+                  } finally { setIsLoading(false); }
+                }}
+              >
+                Start
+              </Button>
+
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  setIsLoading(true);
+                  try {
+                    const res = await (window as any).llm?.stop();
+                    if (res?.success) toast({ title: 'AI Stopped', description: res.message });
+                  } finally { setIsLoading(false); }
+                }}
+              >
+                Stop
+              </Button>
+            </div>
+
+            {aiStatus && (
+              <div className="mt-2 p-3 rounded-md bg-muted text-sm space-y-1">
+                <p className="font-medium">Status: {aiStatus.available ? '✓ Available' : '✗ Not Available'}</p>
+                {aiStatus.url && <p className="text-xs text-muted-foreground">URL: {aiStatus.url}</p>}
+              </div>
+            )}
+
+            {/* Saved Clients viewer dialog */}
+            <Dialog open={showSavedClientsDialog} onOpenChange={setShowSavedClientsDialog}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Saved AI Clients</DialogTitle>
+                  <DialogDescription>View and manage your saved AI client configurations.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-2 py-2">
+                  {Object.keys(savedApiKeys).length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No saved clients</p>
+                  ) : (
+                    Object.keys(savedApiKeys).map((k) => {
+                      const d = savedApiKeys[k];
+                      const provider = typeof d === 'string' ? JSON.parse(d).provider : d.provider;
+                      return (
+                        <div key={k} className="flex items-center justify-between p-2 border rounded">
+                          <div>
+                            <div className="font-medium">{k}</div>
+                            <div className="text-xs text-muted-foreground">{provider}</div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline" onClick={() => { handleSelectSavedKey(k); setShowSavedClientsDialog(false); }}>Load</Button>
+                            <Button size="sm" variant="ghost" onClick={() => handleEditSavedKey(k)}>Edit</Button>
+                            <Button size="sm" variant="destructive" onClick={() => handleDeleteApiKey(k)}>Delete</Button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowSavedClientsDialog(false)}>Close</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </CardContent>
+        </Card>
+
+        <div className="pt-4 border-t">
+          <div className="flex items-center justify-between gap-4 mb-3">
+            <div className="flex items-center gap-3">
+              <div className="text-sm">
+                <div className="font-medium">API Key Storage</div>
+                <div className="text-xs text-muted-foreground">{keyStatus ? (keyStatus.inSecureStore ? 'Stored in secure OS credential store' : (keyStatus.inDB ? 'Stored in database only' : 'No API key saved')) : 'Checking...'}</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  setIsLoading(true);
+                  try {
+                    const res = await (window as any).llm?.migrateKeys();
+                    toast({ title: res?.success ? 'Migration started' : 'Migration failed', description: res?.message || res?.error || '' });
+                    const s = await (window as any).llm?.getKeyStatus();
+                    setKeyStatus(s);
+                  } catch (err) {
+                    toast({ title: 'Migration Error', description: String(err), variant: 'destructive' });
+                  } finally { setIsLoading(false); }
+                }}
+              >
+                Migrate Key to Secure Store
+              </Button>
+
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  setIsLoading(true);
+                  try {
+                    if (window.db?.migrateSavedKeysToKeytar) {
+                      const r = await window.db.migrateSavedKeysToKeytar();
+                      toast({ title: 'Saved Keys Migration', description: `Migrated ${r?.migrated || 0} saved keys to secure store` });
+                      // reload saved keys
+                      const updatedKeys = await window.db.getSavedApiKeys();
+                      const keysMap: Record<string, any> = {};
+                      updatedKeys.forEach((k: any) => { keysMap[k.key_name] = k; });
+                      setSavedApiKeys(keysMap);
+                    } else {
+                      toast({ title: 'Not Available', description: 'Migration helper not available', variant: 'destructive' });
+                    }
+                  } catch (err) {
+                    console.error('Saved keys migration failed', err);
+                    toast({ title: 'Migration Failed', description: String(err), variant: 'destructive' });
+                  } finally { setIsLoading(false); }
+                }}
+              >
+                Migrate Saved Keys
+              </Button>
+
+              <Button
+                variant="destructive"
+                onClick={async () => {
+                  setIsLoading(true);
+                  try {
+                    // clear only secure store copy by default
+                    await (window as any).llm?.clearKey({ removeFromDB: false });
+                    const s = await (window as any).llm?.getKeyStatus();
+                    setKeyStatus(s);
+                    toast({ title: 'Cleared', description: 'Cleared secure store copy of API key.' });
+                  } catch (err) {
+                    toast({ title: 'Clear Failed', description: String(err), variant: 'destructive' });
+                  } finally { setIsLoading(false); }
+                }}
+              >
+                Clear Secure Key
+              </Button>
+
+            </div>
+          </div>
 
           <div className="flex justify-end">
-            <Button
-              onClick={handleSave}
-              className="bg-gradient-primary hover:scale-105 transition-all duration-300 shadow-medium"
-              disabled={isLoading}
-            >
+            <Button onClick={handleSave} className="bg-gradient-primary hover:scale-105 transition-all duration-300 shadow-medium" disabled={isLoading}>
               <Save className="h-4 w-4 mr-2" />
-              Save Settings
+              Save AI Settings
             </Button>
           </div>
-        </TabsContent>
+        </div>
+      </TabsContent>
 
-        {/* Data Management Tab */}
-        <TabsContent value="data" className="space-y-6">
+      {/* Data Management Tab */}
+      <TabsContent value="data" className="space-y-6">
           <Card className="border-0 shadow-soft">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">

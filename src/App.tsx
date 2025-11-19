@@ -45,6 +45,13 @@ const App = () => {
           toast.success(`Database Connected`, {
             description: storageTypeLabel,
             duration: 6000,
+            position: "bottom-center",
+            style: {
+              background: 'transparent',
+              border: 'none',
+              boxShadow: 'none',
+              color: 'inherit',
+            },
           });
           
           logger.info('Database initialized');
@@ -54,59 +61,32 @@ const App = () => {
       }
     };
 
-    // Validate LLM configuration if local mode is enabled
+    // Validate AI configuration: prefer remote API-key value stored in company settings if present
     const validateLLMConfig = async () => {
-      if (aiConfig.AI_MODE === 'local') {
-        // Check if LLM is configured and available
-        const hasHttpUrl = aiConfig.LOCAL.localHttpUrl && aiConfig.LOCAL.localHttpUrl.length > 0;
-        const hasBinaryPath = aiConfig.LOCAL.binaryPath && aiConfig.LOCAL.binaryPath.length > 0;
-        const hasModelPath = aiConfig.LOCAL.modelPath && aiConfig.LOCAL.modelPath.length > 0;
-
-        if (!hasHttpUrl && !hasBinaryPath) {
-          logger.warn('LLM configuration incomplete: no HTTP URL or binary path configured');
-          toast.warning(
-            'AI Assistant Setup Incomplete',
-            {
-              description: 'Local LLM mode enabled but not configured. Go to Settings > AI Assistant to configure.',
-              duration: 8000,
+      try {
+        // Try reading persisted company settings (may include ai.remote)
+        if ((window as any).db?.getCompanySettings) {
+          const cs = await (window as any).db.getCompanySettings();
+          const remote = cs?.ai?.remote;
+          if (remote && remote.enabled) {
+            // configure main process with remote config and test status
+            try {
+              await (window as any).llm?.configure({ remote }).catch(() => {});
+              const status = await (window as any).llm?.status();
+              if (!status?.available && !(status && status.remoteConfigured)) {
+                toast.info('AI Assistant Not Available', { description: 'Remote AI is configured but not reachable. Check your API key and endpoint.', duration: 8000 });
+              }
+              return;
+            } catch (err) {
+              logger.warn('Failed to configure remote AI from settings', err);
             }
-          );
-          return;
-        }
-
-        // If we have a binary path but no model path, warn
-        if (hasBinaryPath && !hasModelPath) {
-          logger.warn('LLM binary configured but no model path specified');
-          toast.warning(
-            'AI Model Not Configured',
-            {
-              description: 'LLM binary configured but model file path is missing. Check Settings > AI Assistant.',
-              duration: 8000,
-            }
-          );
-          return;
-        }
-
-        // Try to check if LLM is available (if window.llm exists)
-        if ((window as any).llm && (window as any).llm.status) {
-          try {
-            const status = await (window as any).llm.status();
-            if (!status.available) {
-              logger.warn('LLM configured but not available');
-              toast.info(
-                'AI Assistant Not Available',
-                {
-                  description: 'LLM is configured but currently unavailable. Offline parsing will be used.',
-                  duration: 8000,
-                }
-              );
-            } else {
-              logger.info('LLM is available and ready');
-            }
-          } catch (err) {
-            logger.warn('Failed to check LLM status', err);
           }
         }
+
+        // Remote-only mode: if no remote config found, AI is simply not enabled (not an error)
+        logger.info('No remote AI configured. Users can configure in Settings > AI Assistant');
+      } catch (err) {
+        logger.warn('Failed to validate AI configuration', err);
       }
     };
     

@@ -1,3 +1,5 @@
+import apiKeys from './apiKeys.js';
+
 /**
  * Database Configuration
  * 
@@ -23,6 +25,8 @@ const USE_DEFAULT_APP_DATA = false;
 // ===== CONFIGURATION OPTIONS =====
 
 const config = {
+  ...apiKeys,
+  
   // Choose which database path to use:
   // 'network' - Use network/NAS storage (NETWORK_DB_PATH)
   // 'local' - Use custom local path (LOCAL_DB_PATH)

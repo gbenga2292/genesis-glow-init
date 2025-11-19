@@ -127,15 +127,23 @@ const Login = () => {
             )}
             
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password" className={(showManualEntry && !username) || !selectedUserId ? "opacity-50" : ""}>
+                Password
+              </Label>
               <Input
                 id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter password"
+                placeholder={
+                  (showManualEntry && !username) || !selectedUserId
+                    ? "Select user or enter username first"
+                    : "Enter password"
+                }
                 required
                 autoFocus={!showManualEntry}
+                disabled={(showManualEntry && !username) || !selectedUserId}
+                className={(showManualEntry && !username) || !selectedUserId ? "opacity-50 cursor-not-allowed" : ""}
               />
             </div>
             

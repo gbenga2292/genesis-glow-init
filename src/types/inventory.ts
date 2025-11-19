@@ -3,7 +3,7 @@ export interface SiteInventoryItem {
   itemName: string;
   quantity: number;
   unit: string;
-  category: 'dewatering' | 'waterproofing';
+  category: 'dewatering' | 'waterproofing' | 'tiling' | 'ppe' | 'office';
   itemType?: string; // Add item type (consumable, equipment, material, etc.)
   lastUpdated: Date;
 }

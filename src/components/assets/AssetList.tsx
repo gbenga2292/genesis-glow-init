@@ -22,7 +22,7 @@ interface AssetListProps {
 
 export const AssetList = ({ assets, onEdit, onDelete }: AssetListProps) => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterCategory, setFilterCategory] = useState<'all' | 'dewatering' | 'waterproofing'>('all');
+  const [filterCategory, setFilterCategory] = useState<'all' | 'dewatering' | 'waterproofing' | 'tiling' | 'ppe' | 'office'>('all');
   const [filterType, setFilterType] = useState<'all' | 'consumable' | 'non-consumable' | 'tools' | 'equipment'>('all');
   const [sortBy, setSortBy] = useState<'name' | 'quantity' | 'category' | 'type' | 'location' | 'updatedAt'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -143,6 +143,9 @@ export const AssetList = ({ assets, onEdit, onDelete }: AssetListProps) => {
                   <SelectItem value="all">All Categories</SelectItem>
                   <SelectItem value="dewatering">Dewatering</SelectItem>
                   <SelectItem value="waterproofing">Waterproofing</SelectItem>
+                  <SelectItem value="tiling">Tiling</SelectItem>
+                  <SelectItem value="ppe">PPE</SelectItem>
+                  <SelectItem value="office">Office</SelectItem>
                 </SelectContent>
               </Select>
 

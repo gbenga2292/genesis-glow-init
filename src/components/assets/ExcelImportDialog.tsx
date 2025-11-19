@@ -136,7 +136,7 @@ export const ExcelImportDialog = ({ open, onClose, onImport }: ExcelImportDialog
                 <ul className="list-disc list-inside space-y-1 text-muted-foreground">
                   <li><strong>Description</strong> - Asset description</li>
                   <li><strong>Unit of Measurement</strong> - Unit (pcs, kg, meters, etc.)</li>
-                  <li><strong>Category</strong> - dewatering or waterproofing</li>
+                  <li><strong>Category</strong> - dewatering, waterproofing, tiling, ppe, or office</li>
                   <li><strong>Type</strong> - consumable, non-consumable, tools, or equipment</li>
                   <li><strong>Location</strong> - Storage location</li>
                   <li><strong>Service</strong> - Service classification</li>

@@ -47,14 +47,18 @@ export class AIAssistantService {
     this.confidenceCalculator = new ConfidenceCalculator();
     this.actionExecutor = new ActionExecutor(this.context);
 
-    // Initialize local client if configured
+    // Initialize a client bridge to the renderer/main LLM API when available.
+    // The bridge (`window.llm.generate`) will route to local or remote provider depending on app config.
     try {
-      if (aiConfig.AI_MODE === 'local') {
+      if (typeof window !== 'undefined' && (window as any).llm && typeof (window as any).llm.generate === 'function') {
         this.localClient = new LocalClient();
+        console.log('AI Assistant: LLM bridge initialized successfully');
+      } else {
+        console.warn('AI Assistant: LLM bridge not available - will use rule-based fallback');
       }
     } catch (err) {
+      console.warn('AI Assistant: Error initializing LLM bridge:', err);
       // ignore initialization errors in non-electron environments
-      // console.warn('LocalClient init error', err);
     }
   }
 
@@ -86,10 +90,10 @@ export class AIAssistantService {
    * Process user input and generate response
    */
   async processInput(userInput: string): Promise<AIResponse> {
-    // If running in local LLM mode, prefer local model to extract intent (structured JSON)
-    if (aiConfig.AI_MODE === 'local' && this.localClient) {
+    // Try to use remote LLM if available to extract intent
+    if ((aiConfig.AI_MODE === 'remote' || aiConfig.AI_MODE === 'hybrid') && this.localClient) {
       try {
-        // Build a safer prompt and ask the local LLM to emit STRICT JSON
+        // Build a safer prompt and ask the remote LLM to emit STRICT JSON
         const { buildIntentExtractionPrompt } = await import('./promptTemplates');
         const { validateIntentJson } = await import('./schemaValidator');
 
@@ -100,7 +104,8 @@ export class AIAssistantService {
 
         const prompt = buildIntentExtractionPrompt(userInput, hintData);
 
-        const raw = await this.localClient.generate(prompt, { modelPath: aiConfig.LOCAL.modelPath });
+        // Use remote provider via window.llm bridge
+        const raw = await this.localClient.generate(prompt, {});
         let parsed: any = null;
         try {
           // try to parse JSON from output - permissively extract the first JSON object if model emits extra text
@@ -148,11 +153,29 @@ export class AIAssistantService {
           return await this.actionExecutor.executeAction(intent);
         }
       } catch (err) {
-        // If local LLM fails, notify and fall back to existing parser
+        // If remote LLM fails, notify and fall back to rule-based parser
         if (!this.llmFailureNotified && this.onLLMError) {
           this.llmFailureNotified = true;
           const errorMsg = err instanceof Error ? err.message : String(err);
-          this.onLLMError(`LLM unavailable, using offline mode. (${errorMsg.substring(0, 50)})`);
+          
+          // Extract meaningful error info
+          let userFriendlyError = 'Remote AI unavailable, using fallback intent recognition.';
+          
+          if (errorMsg.includes('429')) {
+            userFriendlyError += ' (Rate limited - please wait a moment before trying again)';
+          } else if (errorMsg.includes('401') || errorMsg.includes('403')) {
+            userFriendlyError += ' (Authentication failed - check your API key)';
+          } else if (errorMsg.includes('timeout') || errorMsg.includes('TimeoutError')) {
+            userFriendlyError += ' (Request timed out)';
+          } else if (errorMsg.length > 0) {
+            // Only append a snippet if we have a clean error message
+            const clean = errorMsg.replace(/[{}]/g, '').trim();
+            if (clean.length > 0 && clean.length < 100) {
+              userFriendlyError += ` (${clean})`;
+            }
+          }
+          
+          this.onLLMError(userFriendlyError);
         }
       }
     }
@@ -231,24 +254,37 @@ export class AIAssistantService {
     const action = intent.action.replace(/_/g, ' ');
     const missing = intent.missingParameters;
 
+    // Map technical parameter names to user-friendly names
+    const friendlyNames: Record<string, string> = {
+      driverId: 'driver',
+      vehicleId: 'vehicle',
+      siteId: 'site',
+      site: 'site',
+      items: 'items to include',
+      name: 'name',
+      quantity: 'quantity'
+    };
+
     if (missing.length === 1) {
       const param = missing[0];
+      const friendlyParam = friendlyNames[param] || param.replace(/Id$/, '');
       const suggestions = this.getSuggestionsForParameter(param);
-      
+
       let message = `I understand you want to ${action}. `;
-      message += `However, I need to know: which ${param}?`;
-      
+      message += `However, I need to know: which ${friendlyParam}?`;
+
       if (suggestions.length > 0) {
         message += `\n\nAvailable options:\n${suggestions.slice(0, 5).join('\n')}`;
         if (suggestions.length > 5) {
           message += `\n... and ${suggestions.length - 5} more`;
         }
       }
-      
+
       return message;
     }
 
-    return `I understand you want to ${action}. However, I need more information about: ${missing.join(', ')}. Please provide these details.`;
+    const friendlyMissing = missing.map(param => friendlyNames[param] || param.replace(/Id$/, ''));
+    return `I understand you want to ${action}. However, I need more information about: ${friendlyMissing.join(', ')}. Please provide these details.`;
   }
 
   /**

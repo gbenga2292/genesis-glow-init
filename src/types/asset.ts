@@ -7,7 +7,7 @@ export interface Asset {
   availableQuantity: number; // Calculated: quantity - reservedQuantity - sum of siteQuantities
   siteQuantities: Record<string, number>; // Quantities allocated to specific sites
   unitOfMeasurement: string;
-  category: 'dewatering' | 'waterproofing';
+  category: 'dewatering' | 'waterproofing' | 'tiling' | 'ppe' | 'office';
   type: 'consumable' | 'non-consumable' | 'tools' | 'equipment';
   location?: string;
   siteId?: string; // Link asset to a specific site

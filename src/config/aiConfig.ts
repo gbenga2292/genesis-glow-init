@@ -1,8 +1,10 @@
 export const aiConfig = {
   // AI_MODE: 'local' | 'remote' | 'hybrid'
-  AI_MODE: (import.meta.env.VITE_AI_MODE || 'local') as 'local' | 'remote' | 'hybrid',
+  // Note: 'local' mode is no longer supported; we use remote API providers only
+  AI_MODE: (import.meta.env.VITE_AI_MODE || 'remote') as 'local' | 'remote' | 'hybrid',
 
   // Local runtime settings (used when AI_MODE === 'local')
+  // DEPRECATED: These are no longer used; all AI operations use remote providers
   LOCAL: {
     // Optional path for model file if using a local binary that requires it
     modelPath: (import.meta.env.VITE_AI_LOCAL_MODEL_PATH || '') as string,

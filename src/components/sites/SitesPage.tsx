@@ -86,6 +86,19 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
   const { isAuthenticated, hasPermission } = useAuth();
   const { toast } = useToast();
 
+  // Load site filter from localStorage on component mount
+  useEffect(() => {
+    const savedFilter = localStorage.getItem('siteFilter');
+    if (savedFilter && ['all', 'active', 'inactive'].includes(savedFilter)) {
+      setSiteFilter(savedFilter as 'all' | 'active' | 'inactive');
+    }
+  }, []);
+
+  // Save site filter to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('siteFilter', siteFilter);
+  }, [siteFilter]);
+
   // Auto-open form when AI provides prefill data
   useEffect(() => {
     if (aiPrefillData?.formType === 'site') {

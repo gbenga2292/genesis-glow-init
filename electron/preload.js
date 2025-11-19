@@ -14,10 +14,12 @@ const dbFunctions = [
     'getReturnItems', 'createReturnItem', 'updateReturnItem', 'deleteReturnItem',
     'getEquipmentLogs', 'createEquipmentLog', 'updateEquipmentLog', 'deleteEquipmentLog',
     'getConsumableLogs', 'createConsumableLog', 'updateConsumableLog', 'deleteConsumableLog',
-    'getCompanySettings', 'updateCompanySettings',
+    'getCompanySettings', 'createCompanySettings', 'updateCompanySettings',
     'getSiteTransactions', 'addSiteTransaction', 'updateSiteTransaction', 'deleteSiteTransaction',
     'getActivities', 'createActivity', 'clearActivities',
-'createWaybillWithTransaction', 'processReturnWithTransaction', 'sendToSiteWithTransaction', 'deleteWaybillWithTransaction', 'updateWaybillWithTransaction',
+    'createWaybillWithTransaction', 'processReturnWithTransaction', 'sendToSiteWithTransaction', 'deleteWaybillWithTransaction', 'updateWaybillWithTransaction',
+    'getSavedApiKeys', 'createSavedApiKey', 'updateSavedApiKey', 'setActiveApiKey', 'deleteSavedApiKey', 'getActiveApiKey',
+    'migrateSavedKeysToKeytar', 'getApiKeyFromKeyRef',
     'getDatabaseInfo', 'wipeLocalDatabase'
 ];
 
@@ -30,12 +32,19 @@ for (const functionName of dbFunctions) {
 // Expose the entire API on window.db
 contextBridge.exposeInMainWorld('db', dbAPI);
 
-// Expose a simple local LLM bridge to the renderer.
-// The main process will handle launching/spawning the local binary or calling a local HTTP wrapper.
+// Expose Local LLM API (Bundled Runtime)
 const llmAPI = {
     generate: (payload) => ipcRenderer.invoke('llm:generate', payload),
     status: () => ipcRenderer.invoke('llm:status'),
-    configure: (cfg) => ipcRenderer.invoke('llm:configure', cfg)
+    configure: (cfg) => ipcRenderer.invoke('llm:configure', cfg),
+    start: () => ipcRenderer.invoke('llm:start'),
+    stop: () => ipcRenderer.invoke('llm:stop'),
+    restart: () => ipcRenderer.invoke('llm:restart')
 };
+
+// Expose migration & key management helpers
+llmAPI.migrateKeys = () => ipcRenderer.invoke('llm:migrate-keys');
+llmAPI.getKeyStatus = () => ipcRenderer.invoke('llm:get-key-status');
+llmAPI.clearKey = (opts) => ipcRenderer.invoke('llm:clear-key', opts || {});
 
 contextBridge.exposeInMainWorld('llm', llmAPI);

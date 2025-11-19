@@ -1131,7 +1131,37 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
   function renderContent() {
     switch (activeTab) {
       case "dashboard":
-        return <Dashboard assets={assets} waybills={waybills} quickCheckouts={quickCheckouts} sites={sites} equipmentLogs={equipmentLogs} />;
+        return <Dashboard assets={assets} waybills={waybills} quickCheckouts={quickCheckouts} sites={sites} equipmentLogs={equipmentLogs} employees={employees} onQuickLogEquipment={async (log: EquipmentLog) => {
+          if (!isAuthenticated) {
+            toast({
+              title: "Authentication Required",
+              description: "Please login to add equipment logs",
+              variant: "destructive"
+            });
+            return;
+          }
+
+          if (window.db) {
+            try {
+              await window.db.createEquipmentLog(log);
+              const logs = await window.db.getEquipmentLogs();
+              setEquipmentLogs(logs);
+              toast({
+                title: "Equipment Log Added",
+                description: "Equipment log saved successfully"
+              });
+            } catch (error) {
+              logger.error('Failed to save equipment log', error);
+              toast({
+                title: "Error",
+                description: "Failed to save equipment log to database.",
+                variant: "destructive"
+              });
+            }
+          } else {
+            setEquipmentLogs(prev => [...prev, log]);
+          }
+        }} />;
       case "assets":
         return <AssetTable
           assets={assets}
@@ -1686,7 +1716,7 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
           availableQuantity,
           siteQuantities,
           unitOfMeasurement: item.unitOfMeasurement || item['unit of measurement'] || item.unit || item.uom || "pcs",
-          category: (item.category || item.Category || "dewatering") as 'dewatering' | 'waterproofing',
+          category: (item.category || item.Category || "dewatering") as 'dewatering' | 'waterproofing' | 'tiling' | 'ppe' | 'office',
           type: (item.type || item.Type || "equipment") as 'consumable' | 'non-consumable' | 'tools' | 'equipment',
           location: item.location || item.Location || "",
           status: (item.status || 'active') as 'active' | 'damaged' | 'missing' | 'maintenance',
@@ -1849,14 +1879,58 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
           });
       }
     } else if (action.type === 'execute_action' && action.data) {
-      const { action: actionType, parameters } = action.data;
-      
+      const { action: actionType, waybillId, analyticsType, siteId, ...prefillData } = action.data;
+
       if (actionType === 'open_analytics') {
         setActiveTab('dashboard');
         setShowAIAssistant(false);
         toast({
           title: "Opening Analytics",
-          description: parameters.siteName ? `Analytics for ${parameters.siteName}` : "Opening analytics dashboard",
+          description: siteId ? `Analytics for site` : "Opening analytics dashboard",
+        });
+      } else if (actionType === 'view_waybill' && waybillId) {
+        const waybill = waybills.find(wb => wb.id === waybillId);
+        if (waybill) {
+          if (waybill.type === 'return') {
+            setShowReturnWaybillDocument(waybill);
+          } else {
+            setShowWaybillDocument(waybill);
+          }
+          setShowAIAssistant(false);
+          toast({
+            title: "Viewing Waybill",
+            description: `Opening waybill ${waybillId}`,
+          });
+        } else {
+          toast({
+            title: "Waybill Not Found",
+            description: `Could not find waybill with ID ${waybillId}`,
+            variant: "destructive"
+          });
+        }
+      } else if (actionType === 'create_waybill') {
+        setAiPrefillData({ ...prefillData, formType: 'waybill' });
+        setActiveTab('create-waybill');
+        setShowAIAssistant(false);
+        toast({
+          title: "Waybill Form Ready",
+          description: "Form populated with AI-extracted data",
+        });
+      } else if (actionType === 'create_asset') {
+        setAiPrefillData({ ...prefillData, formType: 'asset' });
+        setActiveTab('add-asset');
+        setShowAIAssistant(false);
+        toast({
+          title: "Asset Form Ready",
+          description: "Form populated with AI-extracted data",
+        });
+      } else if (actionType === 'create_site') {
+        setAiPrefillData({ ...prefillData, formType: 'site' });
+        setActiveTab('sites');
+        setShowAIAssistant(false);
+        toast({
+          title: "Site Form Ready",
+          description: "Form populated with AI-extracted data",
         });
       }
     }
