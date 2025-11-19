@@ -10,9 +10,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Asset, Site, Employee } from "@/types/asset";
 import { EquipmentLog, DowntimeEntry } from "@/types/equipment";
-import { AlertTriangle, CheckCircle, Clock, Wrench, Zap, Calendar as CalendarIcon, Plus } from "lucide-react";
+import { AlertTriangle, CheckCircle, Clock, Wrench, Zap, Calendar as CalendarIcon, Plus, ChevronDown, ChevronUp, X, Filter } from "lucide-react";
 import { format, isToday } from "date-fns";
 import { createDefaultOperationalLog, applyDefaultTemplate, calculateDieselRefill, getDieselOverdueDays } from "@/utils/defaultLogTemplate";
 import { useAuth } from "@/contexts/AuthContext";
@@ -44,6 +45,9 @@ export const NotificationPanel = ({
   const [showQuickLogDialog, setShowQuickLogDialog] = useState(false);
   const [selectedPendingItem, setSelectedPendingItem] = useState<PendingLogItem | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [filterPriority, setFilterPriority] = useState<"all" | "critical" | "warning" | "normal">("all");
+  const [dismissedItems, setDismissedItems] = useState<Set<string>>(new Set());
   const [logForm, setLogForm] = useState<{
     active: boolean;
     downtimeEntries: DowntimeEntry[];
@@ -253,17 +257,41 @@ export const NotificationPanel = ({
     setSelectedDate(undefined);
   };
 
-  if (todayPendingCount === 0) {
+  // Group notifications by priority
+  const getPriority = (item: PendingLogItem): "critical" | "warning" | "normal" => {
+    if (item.isOverdue) return "critical";
+    if (item.missingDays > 1) return "warning";
+    return "normal";
+  };
+
+  // Filter and group pending logs
+  const filteredLogs = pendingLogs.filter(item => {
+    const itemId = `${item.equipment.id}-${item.site.id}`;
+    if (dismissedItems.has(itemId)) return false;
+    if (filterPriority === "all") return true;
+    return getPriority(item) === filterPriority;
+  });
+
+  const criticalLogs = filteredLogs.filter(item => getPriority(item) === "critical");
+  const warningLogs = filteredLogs.filter(item => getPriority(item) === "warning");
+  const normalLogs = filteredLogs.filter(item => getPriority(item) === "normal");
+
+  const handleDismiss = (item: PendingLogItem) => {
+    const itemId = `${item.equipment.id}-${item.site.id}`;
+    setDismissedItems(prev => new Set(prev).add(itemId));
+  };
+
+  if (todayPendingCount === 0 && dismissedItems.size === 0) {
     return (
-      <Card className="border-0 shadow-soft bg-green-50 dark:bg-green-950/20">
+      <Card className="border-0 shadow-soft bg-success/10">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-400">
+          <CardTitle className="flex items-center gap-2 text-success">
             <CheckCircle className="h-5 w-5" />
             All Equipment Logged
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-green-600 dark:text-green-500">
+          <p className="text-sm text-success">
             All equipment requiring daily logs have been logged for today.
           </p>
         </CardContent>
@@ -271,84 +299,162 @@ export const NotificationPanel = ({
     );
   }
 
+  const renderNotificationGroup = (items: PendingLogItem[], title: string, color: string, icon: any) => {
+    if (items.length === 0) return null;
+    const Icon = icon;
+
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <Icon className={`h-4 w-4 ${color}`} />
+          <span>{title} ({items.length})</span>
+        </div>
+        <div className="space-y-2">
+          {items.map((item, index) => (
+            <Alert key={`${item.equipment.id}-${item.site.id}`} className={getPriority(item) === "critical" ? "border-destructive/20 bg-destructive/5" : getPriority(item) === "warning" ? "border-warning/20 bg-warning/5" : "border-border bg-muted/30"}>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="font-medium">{item.equipment.name}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {item.site.name}
+                    {item.lastLogDate && (
+                      <span className="ml-2">
+                        • Last logged {format(item.lastLogDate, 'MMM dd')} ({item.missingDays} day{item.missingDays > 1 ? 's' : ''} missing)
+                      </span>
+                    )}
+                    {!item.lastLogDate && (
+                      <span className="ml-2">
+                        • Never logged at this site
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {item.isOverdue && (
+                    <Badge variant="destructive" className="text-xs">
+                      Overdue
+                    </Badge>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleDismiss(item)}
+                    className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleQuickLog(item)}
+                    className="gap-1"
+                    disabled={!hasPermission('write_assets')}
+                  >
+                    <Zap className="h-3 w-3" />
+                    Quick Log
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
-      <Card className="border-0 shadow-soft">
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-orange-500" />
-              Pending Equipment Logs
-            </div>
-            <div className="flex gap-2">
-              {overdueCount > 0 && (
-                <Badge variant="destructive" className="gap-1">
-                  <Clock className="h-3 w-3" />
-                  {overdueCount} Overdue
-                </Badge>
-              )}
-              <Badge variant="secondary">
-                {todayPendingCount} Pending
-              </Badge>
-            </div>
-          </CardTitle>
-          <CardDescription>
-            Equipment requiring daily logs - missing entries from the day they were allocated to site
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {pendingLogs.slice(0, 5).map((item, index) => (
-              <Alert key={`${item.equipment.id}-${item.site.id}`} className={item.isOverdue ? "border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/20" : "border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950/20"}>
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="font-medium">{item.equipment.name}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {item.site.name}
-                      {item.lastLogDate && (
-                        <span className="ml-2">
-                          • Last logged {format(item.lastLogDate, 'MMM dd')} ({item.missingDays} day{item.missingDays > 1 ? 's' : ''} missing)
-                        </span>
-                      )}
-                      {!item.lastLogDate && (
-                        <span className="ml-2">
-                          • Never logged at this site
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {item.isOverdue && (
-                      <Badge variant="destructive" className="text-xs">
-                        Overdue
-                      </Badge>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleQuickLog(item)}
-                      className="gap-1"
-                      disabled={!hasPermission('write_assets')}
-                    >
-                      <Zap className="h-3 w-3" />
-                      Quick Log
-                    </Button>
-                  </div>
-                </AlertDescription>
-              </Alert>
-            ))}
-
-            {pendingLogs.length > 5 && (
-              <div className="text-center pt-2">
-                <p className="text-sm text-muted-foreground">
-                  +{pendingLogs.length - 5} more pending logs
-                </p>
+      <Collapsible open={!isCollapsed} onOpenChange={(open) => setIsCollapsed(!open)}>
+        <Card className="border-0 shadow-soft">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-warning" />
+                Pending Equipment Logs
+                {filteredLogs.length > 0 && (
+                  <Badge variant="secondary" className="ml-2">
+                    {filteredLogs.length}
+                  </Badge>
+                )}
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                {criticalLogs.length > 0 && (
+                  <Badge variant="destructive" className="gap-1">
+                    <Clock className="h-3 w-3" />
+                    {criticalLogs.length} Critical
+                  </Badge>
+                )}
+                {warningLogs.length > 0 && (
+                  <Badge className="gap-1 bg-warning text-warning-foreground">
+                    {warningLogs.length} Warning
+                  </Badge>
+                )}
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    {isCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                  </Button>
+                </CollapsibleTrigger>
               </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+            </div>
+            <CardDescription>
+              Equipment requiring daily logs - grouped by priority
+            </CardDescription>
+          </CardHeader>
+          <CollapsibleContent>
+            <CardContent>
+              {/* Filter Buttons */}
+              <div className="flex gap-2 mb-4">
+                <Button
+                  variant={filterPriority === "all" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilterPriority("all")}
+                  className="gap-1"
+                >
+                  <Filter className="h-3 w-3" />
+                  All ({filteredLogs.length})
+                </Button>
+                <Button
+                  variant={filterPriority === "critical" ? "destructive" : "outline"}
+                  size="sm"
+                  onClick={() => setFilterPriority("critical")}
+                >
+                  Critical ({criticalLogs.length})
+                </Button>
+                <Button
+                  variant={filterPriority === "warning" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilterPriority("warning")}
+                  className={filterPriority === "warning" ? "bg-warning text-warning-foreground" : ""}
+                >
+                  Warning ({warningLogs.length})
+                </Button>
+                <Button
+                  variant={filterPriority === "normal" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilterPriority("normal")}
+                >
+                  Normal ({normalLogs.length})
+                </Button>
+              </div>
+
+              {/* Notification Groups */}
+              <div className="space-y-4">
+                {renderNotificationGroup(criticalLogs, "Critical - Immediate Action Required", "text-destructive", AlertTriangle)}
+                {renderNotificationGroup(warningLogs, "Warning - Action Needed Soon", "text-warning", Clock)}
+                {renderNotificationGroup(normalLogs, "Normal - Routine Logs", "text-muted-foreground", Wrench)}
+                
+                {filteredLogs.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No pending logs in this category</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
       {/* Quick Log Form Dialog */}
       <Dialog open={showQuickLogDialog} onOpenChange={setShowQuickLogDialog}>
