@@ -1674,7 +1674,37 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
         />
         );
       default:
-        return <Dashboard assets={assets} waybills={waybills} quickCheckouts={quickCheckouts} sites={sites} equipmentLogs={equipmentLogs} />;
+        return <Dashboard assets={assets} waybills={waybills} quickCheckouts={quickCheckouts} sites={sites} equipmentLogs={equipmentLogs} employees={employees} onQuickLogEquipment={async (log: EquipmentLog) => {
+          if (!isAuthenticated) {
+            toast({
+              title: "Authentication Required",
+              description: "Please login to add equipment logs",
+              variant: "destructive"
+            });
+            return;
+          }
+
+          if (window.db) {
+            try {
+              await window.db.createEquipmentLog(log);
+              const logs = await window.db.getEquipmentLogs();
+              setEquipmentLogs(logs);
+              toast({
+                title: "Equipment Log Added",
+                description: "Equipment log saved successfully"
+              });
+            } catch (error) {
+              logger.error('Failed to save equipment log', error);
+              toast({
+                title: "Error",
+                description: "Failed to save equipment log to database.",
+                variant: "destructive"
+              });
+            }
+          } else {
+            setEquipmentLogs(prev => [...prev, log]);
+          }
+        }} />;
     }
   }
 
