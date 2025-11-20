@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Site, Asset, Employee } from "@/types/asset";
 import { EquipmentLog as EquipmentLogType, DowntimeEntry } from "@/types/equipment";
-import { Wrench, Calendar as CalendarIcon, Plus, Eye, BarChart3, Package, ChevronDown, LineChart, Zap } from "lucide-react";
+import { Wrench, Calendar as CalendarIcon, Plus, Eye, BarChart3, Package, ChevronDown, LineChart } from "lucide-react";
 import { format, isSameDay } from "date-fns";
 import { SiteMachineAnalytics } from "./SiteMachineAnalytics";
 import { SiteWideMachineAnalytics } from "./SiteWideMachineAnalytics";
@@ -318,15 +318,6 @@ export const MachinesSection = ({
                     Month
                   </Button>
                   <Button
-                    onClick={() => handleQuickLog(equipment)}
-                    variant="ghost"
-                    size="sm"
-                    className="px-2"
-                    title="Quick Log - Apply default operational template"
-                  >
-                    <Zap className="h-4 w-4" />
-                  </Button>
-                  <Button
                     onClick={() => {
                       const equipmentLogsForSite = equipmentLogs.filter(log => log.siteId === site.id);
                       setSelectedViewLogs(equipmentLogsForSite);
@@ -402,7 +393,6 @@ export const MachinesSection = ({
                 }}
                 className="shrink-0"
               >
-                <Zap className="h-4 w-4 mr-2" />
                 Quick Fill
               </Button>
             </div>
