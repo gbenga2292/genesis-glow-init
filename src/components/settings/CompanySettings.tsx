@@ -1258,6 +1258,29 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         // Trigger WaybillsContext to refresh from database
         window.dispatchEvent(new Event('refreshWaybills'));
 
+        // Ensure changes are persisted to master DB and reload persisted waybills
+        if (hasDB && (window as any).electronAPI?.manualSync) {
+          try {
+            const syncRes = await (window as any).electronAPI.manualSync();
+            if (!syncRes || !syncRes.success) {
+              console.warn('Manual sync after restore reported failure', syncRes);
+            }
+          } catch (err) {
+            console.warn('Manual sync after restore failed', err);
+          }
+
+          try {
+            const persistedWaybills = await window.db.getWaybills();
+            if (persistedWaybills && typeof onWaybillsChange === 'function') {
+              onWaybillsChange(persistedWaybills);
+              // Broadcast another refresh event so other contexts update
+              window.dispatchEvent(new Event('refreshWaybills'));
+            }
+          } catch (err) {
+            console.warn('Failed to reload waybills after restore', err);
+          }
+        }
+
         if (waybillPersistErrors.length > 0) {
           // Log full error objects to console for easier debugging in packaged app
           console.error('Waybill restore errors (details):', waybillPersistErrors);
