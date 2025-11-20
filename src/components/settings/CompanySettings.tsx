@@ -19,6 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { saveAs } from "file-saver";
 import { logActivity, exportActivitiesToTxt, getActivities, clearActivities } from "@/utils/activityLogger";
 import { useAuth, User, UserRole } from "@/contexts/AuthContext";
+import { SyncStatusPanel } from "./SyncStatusPanel";
 
 interface CompanySettingsProps {
   settings: CompanySettingsType;
@@ -1366,7 +1367,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       </div>
 
       <Tabs defaultValue="company" className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="company" className="flex items-center gap-2">
             <Building className="h-4 w-4" />
             Company
@@ -1392,6 +1393,10 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           <TabsTrigger value="data" className="flex items-center gap-2">
             <Database className="h-4 w-4" />
             Data
+          </TabsTrigger>
+          <TabsTrigger value="sync" className="flex items-center gap-2">
+            <Database className="h-4 w-4" />
+            Sync
           </TabsTrigger>
         </TabsList>
 
@@ -2478,6 +2483,11 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
               Save Settings
             </Button>
           </div>
+        </TabsContent>
+
+        {/* Database Sync Tab */}
+        <TabsContent value="sync" className="space-y-6">
+          <SyncStatusPanel />
         </TabsContent>
       </Tabs>
     </div>

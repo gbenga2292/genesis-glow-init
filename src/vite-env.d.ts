@@ -63,6 +63,9 @@ interface Window {
     getActivities: () => Promise<any[]>;
     createActivity: (data: any) => Promise<any>;
     clearActivities: () => Promise<any>;
+    getMetricsSnapshots: (days?: number) => Promise<any[]>;
+    getTodayMetricsSnapshot: () => Promise<any>;
+    createMetricsSnapshot: (data: any) => Promise<any[]>;
     createWaybillWithTransaction: (waybillData: any) => Promise<{ success: boolean; waybill?: any; error?: string }>;
     processReturnWithTransaction: (returnData: any) => Promise<{ success: boolean; returnBill?: any; error?: string }>;
     sendToSiteWithTransaction: (waybillId: string, sentToSiteDate?: string) => Promise<{ success: boolean; error?: string }>;

@@ -373,12 +373,39 @@ export const MachinesSection = ({
       <Dialog open={showLogDialog} onOpenChange={setShowLogDialog}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
-              Log Entry - {selectedEquipment?.name}
-            </DialogTitle>
-            <DialogDescription>
-              {selectedDate && format(selectedDate, 'PPP')}
-            </DialogDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle>
+                  Log Entry - {selectedEquipment?.name}
+                </DialogTitle>
+                <DialogDescription>
+                  {selectedDate && format(selectedDate, 'PPP')}
+                </DialogDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const defaultLog = createDefaultOperationalLog(
+                    employees.find(e => e.id === logForm.supervisorOnSite)?.name,
+                    selectedEquipment ? calculateDieselRefill(equipmentLogs, selectedEquipment.id) : undefined
+                  );
+                  setLogForm({
+                    active: defaultLog.active,
+                    downtimeEntries: defaultLog.downtimeEntries,
+                    maintenanceDetails: defaultLog.maintenanceDetails || "",
+                    dieselEntered: defaultLog.dieselEntered?.toString() || "",
+                    supervisorOnSite: defaultLog.supervisorOnSite || "",
+                    clientFeedback: defaultLog.clientFeedback || "",
+                    issuesOnSite: defaultLog.issuesOnSite || ""
+                  });
+                }}
+                className="shrink-0"
+              >
+                <Zap className="h-4 w-4 mr-2" />
+                Quick Fill
+              </Button>
+            </div>
           </DialogHeader>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

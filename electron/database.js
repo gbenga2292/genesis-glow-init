@@ -473,6 +473,43 @@ const clearActivities = () => {
   return db('activities').del();
 }
 
+// --- METRICS SNAPSHOTS ---
+const getMetricsSnapshots = (days = 7) => {
+  if (!db) throw new Error('Database not connected');
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  return db('metrics_snapshots')
+    .where('snapshot_date', '>=', date.toISOString().split('T')[0])
+    .orderBy('snapshot_date', 'asc')
+    .select('*');
+}
+
+const getTodayMetricsSnapshot = () => {
+  if (!db) throw new Error('Database not connected');
+  const today = new Date().toISOString().split('T')[0];
+  return db('metrics_snapshots')
+    .where('snapshot_date', today)
+    .first();
+}
+
+const createMetricsSnapshot = (data) => {
+  if (!db) throw new Error('Database not connected');
+  const today = new Date().toISOString().split('T')[0];
+  return db('metrics_snapshots')
+    .insert({
+      snapshot_date: today,
+      total_assets: data.total_assets || 0,
+      total_quantity: data.total_quantity || 0,
+      outstanding_waybills: data.outstanding_waybills || 0,
+      outstanding_checkouts: data.outstanding_checkouts || 0,
+      out_of_stock: data.out_of_stock || 0,
+      low_stock: data.low_stock || 0,
+    })
+    .onConflict('snapshot_date')
+    .merge()
+    .returning('*');
+}
+
 
 // --- TRANSACTION OPERATIONS ---
 
@@ -978,6 +1015,9 @@ export {
     getActivities,
     createActivity,
     clearActivities,
+    getMetricsSnapshots,
+    getTodayMetricsSnapshot,
+    createMetricsSnapshot,
     createWaybillWithTransaction,
     sendToSiteWithTransaction,
     processReturnWithTransaction,

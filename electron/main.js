@@ -8,6 +8,7 @@ import { initializeDatabase } from './databaseSetup.js';
 import { migrateDatabase } from './migrateDatabase.js';
 import * as db from './database.js';
 import config, { getDatabasePath } from './config.js';
+import { SyncManager } from './syncManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,8 +35,12 @@ let mainWindow;
 // LLM manager instance is created during main() but we keep a module-scoped reference
 // so shutdown handlers outside main() can access it.
 let llmManager;
+let syncManager;
 
 async function main() {
+  // Initialize sync manager
+  syncManager = new SyncManager(APP_DATA_PATH, masterDbPath, localDbPath);
+  
   // Ensure the database directory exists
   if (!fs.existsSync(DB_PATH)) {
     console.log('Creating database directory:', DB_PATH);
@@ -140,11 +145,11 @@ async function main() {
 
   // Sync local working copy back to master storage
   const syncLocalToMaster = () => {
-    try {
-      fs.copyFileSync(localDbPath, masterDbPath);
-      console.log('✓ Database synced back to master storage.');
-    } catch (error) {
-      console.error('Failed to sync database back to master:', error);
+    if (syncManager) {
+      const result = syncManager.syncToMaster();
+      if (!result.success) {
+        console.error('Failed to sync database back to master:', result.error);
+      }
     }
   };
 
@@ -212,6 +217,43 @@ async function main() {
       dialog.showErrorBox('Deletion Failed', `Could not delete the local database file. Please do it manually at ${localDbPath}. Error: ${error.message}`);
       app.quit();
       return { success: false, error: error.message };
+    }
+  });
+  
+  // Add sync status handlers
+  ipcMain.handle('sync:getStatus', () => {
+    if (syncManager) {
+      return syncManager.getSyncInfo();
+    }
+    return { error: 'Sync manager not initialized' };
+  });
+
+  ipcMain.handle('sync:manualSync', async () => {
+    if (!syncManager) {
+      return { success: false, error: 'Sync manager not initialized' };
+    }
+
+    try {
+      syncManager.markSyncStarted();
+      const result = syncManager.syncToMaster();
+      
+      if (result.success) {
+        return {
+          success: true,
+          message: 'Database synced successfully',
+          timestamp: result.timestamp
+        };
+      } else {
+        return {
+          success: false,
+          error: result.error
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
     }
   });
   
@@ -431,13 +473,15 @@ app.on('before-quit', (event) => {
     console.error('Error stopping LLM server:', err);
   }
   
-  try {
-    console.log('Copying local database back to master...');
-    fs.copyFileSync(localDbPath, masterDbPath);
-    console.log('✓ Database successfully synced back to:', DB_PATH);
-  } catch (error) {
-    console.error('CRITICAL: Failed to copy database back!', error);
-    dialog.showErrorBox('Sync Error', `Failed to save changes back to the database location. Your local changes are safe at: ${localDbPath}`);
+  // Sync database back to master
+  if (syncManager) {
+    const syncResult = syncManager.syncToMaster();
+    if (!syncResult.success) {
+      console.error('CRITICAL: Failed to copy database back!', syncResult.error);
+      dialog.showErrorBox('Sync Error', `Failed to save changes back to the database location. Your local changes are safe at: ${localDbPath}\n\nError: ${syncResult.error}`);
+    } else {
+      console.log('✓ Database successfully synced back to:', DB_PATH);
+    }
   }
 
   // Release lock if locking is enabled
@@ -453,11 +497,13 @@ app.on('before-quit', (event) => {
 
 // Also attempt a sync on will-quit for extra safety
 app.on('will-quit', () => {
-  try {
-    fs.copyFileSync(localDbPath, masterDbPath);
-    console.log('✓ Database synced on will-quit.');
-  } catch (error) {
-    console.error('Failed to sync database on will-quit:', error);
+  if (syncManager) {
+    const syncResult = syncManager.syncToMaster();
+    if (syncResult.success) {
+      console.log('✓ Database synced on will-quit.');
+    } else {
+      console.error('Failed to sync database on will-quit:', syncResult.error);
+    }
   }
 });
 

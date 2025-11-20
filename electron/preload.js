@@ -17,6 +17,7 @@ const dbFunctions = [
     'getCompanySettings', 'createCompanySettings', 'updateCompanySettings',
     'getSiteTransactions', 'addSiteTransaction', 'updateSiteTransaction', 'deleteSiteTransaction',
     'getActivities', 'createActivity', 'clearActivities',
+    'getMetricsSnapshots', 'getTodayMetricsSnapshot', 'createMetricsSnapshot',
     'createWaybillWithTransaction', 'processReturnWithTransaction', 'sendToSiteWithTransaction', 'deleteWaybillWithTransaction', 'updateWaybillWithTransaction',
     'getSavedApiKeys', 'createSavedApiKey', 'updateSavedApiKey', 'setActiveApiKey', 'deleteSavedApiKey', 'getActiveApiKey',
     'migrateSavedKeysToKeytar', 'getApiKeyFromKeyRef',
@@ -31,6 +32,12 @@ for (const functionName of dbFunctions) {
 
 // Expose the entire API on window.db
 contextBridge.exposeInMainWorld('db', dbAPI);
+
+// Expose sync APIs
+contextBridge.exposeInMainWorld('electronAPI', {
+  getSyncStatus: () => ipcRenderer.invoke('sync:getStatus'),
+  manualSync: () => ipcRenderer.invoke('sync:manualSync'),
+});
 
 // Expose Local LLM API (Bundled Runtime)
 const llmAPI = {

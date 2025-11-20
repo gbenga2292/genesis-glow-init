@@ -12,7 +12,8 @@ import { getActivities } from "@/utils/activityLogger";
 import { SiteMachineAnalytics } from "@/components/sites/SiteMachineAnalytics";
 import { NotificationPanel } from "./NotificationPanel";
 import { TrendChart } from "./TrendChart";
-import { QuickActionsPanel } from "./QuickActionsPanel";
+import { SyncStatusBanner } from "@/components/layout/SyncStatusBanner";
+import { useMetricsSnapshots, getMetricsHistory } from "@/hooks/useMetricsSnapshots";
 import { format, subDays } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
@@ -34,16 +35,8 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [activityDateRange, setActivityDateRange] = useState({ from: subDays(new Date(), 7), to: new Date() });
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [metricsHistory, setMetricsHistory] = useState<any[]>([]);
   const { toast } = useToast();
-
-  // Load activities on mount
-  useEffect(() => {
-    const loadActivities = async () => {
-      const loadedActivities = await getActivities();
-      setActivities(loadedActivities);
-    };
-    loadActivities();
-  }, []);
 
   const totalAssets = assets.length;
   const totalQuantity = assets.reduce((sum, asset) => sum + asset.quantity, 0);
@@ -53,15 +46,49 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
   const outstandingWaybills = (waybills || []).filter(w => w.status === 'outstanding').length;
   const outstandingCheckouts = (quickCheckouts || []).filter(c => c.status === 'outstanding').length;
 
-  // Generate mock trend data (in production, this would come from historical data)
-  const generateTrendData = (current: number, variation: number = 10) => {
-    const data = [];
-    let value = current * 0.9;
-    for (let i = 0; i < 7; i++) {
-      value += (Math.random() - 0.5) * variation;
-      data.push(Math.max(0, Math.round(value)));
+  // Store current metrics as snapshot
+  useMetricsSnapshots({
+    totalAssets,
+    totalQuantity,
+    outstandingWaybills,
+    outstandingCheckouts,
+    outOfStockCount,
+    lowStockCount,
+  });
+
+  // Load activities and metrics history on mount
+  useEffect(() => {
+    const loadData = async () => {
+      const loadedActivities = await getActivities();
+      setActivities(loadedActivities);
+      
+      const history = await getMetricsHistory(7);
+      setMetricsHistory(history);
+    };
+    loadData();
+  }, []);
+
+  // Get real trend data from historical snapshots
+  const getTrendDataFromHistory = (metricKey: string, currentValue: number): number[] => {
+    if (metricsHistory.length === 0) {
+      // Fallback to single data point if no history yet
+      return [currentValue];
     }
-    return data;
+    
+    const data = metricsHistory.map(snapshot => {
+      switch(metricKey) {
+        case 'totalAssets': return snapshot.total_assets;
+        case 'totalQuantity': return snapshot.total_quantity;
+        case 'outstandingWaybills': return snapshot.outstanding_waybills;
+        case 'outstandingCheckouts': return snapshot.outstanding_checkouts;
+        case 'outOfStock': return snapshot.out_of_stock;
+        case 'lowStock': return snapshot.low_stock;
+        default: return currentValue;
+      }
+    });
+    
+    // Always include current value as the last data point
+    return [...data, currentValue];
   };
 
   const getTrend = (data: number[]): { trend: "up" | "down" | "neutral", percentage: number } => {
@@ -203,7 +230,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
       description: "Items in inventory",
       icon: Package,
       color: "text-primary",
-      trendData: generateTrendData(totalAssets, 5),
+      trendData: getTrendDataFromHistory('totalAssets', totalAssets),
       getTrendInfo: function() { return getTrend(this.trendData); }
     },
     {
@@ -212,7 +239,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
       description: "Units in stock",
       icon: Package,
       color: "text-success",
-      trendData: generateTrendData(totalQuantity, 20),
+      trendData: getTrendDataFromHistory('totalQuantity', totalQuantity),
       getTrendInfo: function() { return getTrend(this.trendData); }
     },
     {
@@ -221,7 +248,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
       description: "Items out for projects",
       icon: FileText,
       color: "text-warning",
-      trendData: generateTrendData(outstandingWaybills, 3),
+      trendData: getTrendDataFromHistory('outstandingWaybills', outstandingWaybills),
       getTrendInfo: function() { return getTrend(this.trendData); }
     },
     {
@@ -230,7 +257,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
       description: "Items checked out",
       icon: ShoppingCart,
       color: "text-primary",
-      trendData: generateTrendData(outstandingCheckouts, 2),
+      trendData: getTrendDataFromHistory('outstandingCheckouts', outstandingCheckouts),
       getTrendInfo: function() { return getTrend(this.trendData); }
     },
     {
@@ -239,7 +266,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
       description: "Items needing reorder",
       icon: AlertTriangle,
       color: "text-destructive",
-      trendData: generateTrendData(outOfStockCount, 2),
+      trendData: getTrendDataFromHistory('outOfStock', outOfStockCount),
       getTrendInfo: function() { return getTrend(this.trendData); }
     },
     {
@@ -248,10 +275,10 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
       description: "Items running low",
       icon: TrendingDown,
       color: "text-warning",
-      trendData: generateTrendData(lowStockCount, 3),
+      trendData: getTrendDataFromHistory('lowStock', lowStockCount),
       getTrendInfo: function() { return getTrend(this.trendData); }
     }
-  ], [totalAssets, totalQuantity, outstandingWaybills, outstandingCheckouts, outOfStockCount, lowStockCount]);
+  ], [totalAssets, totalQuantity, outstandingWaybills, outstandingCheckouts, outOfStockCount, lowStockCount, metricsHistory]);
 
   // Filter activities by date range
   const filteredActivities = useMemo(() => {
@@ -261,29 +288,12 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
     });
   }, [activities, activityDateRange]);
 
-  const handleBulkLog = () => {
-    toast({
-      title: "Bulk Log Equipment",
-      description: "This feature allows you to log multiple equipment at once. Coming soon!",
-    });
-  };
-
-  const handleQuickRestock = () => {
-    toast({
-      title: "Quick Restock",
-      description: "This feature allows you to quickly restock low inventory items. Coming soon!",
-    });
-  };
-
-  const handleExportDashboard = () => {
-    toast({
-      title: "Export Dashboard",
-      description: "Exporting dashboard data to PDF. Coming soon!",
-    });
-  };
 
   return (
     <div className="space-y-8 animate-fade-in">
+      {/* Sync Status Banner */}
+      <SyncStatusBanner />
+
       {/* Header */}
       <div>
         <h1 className="text-4xl font-bold bg-gradient-primary bg-clip-text text-transparent">
@@ -328,12 +338,6 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
         })}
       </div>
 
-      {/* Quick Actions Panel */}
-      <QuickActionsPanel
-        onBulkLog={handleBulkLog}
-        onQuickRestock={handleQuickRestock}
-        onExportDashboard={handleExportDashboard}
-      />
 
       {/* Notification Panel */}
       <NotificationPanel

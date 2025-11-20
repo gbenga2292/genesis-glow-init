@@ -276,6 +276,20 @@ async function initializeDatabase(dbPath) {
     });
     console.log('Created "activities" table.');
 
+    // Metrics Snapshots Table
+    await db.schema.createTable('metrics_snapshots', (table) => {
+      table.increments('id').primary();
+      table.date('snapshot_date').notNullable().unique();
+      table.integer('total_assets').defaultTo(0);
+      table.integer('total_quantity').defaultTo(0);
+      table.integer('outstanding_waybills').defaultTo(0);
+      table.integer('outstanding_checkouts').defaultTo(0);
+      table.integer('out_of_stock').defaultTo(0);
+      table.integer('low_stock').defaultTo(0);
+      table.timestamps(true, true);
+    });
+    console.log('Created "metrics_snapshots" table.');
+
 
     // --- Seed Data ---
 

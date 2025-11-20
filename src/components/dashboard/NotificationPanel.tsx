@@ -158,12 +158,11 @@ export const NotificationPanel = ({
       .map(log => log.date);
   };
 
-  const handleQuickLog = (item: PendingLogItem) => {
-    setSelectedPendingItem(item);
-    setSelectedDate(new Date());
+  const handleAutoFillDefaults = () => {
+    if (!selectedPendingItem) return;
 
     // Calculate diesel refill based on schedule (60L every 4 days)
-    const dieselRefill = calculateDieselRefill(equipmentLogs, item.equipment.id);
+    const dieselRefill = calculateDieselRefill(equipmentLogs, selectedPendingItem.equipment.id);
 
     // Get default supervisor (first active employee)
     const defaultSupervisor = employees.find(emp => emp.status === 'active')?.name;
@@ -181,7 +180,12 @@ export const NotificationPanel = ({
       clientFeedback: defaultTemplate.clientFeedback || "",
       issuesOnSite: defaultTemplate.issuesOnSite || ""
     });
+  };
 
+  const handleQuickLog = (item: PendingLogItem) => {
+    setSelectedPendingItem(item);
+    setSelectedDate(new Date());
+    handleAutoFillDefaults();
     setShowQuickLogDialog(true);
   };
 
@@ -460,13 +464,26 @@ export const NotificationPanel = ({
       <Dialog open={showQuickLogDialog} onOpenChange={setShowQuickLogDialog}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Zap className="h-5 w-5" />
-              Quick Log Equipment
-            </DialogTitle>
-            <DialogDescription>
-              {selectedDate && format(selectedDate, 'PPP')} - {selectedPendingItem?.equipment.name}
-            </DialogDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="flex items-center gap-2">
+                  <Zap className="h-5 w-5" />
+                  Quick Log Equipment
+                </DialogTitle>
+                <DialogDescription>
+                  {selectedDate && format(selectedDate, 'PPP')} - {selectedPendingItem?.equipment.name}
+                </DialogDescription>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleAutoFillDefaults}
+              >
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Auto-Fill Defaults
+              </Button>
+            </div>
           </DialogHeader>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

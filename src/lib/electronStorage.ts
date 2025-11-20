@@ -87,6 +87,23 @@ declare global {
       backup: () => Promise<any>;
       restore: (data: any) => Promise<{ success: boolean; error?: string }>;
       reset: () => Promise<{ success: boolean; error?: string }>;
+
+      // Sync Status
+      getSyncStatus: () => Promise<{
+        inSync: boolean;
+        status: 'synced' | 'failed' | 'pending' | 'unknown';
+        lastSync: string | null;
+        lastAttempt: string | null;
+        failureReason?: string;
+        masterExists: boolean;
+        localExists: boolean;
+      }>;
+      manualSync: () => Promise<{
+        success: boolean;
+        message?: string;
+        error?: string;
+        timestamp?: string;
+      }>;
     };
   }
 }
