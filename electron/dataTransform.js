@@ -199,6 +199,16 @@ export function transformCompanySettingsFromDB(dbSettings) {
       email: dbSettings.notifications_email,
       push: dbSettings.notifications_push,
     },
+    // Parse stored AI config JSON if present
+    ai: (function() {
+      if (!dbSettings || !dbSettings.ai_config) return undefined;
+      try {
+        return JSON.parse(dbSettings.ai_config);
+      } catch (e) {
+        console.warn('Failed to parse ai_config from DB', e);
+        return undefined;
+      }
+    })(),
   };
 }
 
@@ -218,6 +228,8 @@ export function transformCompanySettingsToDB(settings) {
     theme: settings.theme,
     notifications_email: settings.notifications.email,
     notifications_push: settings.notifications.push,
+    // Persist AI config as JSON string (store null/empty as null)
+    ai_config: settings.ai ? JSON.stringify(settings.ai) : null,
   };
 }
 

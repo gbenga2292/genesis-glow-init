@@ -121,6 +121,15 @@ async function migrateDatabase(dbPath) {
       });
     }
 
+    // Company settings table migrations - add ai_config column
+    const hasAiConfig = await db.schema.hasColumn('company_settings', 'ai_config');
+    if (!hasAiConfig) {
+      console.log('Adding ai_config column to company_settings table...');
+      await db.schema.alterTable('company_settings', (table) => {
+        table.text('ai_config');
+      });
+    }
+
     // Check if equipment_logs table exists, create it if it doesn't
     const hasEquipmentLogsTable = await db.schema.hasTable('equipment_logs');
     if (!hasEquipmentLogsTable) {

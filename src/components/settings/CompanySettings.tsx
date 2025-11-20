@@ -38,10 +38,16 @@ interface CompanySettingsProps {
   onSitesChange: (sites: Site[]) => void;
   siteTransactions: SiteTransaction[];
   onSiteTransactionsChange: (siteTransactions: SiteTransaction[]) => void;
+  equipmentLogs?: any[];
+  onEquipmentLogsChange?: (logs: any[]) => void;
+  consumableLogs?: any[];
+  onConsumableLogsChange?: (logs: any[]) => void;
+  activities?: Activity[];
+  onActivitiesChange?: (activities: Activity[]) => void;
   onResetAllData: () => void;
 }
 
-export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange, vehicles, onVehiclesChange, assets, onAssetsChange, waybills, onWaybillsChange, quickCheckouts, onQuickCheckoutsChange, sites, onSitesChange, siteTransactions, onSiteTransactionsChange, onResetAllData }: CompanySettingsProps) => {
+export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange, vehicles, onVehiclesChange, assets, onAssetsChange, waybills, onWaybillsChange, quickCheckouts, onQuickCheckoutsChange, sites, onSitesChange, siteTransactions, onSiteTransactionsChange, equipmentLogs = [], onEquipmentLogsChange, consumableLogs = [], onConsumableLogsChange, activities: activitiesFromProps = [], onActivitiesChange, onResetAllData }: CompanySettingsProps) => {
   const defaultSettings: CompanySettingsType = {
     companyName: "Dewatering Construction Etc Limited",
     logo: undefined,
@@ -91,7 +97,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
   const [showPermissionsTable, setShowPermissionsTable] = useState(true);
 
   const [selectedBackupItems, setSelectedBackupItems] = useState(new Set([
-    'assets', 'waybills', 'quickCheckouts', 'sites', 'siteTransactions', 'employees', 'vehicles', 'companySettings'
+    'assets', 'waybills', 'quickCheckouts', 'sites', 'siteTransactions', 'employees', 'vehicles', 'companySettings', 'equipmentLogs', 'consumableLogs', 'activities'
   ]));
 
   const [selectedResetItems, setSelectedResetItems] = useState(new Set([
@@ -111,6 +117,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
   const [modelsLoading, setModelsLoading] = useState(false);
   const [googleModels, setGoogleModels] = useState<string[]>([]);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [hasInitializedFromSettings, setHasInitializedFromSettings] = useState(false);
 
   // Function to fetch Google AI models
   const fetchGoogleModels = async () => {
@@ -200,15 +207,14 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
             setAiProvider(provider);
             setAiApiKey(apiKey);
             setAiEndpoint(endpoint);
-            setAiModel(model);
+            // Preserve in-memory aiModel if loaded model is empty
+            if (model) {
+              setAiModel(model);
+            }
             setAiEnabled(true);
             
-            // Fetch models if Google provider
-            if (provider === 'google' && apiKey.trim()) {
-              setTimeout(() => {
-                fetchGoogleModels();
-              }, 100);
-            }
+            // Do not auto-fetch models on init - user must click 'Fetch Models' button
+            setHasInitializedFromSettings(true);
           } else if (settings && (settings as any)?.ai?.remote) {
             // Fallback to settings if no saved key found
             const remote = (settings as any).ai.remote;
@@ -216,7 +222,11 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
             setAiProvider(remote.provider || 'openai');
             setAiApiKey(remote.apiKey || '');
             setAiEndpoint(remote.endpoint || '');
-            setAiModel(remote.model || '');
+            // Preserve in-memory aiModel if remote.model is empty
+            if (remote.model) {
+              setAiModel(remote.model);
+            }
+            setHasInitializedFromSettings(true);
           }
         }
       } catch (err) {
@@ -230,12 +240,8 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     })();
   }, [settings]);
 
-  // Fetch Google models when provider is Google and API key is available
-  useEffect(() => {
-    if (aiProvider === 'google' && aiApiKey.trim()) {
-      fetchGoogleModels();
-    }
-  }, [aiProvider, aiApiKey]);
+  // Auto-fetch removed: User must manually click 'Fetch Models' button
+  // This prevents unwanted API calls when settings dialog opens or provider changes
 
   // Set default endpoint for providers if not set
   useEffect(() => {
@@ -252,10 +258,13 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     }
   }, [aiProvider, aiEndpoint]);
 
-  // Set default model for providers if not set (only when no model is selected)
+  // Set default model for providers if not set (only on first mount, before settings load)
   useEffect(() => {
-    // Only set default if model is empty AND we haven't loaded a saved model
-    if (!aiModel.trim() && !selectedSavedKey) {
+    // Only set default if:
+    // 1. Model is empty AND
+    // 2. No saved key selected AND
+    // 3. We haven't loaded from settings yet (prevents overwriting on settings reload)
+    if (!aiModel.trim() && !selectedSavedKey && !hasInitializedFromSettings) {
       if (aiProvider === 'openai') {
         setAiModel('gpt-3.5-turbo');
       } else if (aiProvider === 'anthropic') {
@@ -266,7 +275,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         setAiModel('grok-beta');
       }
     }
-  }, [aiProvider, aiModel, selectedSavedKey]);
+  }, [aiProvider, aiModel, selectedSavedKey, hasInitializedFromSettings]);
 
   // Derive provider from endpoint when endpoint changes
   useEffect(() => {
@@ -297,7 +306,10 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     { id: 'siteTransactions', label: 'Site Transactions' },
     { id: 'employees', label: 'Employees' },
     { id: 'vehicles', label: 'Vehicles' },
-    { id: 'companySettings', label: 'Company Settings' }
+    { id: 'companySettings', label: 'Company Settings' },
+    { id: 'equipmentLogs', label: 'Equipment Logs' },
+    { id: 'consumableLogs', label: 'Consumable Usage Logs' },
+    { id: 'activities', label: 'Recent Activities & Logs' }
   ];
 
   const resetOptions = [
@@ -793,12 +805,13 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     (async () => {
       try {
         // Save to database (create or update depending on editingKeyId)
+        // Ensure model is always set from newKeyModel, aiModel, or default
         const payload = {
           key_name: newKeyName.trim(),
           provider: derivedProvider,
           api_key: key,
           endpoint: endpoint,
-          model: newKeyModel || aiModel || 'gpt-3.5-turbo'
+          model: (newKeyModel || aiModel || 'gpt-3.5-turbo').trim() || 'gpt-3.5-turbo'
         };
         let result: any;
         if (editingKeyId) {
@@ -879,12 +892,18 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         setAiProvider(parsed.provider || 'openai');
         setAiApiKey(parsed.apiKey || '');
         setAiEndpoint(parsed.endpoint || '');
-        setAiModel(parsed.model || 'gpt-3.5-turbo');
+        // Preserve in-memory aiModel if parsed.model is empty
+        if (parsed.model) {
+          setAiModel(parsed.model);
+        }
       } else {
         // New database format: prefer key_ref (secure store) if present
         setAiProvider(keyData.provider || 'openai');
         setAiEndpoint(keyData.endpoint || '');
-        setAiModel(keyData.model || 'gpt-3.5-turbo');
+        // Preserve in-memory aiModel if keyData.model is empty
+        if (keyData.model) {
+          setAiModel(keyData.model);
+        }
         if (keyData.key_ref && window.db?.getApiKeyFromKeyRef) {
           // retrieve from secure store
           try {
@@ -1099,6 +1118,29 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         backupData.vehicles = vehicles;
       }
 
+      if (selectedItems.has('equipmentLogs')) {
+        backupData.equipment_logs = equipmentLogs.map((log: any) => ({
+          ...log,
+          createdAt: log.createdAt instanceof Date ? log.createdAt.toISOString() : log.createdAt,
+          updatedAt: log.updatedAt instanceof Date ? log.updatedAt.toISOString() : log.updatedAt
+        }));
+      }
+
+      if (selectedItems.has('consumableLogs')) {
+        backupData.consumable_logs = consumableLogs.map((log: any) => ({
+          ...log,
+          createdAt: log.createdAt instanceof Date ? log.createdAt.toISOString() : log.createdAt,
+          updatedAt: log.updatedAt instanceof Date ? log.updatedAt.toISOString() : log.updatedAt
+        }));
+      }
+
+      if (selectedItems.has('activities')) {
+        backupData.activities = activitiesFromProps.map((activity: any) => ({
+          ...activity,
+          createdAt: activity.createdAt instanceof Date ? activity.createdAt.toISOString() : activity.createdAt
+        }));
+      }
+
       if (selectedItems.has('companySettings')) {
         backupData.company_settings = [{
           ...settings,
@@ -1173,6 +1215,26 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       }
       if (backupData.vehicles) {
         onVehiclesChange(backupData.vehicles || []);
+      }
+      if (backupData.equipment_logs && onEquipmentLogsChange) {
+        onEquipmentLogsChange(backupData.equipment_logs.map((log: any) => ({
+          ...log,
+          createdAt: new Date(log.createdAt),
+          updatedAt: log.updatedAt ? new Date(log.updatedAt) : undefined
+        })));
+      }
+      if (backupData.consumable_logs && onConsumableLogsChange) {
+        onConsumableLogsChange(backupData.consumable_logs.map((log: any) => ({
+          ...log,
+          createdAt: new Date(log.createdAt),
+          updatedAt: log.updatedAt ? new Date(log.updatedAt) : undefined
+        })));
+      }
+      if (backupData.activities && onActivitiesChange) {
+        onActivitiesChange(backupData.activities.map((activity: any) => ({
+          ...activity,
+          createdAt: new Date(activity.createdAt)
+        })));
       }
       if (backupData.company_settings && backupData.company_settings.length > 0) {
         const restoredSettings = { ...defaultSettings, ...backupData.company_settings[0] };
@@ -2083,7 +2145,27 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
             </div>
 
             <div className="mt-4">
-              <Label htmlFor="model">Model</Label>
+              <div className="flex items-center justify-between mb-2">
+                <Label htmlFor="model">Model</Label>
+                {aiProvider === 'google' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => fetchGoogleModels(true)}
+                    disabled={modelsLoading || !aiApiKey}
+                    className="text-xs"
+                  >
+                    {modelsLoading ? (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                        Fetching...
+                      </>
+                    ) : (
+                      'Fetch Models'
+                    )}
+                  </Button>
+                )}
+              </div>
               {aiProvider === 'google' && googleModels.length > 0 ? (
                 <Select value={aiModel} onValueChange={setAiModel}>
                   <SelectTrigger>
