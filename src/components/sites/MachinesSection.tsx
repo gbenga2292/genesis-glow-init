@@ -26,6 +26,7 @@ interface MachinesSectionProps {
   assets: Asset[];
   equipmentLogs: EquipmentLogType[];
   employees: Employee[];
+  waybills: any[];
   companySettings?: any;
   onAddEquipmentLog: (log: EquipmentLogType) => void;
   onUpdateEquipmentLog: (log: EquipmentLogType) => void;
@@ -36,6 +37,7 @@ export const MachinesSection = ({
   assets,
   equipmentLogs,
   employees,
+  waybills,
   companySettings,
   onAddEquipmentLog,
   onUpdateEquipmentLog
@@ -214,6 +216,52 @@ export const MachinesSection = ({
     return equipmentLogs
       .filter(log => String(log.equipmentId) === String(equipmentId) && String(log.siteId) === String(site.id))
       .map(log => log.date);
+  };
+
+  const getEquipmentArrivalDate = (equipmentId: string): Date | null => {
+    // Find the first waybill where this equipment was sent to this site
+    const relevantWaybills = waybills.filter(
+      waybill =>
+        String(waybill.siteId) === String(site.id) &&
+        waybill.items.some(item => String(item.assetId) === String(equipmentId))
+    );
+
+    if (relevantWaybills.length === 0) return null;
+
+    // Sort by issue date and return the earliest
+    const sortedWaybills = relevantWaybills.sort(
+      (a, b) => new Date(a.issueDate).getTime() - new Date(b.issueDate).getTime()
+    );
+
+    return new Date(sortedWaybills[0].issueDate);
+  };
+
+  const getMissedLogsCount = (equipmentId: string): number => {
+    const arrivalDate = getEquipmentArrivalDate(equipmentId);
+    if (!arrivalDate) return 0;
+
+    // Count dates from arrival to today that should have logs
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+
+    let missedCount = 0;
+    let currentDate = new Date(arrivalDate);
+    currentDate.setHours(0, 0, 0, 0);
+
+    const loggedDates = getLoggedDatesForEquipmentAndSite(equipmentId).map(date => {
+      const d = new Date(date);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    });
+
+    while (currentDate <= today) {
+      const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+      if (!loggedDates.includes(dateStr)) {
+        missedCount++;
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    return missedCount;
   };
 
   const handleQuickLog = (equipment: Asset) => {
@@ -407,20 +455,39 @@ export const MachinesSection = ({
                 selected={selectedDate}
                 onSelect={(date) => date && handleDateSelect(date)}
                 modifiers={{
-                  logged: selectedEquipment ? getLoggedDatesForEquipmentAndSite(selectedEquipment.id) : []
+                  logged: selectedEquipment ? getLoggedDatesForEquipmentAndSite(selectedEquipment.id) : [],
+                  arrival: selectedEquipment && getEquipmentArrivalDate(selectedEquipment.id)
+                    ? [getEquipmentArrivalDate(selectedEquipment.id) as Date]
+                    : []
                 }}
                 modifiersStyles={{
                   logged: {
                     backgroundColor: 'hsl(var(--primary))',
                     color: 'white',
                     fontWeight: 'bold'
+                  },
+                  arrival: {
+                    backgroundColor: 'hsl(34 89% 72%)',
+                    color: '#000',
+                    fontWeight: 'bold',
+                    textDecoration: 'underline'
                   }
                 }}
                 className="rounded-md border"
               />
-              <p className="text-xs text-muted-foreground mt-2">
-                Blue dates have existing logs
-              </p>
+              <div className="space-y-1 mt-2">
+                <p className="text-xs text-muted-foreground">
+                  <span style={{color: 'hsl(var(--primary))', fontWeight: 'bold'}}>■</span> Blue dates have existing logs
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  <span style={{color: 'hsl(34 89% 72%)', fontWeight: 'bold'}}>■</span> Orange date = equipment arrived at site
+                </p>
+                {selectedEquipment && getEquipmentArrivalDate(selectedEquipment.id) && (
+                  <p className="text-xs font-medium text-orange-700 mt-2">
+                    ⚠️ {getMissedLogsCount(selectedEquipment.id)} missed log{getMissedLogsCount(selectedEquipment.id) !== 1 ? 's' : ''} since arrival
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Form on the Right */}

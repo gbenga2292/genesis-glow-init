@@ -1194,57 +1194,309 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     try {
       const text = await restoreFile.text();
       const backupData = JSON.parse(text);
-      // Update local state from backup
+
+      // Check if running in Electron with database access
+      const hasDB = window.db !== undefined;
+
+      // Restore assets
       if (backupData.assets) {
-        onAssetsChange(backupData.assets.map((asset: any) => ({ ...asset, createdAt: new Date(asset.createdAt), updatedAt: new Date(asset.updatedAt) })));
+        const assets = backupData.assets.map((asset: any) => ({ 
+          ...asset, 
+          createdAt: new Date(asset.createdAt), 
+          updatedAt: new Date(asset.updatedAt) 
+        }));
+        
+        // Save to database if available
+        if (hasDB) {
+          for (const asset of assets) {
+            try {
+              const existingAssets = await window.db.getAssets();
+              const exists = existingAssets.some((a: any) => a.id === asset.id);
+              
+              if (exists) {
+                await window.db.updateAsset(asset.id, asset);
+              } else {
+                await window.db.createAsset(asset);
+              }
+            } catch (err) {
+              logger.warn(`Could not restore asset ${asset.id}`, err);
+            }
+          }
+        }
+        
+        onAssetsChange(assets);
+        
+        // Trigger AssetsContext to refresh from database
+        window.dispatchEvent(new CustomEvent('refreshAssets', { detail: assets }));
       }
+
+      // Restore waybills
       if (backupData.waybills) {
-        onWaybillsChange(backupData.waybills.map((waybill: any) => ({ ...waybill, issueDate: new Date(waybill.issueDate), expectedReturnDate: waybill.expectedReturnDate ? new Date(waybill.expectedReturnDate) : undefined, createdAt: new Date(waybill.createdAt), updatedAt: new Date(waybill.updatedAt) })));
+        const waybills = backupData.waybills.map((waybill: any) => ({ 
+          ...waybill, 
+          issueDate: new Date(waybill.issueDate), 
+          expectedReturnDate: waybill.expectedReturnDate ? new Date(waybill.expectedReturnDate) : undefined, 
+          createdAt: new Date(waybill.createdAt), 
+          updatedAt: new Date(waybill.updatedAt) 
+        }));
+        
+        // Save to database if available
+        const waybillPersistErrors: Array<{ id?: string; error: any }> = [];
+        if (hasDB) {
+          for (const waybill of waybills) {
+            try {
+              await window.db.createWaybill(waybill);
+            } catch (err) {
+              logger.warn(`Could not restore waybill ${waybill.id} - may already exist`, err);
+              waybillPersistErrors.push({ id: waybill.id, error: err });
+            }
+          }
+        }
+
+        onWaybillsChange(waybills);
+
+        // Trigger WaybillsContext to refresh from database
+        window.dispatchEvent(new Event('refreshWaybills'));
+
+        if (waybillPersistErrors.length > 0) {
+          // Log full error objects to console for easier debugging in packaged app
+          console.error('Waybill restore errors (details):', waybillPersistErrors);
+
+          // Also log via app logger
+          logger.warn('Waybill restore errors', waybillPersistErrors.map(e => ({ id: e.id, message: e.error?.message || e.error || String(e) })));
+
+          const firstMsg = waybillPersistErrors[0].error?.message || waybillPersistErrors[0].error || 'Unknown error';
+          toast({
+            title: 'Restore Partial Failure',
+            description: `${waybillPersistErrors.length} waybill(s) failed to persist. First error: ${firstMsg}`,
+            variant: 'destructive'
+          });
+        }
       }
+
+      // Restore quick checkouts
       if (backupData.quick_checkouts) {
-        onQuickCheckoutsChange(backupData.quick_checkouts.map((checkout: any) => ({ ...checkout, checkoutDate: new Date(checkout.checkoutDate), expectedReturnDays: checkout.expectedReturnDays })));
+        const checkouts = backupData.quick_checkouts.map((checkout: any) => ({ 
+          ...checkout, 
+          checkoutDate: new Date(checkout.checkoutDate), 
+          expectedReturnDays: checkout.expectedReturnDays 
+        }));
+        
+        // Save to database if available
+        if (hasDB) {
+          for (const checkout of checkouts) {
+            try {
+              await window.db.createQuickCheckout(checkout);
+            } catch (err) {
+              logger.warn(`Could not restore quick checkout ${checkout.id} - may already exist`, err);
+            }
+          }
+        }
+        
+        onQuickCheckoutsChange(checkouts);
       }
+
+      // Restore sites
       if (backupData.sites) {
-        onSitesChange(backupData.sites.map((site: any) => ({ ...site, createdAt: new Date(site.createdAt), updatedAt: new Date(site.updatedAt) })));
+        const sites = backupData.sites.map((site: any) => ({ 
+          ...site, 
+          createdAt: new Date(site.createdAt), 
+          updatedAt: new Date(site.updatedAt) 
+        }));
+        
+        // Save to database if available
+        if (hasDB) {
+          for (const site of sites) {
+            try {
+              const existingSites = await window.db.getSites();
+              const exists = existingSites.some((s: any) => s.id === site.id);
+              
+              if (exists) {
+                await window.db.updateSite(site.id, site);
+              } else {
+                await window.db.createSite(site);
+              }
+            } catch (err) {
+              logger.warn(`Could not restore site ${site.id}`, err);
+            }
+          }
+        }
+        
+        onSitesChange(sites);
       }
+
+      // Restore site transactions
       if (backupData.site_transactions) {
-        onSiteTransactionsChange(backupData.site_transactions.map((transaction: any) => ({ ...transaction, createdAt: new Date(transaction.createdAt) })));
+        const transactions = backupData.site_transactions.map((transaction: any) => ({ 
+          ...transaction, 
+          createdAt: new Date(transaction.createdAt) 
+        }));
+        
+        // Save to database if available
+        if (hasDB) {
+          for (const transaction of transactions) {
+            try {
+              await window.db.createSiteTransaction(transaction);
+            } catch (err) {
+              logger.warn(`Could not restore site transaction ${transaction.id} - may already exist`, err);
+            }
+          }
+        }
+        
+        onSiteTransactionsChange(transactions);
       }
+
+      // Restore employees
       if (backupData.employees) {
-        onEmployeesChange(backupData.employees.map((emp: any) => ({ ...emp, createdAt: new Date(emp.createdAt), updatedAt: new Date(emp.updatedAt) })));
+        const employees = backupData.employees.map((emp: any) => ({ 
+          ...emp, 
+          createdAt: new Date(emp.createdAt), 
+          updatedAt: new Date(emp.updatedAt) 
+        }));
+        
+        // Save to database if available
+        if (hasDB) {
+          for (const emp of employees) {
+            try {
+              const existingEmployees = await window.db.getEmployees();
+              const exists = existingEmployees.some((e: any) => e.id === emp.id);
+              
+              if (exists) {
+                await window.db.updateEmployee(emp.id, emp);
+              } else {
+                await window.db.createEmployee(emp);
+              }
+            } catch (err) {
+              logger.warn(`Could not restore employee ${emp.id}`, err);
+            }
+          }
+        }
+        
+        onEmployeesChange(employees);
       }
+
+      // Restore vehicles
       if (backupData.vehicles) {
-        onVehiclesChange(backupData.vehicles || []);
+        const vehicles = backupData.vehicles || [];
+        
+        // Save to database if available
+        if (hasDB) {
+          for (const vehicle of vehicles) {
+            try {
+              // Try to update existing vehicle first, then create if it doesn't exist
+              const existingVehicles = await window.db.getVehicles();
+              const exists = existingVehicles.some((v: any) => v.id === vehicle.id);
+              
+              if (exists) {
+                await window.db.updateVehicle(vehicle.id, vehicle);
+              } else {
+                await window.db.createVehicle(vehicle);
+              }
+            } catch (err) {
+              logger.warn(`Could not restore vehicle ${vehicle.id}`, err);
+            }
+          }
+        }
+        
+        onVehiclesChange(vehicles);
       }
+
+      // Restore equipment logs
       if (backupData.equipment_logs && onEquipmentLogsChange) {
-        onEquipmentLogsChange(backupData.equipment_logs.map((log: any) => ({
+        const logs = backupData.equipment_logs.map((log: any) => ({
           ...log,
           createdAt: new Date(log.createdAt),
           updatedAt: log.updatedAt ? new Date(log.updatedAt) : undefined
-        })));
+        }));
+        
+        // Save to database if available
+        if (hasDB) {
+          for (const log of logs) {
+            try {
+              await window.db.createEquipmentLog(log);
+            } catch (err) {
+              logger.warn(`Could not restore equipment log ${log.id} - may already exist`, err);
+            }
+          }
+        }
+        
+        onEquipmentLogsChange(logs);
       }
+
+      // Restore consumable logs
       if (backupData.consumable_logs && onConsumableLogsChange) {
-        onConsumableLogsChange(backupData.consumable_logs.map((log: any) => ({
+        const logs = backupData.consumable_logs.map((log: any) => ({
           ...log,
           createdAt: new Date(log.createdAt),
           updatedAt: log.updatedAt ? new Date(log.updatedAt) : undefined
-        })));
+        }));
+        
+        // Save to database if available
+        if (hasDB) {
+          for (const log of logs) {
+            try {
+              await window.db.createConsumableLog(log);
+            } catch (err) {
+              logger.warn(`Could not restore consumable log ${log.id} - may already exist`, err);
+            }
+          }
+        }
+        
+        onConsumableLogsChange(logs);
       }
+
+      // Restore activities
       if (backupData.activities && onActivitiesChange) {
-        onActivitiesChange(backupData.activities.map((activity: any) => ({
+        const activities = backupData.activities.map((activity: any) => ({
           ...activity,
           createdAt: new Date(activity.createdAt)
-        })));
+        }));
+        
+        // Save to database if available
+        if (hasDB) {
+          for (const activity of activities) {
+            try {
+              await window.db.createActivity(activity);
+            } catch (err) {
+              logger.warn(`Could not restore activity ${activity.id} - may already exist`, err);
+            }
+          }
+        }
+        
+        onActivitiesChange(activities);
       }
+
+      // Restore company settings
       if (backupData.company_settings && backupData.company_settings.length > 0) {
-        const restoredSettings = { ...defaultSettings, ...backupData.company_settings[0] };
-        setFormData(restoredSettings);
-        setLogoPreview(restoredSettings.logo || null);
-        onSave(restoredSettings);
+        try {
+          const restoredSettings = { ...defaultSettings, ...backupData.company_settings[0] };
+          
+          // Validate that required fields exist
+          if (!restoredSettings.companyName) {
+            restoredSettings.companyName = defaultSettings.companyName || 'Company';
+          }
+          
+          // Save to database if available
+          if (hasDB) {
+            try {
+              // updateCompanySettings takes (id, data) - use null for id to create or auto-update
+              await window.db.updateCompanySettings(null, restoredSettings);
+            } catch (err) {
+              logger.warn('Could not restore company settings to database', err);
+            }
+          }
+          
+          setFormData(restoredSettings);
+          setLogoPreview(restoredSettings.logo || null);
+          onSave(restoredSettings);
+        } catch (err) {
+          logger.warn('Error processing company settings from backup', err);
+        }
       }
+
       toast({
         title: "Data Restored",
-        description: "Data has been restored successfully."
+        description: `Data has been restored successfully${hasDB ? ' and saved to database' : ' (data not persisted - database unavailable)'}.`
       });
 
       // Log restore activity

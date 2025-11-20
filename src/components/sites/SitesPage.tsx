@@ -499,6 +499,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
                 assets={assets}
                 equipmentLogs={equipmentLogs}
                 employees={employees}
+                waybills={waybills}
                 companySettings={companySettings}
                 onAddEquipmentLog={onAddEquipmentLog}
                 onUpdateEquipmentLog={onUpdateEquipmentLog}
