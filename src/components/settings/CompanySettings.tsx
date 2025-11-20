@@ -164,16 +164,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
   // Initialize AI settings from props on component mount
   useEffect(() => {
-    if (settings && (settings as any)?.ai?.remote) {
-      const remote = (settings as any).ai.remote;
-      setAiEnabled(!!remote.enabled);
-      setAiProvider(remote.provider || 'openai');
-      setAiApiKey(remote.apiKey || '');
-      setAiEndpoint(remote.endpoint || '');
-      setAiModel(remote.model || '');
-    }
-
-    // Load saved API keys from database
+    // Load saved API keys from database first
     (async () => {
       try {
         if (window.db?.getSavedApiKeys) {
@@ -183,18 +174,49 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
             keysMap[key.key_name] = key;
           });
           setSavedApiKeys(keysMap);
-          // set selectedSavedKey to active if present, or from settings
+          
+          // Find active or previously selected key
           const active = savedKeys.find((k: any) => k.is_active);
           const settingsSelected = (settings as any)?.ai?.remote?.selectedSavedKey;
+          
+          let keyToLoad = null;
           if (settingsSelected && keysMap[settingsSelected]) {
+            keyToLoad = keysMap[settingsSelected];
             setSelectedSavedKey(settingsSelected);
-            // Auto-load the selected client's details
-            handleSelectSavedKey(settingsSelected);
           } else if (active) {
+            keyToLoad = active;
             setSelectedSavedKey(active.key_name);
-            handleSelectSavedKey(active.key_name);
           } else {
             setSelectedSavedKey('');
+          }
+          
+          // Auto-load the selected client's details if found
+          if (keyToLoad) {
+            const provider = keyToLoad.provider || 'openai';
+            const apiKey = keyToLoad.api_key || keyToLoad.apiKey || '';
+            const endpoint = keyToLoad.endpoint || '';
+            const model = keyToLoad.model || '';
+            
+            setAiProvider(provider);
+            setAiApiKey(apiKey);
+            setAiEndpoint(endpoint);
+            setAiModel(model);
+            setAiEnabled(true);
+            
+            // Fetch models if Google provider
+            if (provider === 'google' && apiKey.trim()) {
+              setTimeout(() => {
+                fetchGoogleModels();
+              }, 100);
+            }
+          } else if (settings && (settings as any)?.ai?.remote) {
+            // Fallback to settings if no saved key found
+            const remote = (settings as any).ai.remote;
+            setAiEnabled(!!remote.enabled);
+            setAiProvider(remote.provider || 'openai');
+            setAiApiKey(remote.apiKey || '');
+            setAiEndpoint(remote.endpoint || '');
+            setAiModel(remote.model || '');
           }
         }
       } catch (err) {
@@ -230,9 +252,10 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     }
   }, [aiProvider, aiEndpoint]);
 
-  // Set default model for providers if not set
+  // Set default model for providers if not set (only when no model is selected)
   useEffect(() => {
-    if (!aiModel.trim()) {
+    // Only set default if model is empty AND we haven't loaded a saved model
+    if (!aiModel.trim() && !selectedSavedKey) {
       if (aiProvider === 'openai') {
         setAiModel('gpt-3.5-turbo');
       } else if (aiProvider === 'anthropic') {
@@ -243,7 +266,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         setAiModel('grok-beta');
       }
     }
-  }, [aiProvider, aiModel]);
+  }, [aiProvider, aiModel, selectedSavedKey]);
 
   // Derive provider from endpoint when endpoint changes
   useEffect(() => {
@@ -651,7 +674,8 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         provider: aiProvider,
         apiKey: aiApiKey || null,
         endpoint: aiEndpoint || null,
-        model: aiModel || null
+        model: aiModel || null,
+        selectedSavedKey: selectedSavedKey || null
       }
     };
 
@@ -791,7 +815,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         });
         setSavedApiKeys(keysMap);
 
-        // Mark newly created/updated key as active
+        // Mark newly created/updated key as active and persist to settings
         try {
           let newId: number | null = null;
           if (editingKeyId) {
@@ -803,6 +827,9 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           }
           if (newId && window.db?.setActiveApiKey) {
             await window.db.setActiveApiKey(newId);
+            
+            // Also update the selected key in settings
+            setSelectedSavedKey(newKeyName.trim());
             // reflect active flag in local state
             const refreshed = await window.db.getSavedApiKeys();
             const refreshedMap: Record<string, any> = {};
