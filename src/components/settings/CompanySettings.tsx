@@ -1361,7 +1361,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           console.error('Waybill restore errors (details):', waybillPersistErrors);
 
           // Also log via app logger
-          logger.warn('Waybill restore errors', waybillPersistErrors.map(e => ({ id: e.id, message: e.error?.message || e.error || String(e) })));
+          logger.warn('Waybill restore errors', { data: waybillPersistErrors.map(e => ({ id: e.id, message: e.error?.message || e.error || String(e) })) });
 
           const firstMsg = waybillPersistErrors[0].error?.message || waybillPersistErrors[0].error || 'Unknown error';
           toast({
@@ -1438,7 +1438,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         if (hasDB) {
           for (const transaction of transactions) {
             try {
-              await window.db.createSiteTransaction(transaction);
+              await window.db.addSiteTransaction(transaction);
             } catch (err) {
               logger.warn(`Could not restore site transaction ${transaction.id} - may already exist`, err);
             }
@@ -2588,7 +2588,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => fetchGoogleModels(true)}
+                    onClick={() => fetchGoogleModels()}
                     disabled={modelsLoading || !aiApiKey}
                     className="text-xs"
                   >

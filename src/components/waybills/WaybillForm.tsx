@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Asset, Waybill, WaybillItem, Site, Employee, Vehicle } from "@/types/asset";
 import { FileText, Plus, Minus, X } from "lucide-react";
+import WaybillBulkInput from './WaybillBulkInput';
 import { logActivity } from "@/utils/activityLogger";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -71,6 +72,8 @@ export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybil
     };
   });
 
+  const [bulkMode, setBulkMode] = useState(false);
+
   const availableAssets = assets.filter(asset => {
     if (asset.siteId) return false; // Only office assets
     const availableQty = asset.quantity - (asset.reservedQuantity || 0) - (asset.damagedCount || 0) - (asset.missingCount || 0);
@@ -130,6 +133,19 @@ export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybil
       ...prev,
       items: prev.items.filter((_, i) => i !== index)
     }));
+  };
+
+  const handleBulkImport = (importItems: WaybillItem[]) => {
+    setFormData(prev => {
+      // filter out duplicates by assetId when assetId is available
+      const existingIds = new Set(prev.items.map(i => i.assetId));
+      const filtered = importItems.filter(it => !(it.assetId && existingIds.has(it.assetId)));
+      return {
+        ...prev,
+        items: [...prev.items, ...filtered]
+      };
+    });
+    setBulkMode(false);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -310,19 +326,31 @@ export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybil
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-semibold">Items to Issue</h3>
-                <Button
-                  type="button"
-                  onClick={handleAddItem}
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Item
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant={bulkMode ? 'ghost' : 'outline'} onClick={() => setBulkMode(false)}>
+                    Single Item
+                  </Button>
+                  <Button size="sm" variant={bulkMode ? 'outline' : 'ghost'} onClick={() => setBulkMode(true)}>
+                    Bulk Input
+                  </Button>
+                  {!bulkMode && (
+                    <Button
+                      type="button"
+                      onClick={handleAddItem}
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Item
+                    </Button>
+                  )}
+                </div>
               </div>
 
-              {formData.items.length === 0 ? (
+              {bulkMode ? (
+                <WaybillBulkInput assets={assets} onImport={handleBulkImport} />
+              ) : formData.items.length === 0 ? (
                 <Card className="border-dashed">
                   <CardContent className="text-center py-8">
                     <p className="text-muted-foreground">No items added yet. Click "Add Item" to start.</p>
