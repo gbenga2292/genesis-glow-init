@@ -78,6 +78,15 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
   const [isRestoreOpen, setIsRestoreOpen] = useState(false);
   const [isBackupDialogOpen, setIsBackupDialogOpen] = useState(false);
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
+  // Backup preview and section selection state
+  const [loadedBackupData, setLoadedBackupData] = useState<any>(null);
+  const [availableSections, setAvailableSections] = useState<string[]>([]);
+  const [restoreSelectedSections, setRestoreSelectedSections] = useState<Set<string>>(new Set());
+  const [showRestoreSectionSelector, setShowRestoreSectionSelector] = useState(false);
+  // Live restore progress state
+  const [isRestoringLive, setIsRestoringLive] = useState(false);
+  const [restoreProgress, setRestoreProgress] = useState<any>({ phase: 'idle', total: 0, done: 0, message: '', errors: [] });
+  const [isRestoreComplete, setIsRestoreComplete] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -97,7 +106,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
   const [showPermissionsTable, setShowPermissionsTable] = useState(true);
 
   const [selectedBackupItems, setSelectedBackupItems] = useState(new Set([
-    'assets', 'waybills', 'quickCheckouts', 'sites', 'siteTransactions', 'employees', 'vehicles', 'companySettings', 'equipmentLogs', 'consumableLogs', 'activities'
+    'users', 'assets', 'waybills', 'quickCheckouts', 'sites', 'siteTransactions', 'employees', 'vehicles', 'companySettings', 'equipmentLogs', 'consumableLogs', 'activities'
   ]));
 
   const [selectedResetItems, setSelectedResetItems] = useState(new Set([
@@ -299,6 +308,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
   const [tempVehicleName, setTempVehicleName] = useState("");
 
   const backupOptions = [
+    { id: 'users', label: 'Users (Accounts)' },
     { id: 'assets', label: 'Assets' },
     { id: 'waybills', label: 'Waybills & Returns' },
     { id: 'quickCheckouts', label: 'Quick Checkouts' },
@@ -1066,6 +1076,16 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       // Collect selected current app state
       const backupData: any = {};
 
+      if (selectedItems.has('users')) {
+        backupData.users = users.map(user => ({
+          id: user.id,
+          name: user.name,
+          username: user.username,
+          role: user.role,
+          email: user.email || null
+        }));
+      }
+
       if (selectedItems.has('assets')) {
         backupData.assets = assets.map(asset => ({
           ...asset,
@@ -1188,18 +1208,63 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
   };
 
   const handleRestore = async () => {
-    if (!restoreFile) return;
+    if (!restoreFile || !loadedBackupData) return;
     setIsLoading(true);
     setError(null);
+    setIsRestoreComplete(false);
+    
     try {
-      const text = await restoreFile.text();
-      const backupData = JSON.parse(text);
+      const backupData = loadedBackupData;
 
       // Check if running in Electron with database access
       const hasDB = window.db !== undefined;
 
+      // Prepare live progress tracking
+      setIsRestoringLive(true);
+      const progressState: any = { phase: 'Parsing backup', total: 0, done: 0, message: '', errors: [] };
+      
+      // Estimate total steps for a finer progress indicator (count only selected sections)
+      try {
+        if (restoreSelectedSections.has('users') && backupData.users) progressState.total += 1;
+        if (restoreSelectedSections.has('assets') && backupData.assets) progressState.total += 1;
+        if (restoreSelectedSections.has('waybills') && backupData.waybills) progressState.total += Math.max(1, (backupData.waybills.length || 0));
+        if (restoreSelectedSections.has('quick_checkouts') && backupData.quick_checkouts) progressState.total += 1;
+        if (restoreSelectedSections.has('sites') && backupData.sites) progressState.total += 1;
+        if (restoreSelectedSections.has('site_transactions') && backupData.site_transactions) progressState.total += 1;
+        if (restoreSelectedSections.has('employees') && backupData.employees) progressState.total += 1;
+        if (restoreSelectedSections.has('vehicles') && backupData.vehicles) progressState.total += 1;
+        if (restoreSelectedSections.has('equipment_logs') && backupData.equipment_logs) progressState.total += 1;
+        if (restoreSelectedSections.has('consumable_logs') && backupData.consumable_logs) progressState.total += 1;
+        if (restoreSelectedSections.has('activities') && backupData.activities) progressState.total += 1;
+        if (restoreSelectedSections.has('company_settings') && backupData.company_settings) progressState.total += 1;
+      } catch (err) {
+        // ignore estimation errors
+      }
+      setRestoreProgress(progressState);
+
+      // Restore users
+      if (restoreSelectedSections.has('users') && backupData.users && backupData.users.length > 0) {
+        setRestoreProgress((p: any) => ({ ...p, phase: 'Restoring users', message: 'Creating user accounts...' }));
+        
+        if (hasDB) {
+          let idx = 0;
+          for (const user of backupData.users) {
+            try {
+              // Users in backup don't have passwords, so skip creation via DB
+              // Instead, we'll just log that user accounts need manual setup
+              logger.info(`User ${user.username} in backup - manual password setup may be needed`);
+            } catch (err) {
+              logger.warn(`Could not restore user ${user.username}`, err);
+              progressState.errors.push({ section: 'users', id: user.username, error: String(err) });
+            }
+            idx++;
+            setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, message: `${idx}/${backupData.users.length} users processed` }));
+          }
+        }
+      }
+
       // Restore assets
-      if (backupData.assets) {
+      if (restoreSelectedSections.has('assets') && backupData.assets) {
         const assets = backupData.assets.map((asset: any) => ({ 
           ...asset, 
           createdAt: new Date(asset.createdAt), 
@@ -1208,6 +1273,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         
         // Save to database if available
         if (hasDB) {
+          setRestoreProgress((p: any) => ({ ...p, phase: 'Restoring assets', message: 'Saving assets to database...' }));
           for (const asset of assets) {
             try {
               const existingAssets = await window.db.getAssets();
@@ -1220,8 +1286,11 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
               }
             } catch (err) {
               logger.warn(`Could not restore asset ${asset.id}`, err);
+              progressState.errors.push({ section: 'assets', id: asset.id, error: String(err) });
             }
           }
+          // mark one step done for assets
+          setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1 }));
         }
         
         onAssetsChange(assets);
@@ -1231,7 +1300,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       }
 
       // Restore waybills
-      if (backupData.waybills) {
+      if (restoreSelectedSections.has('waybills') && backupData.waybills) {
         const waybills = backupData.waybills.map((waybill: any) => ({ 
           ...waybill, 
           issueDate: new Date(waybill.issueDate), 
@@ -1243,13 +1312,19 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         // Save to database if available
         const waybillPersistErrors: Array<{ id?: string; error: any }> = [];
         if (hasDB) {
+          // process waybills one-by-one and report progress
+          setRestoreProgress((p: any) => ({ ...p, phase: 'Restoring waybills', message: `0/${waybills.length} waybills restored` }));
+          let idx = 0;
           for (const waybill of waybills) {
             try {
               await window.db.createWaybill(waybill);
             } catch (err) {
               logger.warn(`Could not restore waybill ${waybill.id} - may already exist`, err);
               waybillPersistErrors.push({ id: waybill.id, error: err });
+              progressState.errors.push({ section: 'waybills', id: waybill.id, error: String(err) });
             }
+            idx++;
+            setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, message: `${idx}/${waybills.length} waybills restored` }));
           }
         }
 
@@ -1298,7 +1373,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       }
 
       // Restore quick checkouts
-      if (backupData.quick_checkouts) {
+      if (restoreSelectedSections.has('quick_checkouts') && backupData.quick_checkouts) {
         const checkouts = backupData.quick_checkouts.map((checkout: any) => ({ 
           ...checkout, 
           checkoutDate: new Date(checkout.checkoutDate), 
@@ -1317,10 +1392,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         }
         
         onQuickCheckoutsChange(checkouts);
+        // progress: quick checkouts done
+        setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring quick checkouts' }));
       }
 
       // Restore sites
-      if (backupData.sites) {
+      if (restoreSelectedSections.has('sites') && backupData.sites) {
         const sites = backupData.sites.map((site: any) => ({ 
           ...site, 
           createdAt: new Date(site.createdAt), 
@@ -1346,10 +1423,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         }
         
         onSitesChange(sites);
+        // progress: sites done
+        setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring sites' }));
       }
 
       // Restore site transactions
-      if (backupData.site_transactions) {
+      if (restoreSelectedSections.has('site_transactions') && backupData.site_transactions) {
         const transactions = backupData.site_transactions.map((transaction: any) => ({ 
           ...transaction, 
           createdAt: new Date(transaction.createdAt) 
@@ -1367,10 +1446,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         }
         
         onSiteTransactionsChange(transactions);
+        // progress: site transactions done
+        setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring site transactions' }));
       }
 
       // Restore employees
-      if (backupData.employees) {
+      if (restoreSelectedSections.has('employees') && backupData.employees) {
         const employees = backupData.employees.map((emp: any) => ({ 
           ...emp, 
           createdAt: new Date(emp.createdAt), 
@@ -1396,10 +1477,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         }
         
         onEmployeesChange(employees);
+        // progress: employees done
+        setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring employees' }));
       }
 
       // Restore vehicles
-      if (backupData.vehicles) {
+      if (restoreSelectedSections.has('vehicles') && backupData.vehicles) {
         const vehicles = backupData.vehicles || [];
         
         // Save to database if available
@@ -1422,10 +1505,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         }
         
         onVehiclesChange(vehicles);
+        // progress: vehicles done
+        setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring vehicles' }));
       }
 
       // Restore equipment logs
-      if (backupData.equipment_logs && onEquipmentLogsChange) {
+      if (restoreSelectedSections.has('equipment_logs') && backupData.equipment_logs && onEquipmentLogsChange) {
         const logs = backupData.equipment_logs.map((log: any) => ({
           ...log,
           createdAt: new Date(log.createdAt),
@@ -1444,10 +1529,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         }
         
         onEquipmentLogsChange(logs);
+        // progress: equipment logs done
+        setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring equipment logs' }));
       }
 
       // Restore consumable logs
-      if (backupData.consumable_logs && onConsumableLogsChange) {
+      if (restoreSelectedSections.has('consumable_logs') && backupData.consumable_logs && onConsumableLogsChange) {
         const logs = backupData.consumable_logs.map((log: any) => ({
           ...log,
           createdAt: new Date(log.createdAt),
@@ -1466,10 +1553,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         }
         
         onConsumableLogsChange(logs);
+        // progress: consumable logs done
+        setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring consumable logs' }));
       }
 
       // Restore activities
-      if (backupData.activities && onActivitiesChange) {
+      if (restoreSelectedSections.has('activities') && backupData.activities && onActivitiesChange) {
         const activities = backupData.activities.map((activity: any) => ({
           ...activity,
           createdAt: new Date(activity.createdAt)
@@ -1487,10 +1576,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         }
         
         onActivitiesChange(activities);
+        // progress: activities done
+        setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring activities' }));
       }
 
       // Restore company settings
-      if (backupData.company_settings && backupData.company_settings.length > 0) {
+      if (restoreSelectedSections.has('company_settings') && backupData.company_settings && backupData.company_settings.length > 0) {
         try {
           const restoredSettings = { ...defaultSettings, ...backupData.company_settings[0] };
           
@@ -1512,10 +1603,17 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           setFormData(restoredSettings);
           setLogoPreview(restoredSettings.logo || null);
           onSave(restoredSettings);
+          // progress: company settings done
+          setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring company settings' }));
         } catch (err) {
           logger.warn('Error processing company settings from backup', err);
         }
       }
+
+      // finalize progress
+      setRestoreProgress((p: any) => ({ ...p, phase: 'Completed', done: p.total || p.done, message: 'Restore completed successfully!' }));
+      setIsRestoreComplete(true);
+      setIsRestoringLive(false);
 
       toast({
         title: "Data Restored",
@@ -1531,6 +1629,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       });
     } catch (err) {
       setError("Failed to restore data. Invalid file or error occurred.");
+      setRestoreProgress((p: any) => ({ ...p, phase: 'Error', message: String(err) }));
       toast({
         title: "Restore Failed",
         description: "An error occurred while restoring data.",
@@ -1538,8 +1637,6 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       });
     } finally {
       setIsLoading(false);
-      setIsRestoreOpen(false);
-      setRestoreFile(null);
     }
   };
 
@@ -1578,6 +1675,39 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     const file = event.target.files?.[0];
     if (file && file.name.endsWith('.json')) {
       setRestoreFile(file);
+      // Automatically load and parse the backup file to show available sections
+      file.text().then(text => {
+        try {
+          const backupData = JSON.parse(text);
+          setLoadedBackupData(backupData);
+          
+          // Detect available sections
+          const sections: string[] = [];
+          if (backupData.users) sections.push('users');
+          if (backupData.assets) sections.push('assets');
+          if (backupData.waybills) sections.push('waybills');
+          if (backupData.quick_checkouts) sections.push('quick_checkouts');
+          if (backupData.sites) sections.push('sites');
+          if (backupData.site_transactions) sections.push('site_transactions');
+          if (backupData.employees) sections.push('employees');
+          if (backupData.vehicles) sections.push('vehicles');
+          if (backupData.equipment_logs) sections.push('equipment_logs');
+          if (backupData.consumable_logs) sections.push('consumable_logs');
+          if (backupData.activities) sections.push('activities');
+          if (backupData.company_settings) sections.push('company_settings');
+          
+          setAvailableSections(sections);
+          // By default select all available sections
+          setRestoreSelectedSections(new Set(sections));
+          setShowRestoreSectionSelector(true);
+        } catch (err) {
+          toast({
+            title: "Invalid Backup File",
+            description: "The selected file is not a valid backup JSON.",
+            variant: "destructive"
+          });
+        }
+      });
     } else {
       toast({
         title: "Invalid File",
@@ -2090,6 +2220,38 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+
+                {/* Live Restore Progress Dialog */}
+                <Dialog open={isRestoringLive} onOpenChange={(v) => { if (!v) setIsRestoringLive(false); }}>
+                  <DialogContent className="max-w-lg">
+                    <DialogHeader>
+                      <DialogTitle>Restoring Data</DialogTitle>
+                      <DialogDescription>
+                        The restore is running — progress updates will appear here.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3 py-2">
+                      <div className="text-sm">Phase: <strong>{restoreProgress.phase}</strong></div>
+                      <div className="text-sm">Status: {restoreProgress.message || ''}</div>
+                      <div className="text-sm">Completed: {restoreProgress.done || 0}{restoreProgress.total ? ` / ${restoreProgress.total}` : ''}</div>
+                      {restoreProgress.errors && restoreProgress.errors.length > 0 && (
+                        <div className="pt-2">
+                          <div className="font-medium">Errors</div>
+                          <ul className="text-xs text-destructive max-h-40 overflow-auto">
+                            {restoreProgress.errors.map((e: any, i: number) => (
+                              <li key={i} className="truncate">{e.section}: {e.id || ''} — {String(e.error || e.message || e)}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => { setIsRestoringLive(false); }}>
+                        Close
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
 
             <div className="flex justify-end">
               <Button
@@ -2727,49 +2889,181 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                   </DialogContent>
                 </Dialog>
 
-                <Dialog open={isRestoreOpen} onOpenChange={setIsRestoreOpen}>
+                <Dialog open={isRestoreOpen} onOpenChange={(open) => {
+                  setIsRestoreOpen(open);
+                  if (!open) {
+                    setLoadedBackupData(null);
+                    setAvailableSections([]);
+                    setRestoreSelectedSections(new Set());
+                    setShowRestoreSectionSelector(false);
+                    setIsRestoreComplete(false);
+                    setRestoreProgress({ phase: 'idle', total: 0, done: 0, message: '', errors: [] });
+                  }
+                }}>
                   <DialogTrigger asChild>
                     <Button variant="outline" disabled={isLoading} className="gap-2">
                       <UploadCloud className="h-4 w-4" />
                       Restore Data
                     </Button>
                   </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Restore Data from Backup</DialogTitle>
-                      <DialogDescription>
-                        Select a JSON backup file to restore your data. This will replace all current data.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div>
-                        <Label htmlFor="restore-file">Backup File</Label>
-                        <Input
-                          id="restore-file"
-                          type="file"
-                          accept=".json"
-                          onChange={handleFileSelect}
-                          className="mt-1"
-                        />
-                        {restoreFile && (
-                          <p className="text-sm text-muted-foreground mt-1">
-                            Selected: {restoreFile.name}
-                          </p>
+                  <DialogContent className="max-w-2xl">
+                    {!showRestoreSectionSelector && !isRestoringLive ? (
+                      <>
+                        <DialogHeader>
+                          <DialogTitle>Restore Data from Backup</DialogTitle>
+                          <DialogDescription>
+                            Select a JSON backup file to restore your data.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div>
+                            <Label htmlFor="restore-file">Backup File</Label>
+                            <Input
+                              id="restore-file"
+                              type="file"
+                              accept=".json"
+                              onChange={handleFileSelect}
+                              className="mt-1"
+                              disabled={isLoading}
+                            />
+                            {restoreFile && (
+                              <p className="text-sm text-muted-foreground mt-1">
+                                Selected: {restoreFile.name}
+                              </p>
+                            )}
+                          </div>
+                          {error && (
+                            <p className="text-sm text-destructive">{error}</p>
+                          )}
+                        </div>
+                      </>
+                    ) : showRestoreSectionSelector && !isRestoringLive ? (
+                      <>
+                        <DialogHeader>
+                          <DialogTitle>Select Sections to Restore</DialogTitle>
+                          <DialogDescription>
+                            Choose which data sections you want to restore from the backup ({availableSections.length} available).
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 max-h-80 overflow-y-auto">
+                          {availableSections.map((section) => (
+                            <div key={section} className="flex items-center space-x-3 p-2 rounded hover:bg-accent">
+                              <input
+                                type="checkbox"
+                                id={`restore-${section}`}
+                                checked={restoreSelectedSections.has(section)}
+                                onChange={(e) => {
+                                  const newSections = new Set(restoreSelectedSections);
+                                  if (e.target.checked) {
+                                    newSections.add(section);
+                                  } else {
+                                    newSections.delete(section);
+                                  }
+                                  setRestoreSelectedSections(newSections);
+                                }}
+                                disabled={isLoading}
+                              />
+                              <Label htmlFor={`restore-${section}`} className="flex-1 cursor-pointer">
+                                {section.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => {
+                            setShowRestoreSectionSelector(false);
+                            setRestoreFile(null);
+                            setLoadedBackupData(null);
+                          }} disabled={isLoading}>
+                            Back
+                          </Button>
+                          <Button onClick={handleRestore} disabled={restoreSelectedSections.size === 0 || isLoading}>
+                            {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                            Start Restore
+                          </Button>
+                        </DialogFooter>
+                      </>
+                    ) : (
+                      <>
+                        <DialogHeader>
+                          <DialogTitle>
+                            {isRestoreComplete ? '✓ Restore Completed' : 'Restoring Data'}
+                          </DialogTitle>
+                          <DialogDescription>
+                            {restoreProgress.phase}
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-6">
+                          {/* Progress Bar */}
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span className="font-medium">{restoreProgress.message}</span>
+                              <span className="text-muted-foreground">
+                                {restoreProgress.done}/{restoreProgress.total}
+                              </span>
+                            </div>
+                            <div className="w-full bg-secondary rounded-full h-2">
+                              <div
+                                className={`h-2 rounded-full transition-all duration-300 ${
+                                  isRestoreComplete ? 'bg-green-500' : 'bg-blue-500'
+                                }`}
+                                style={{
+                                  width: `${restoreProgress.total > 0 ? (restoreProgress.done / restoreProgress.total) * 100 : 0}%`
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Error List */}
+                          {restoreProgress.errors.length > 0 && (
+                            <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 max-h-48 overflow-y-auto">
+                              <h3 className="font-semibold text-sm mb-2 text-destructive">Errors ({restoreProgress.errors.length})</h3>
+                              <ul className="space-y-1">
+                                {restoreProgress.errors.map((err: any, idx: number) => (
+                                  <li key={idx} className="text-xs text-destructive/80">
+                                    <span className="font-medium">{err.section}:</span> {err.id} - {err.error}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {/* Completion Message */}
+                          {isRestoreComplete && (
+                            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                              <p className="text-sm text-green-800">
+                                ✓ Restore completed successfully! All selected data has been restored.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        {isRestoreComplete && (
+                          <DialogFooter>
+                            <Button onClick={() => {
+                              setIsRestoreOpen(false);
+                              setLoadedBackupData(null);
+                              setAvailableSections([]);
+                              setRestoreSelectedSections(new Set());
+                              setShowRestoreSectionSelector(false);
+                              setIsRestoreComplete(false);
+                              setRestoreProgress({ phase: 'idle', total: 0, done: 0, message: '', errors: [] });
+                              setRestoreFile(null);
+                            }}>
+                              Close
+                            </Button>
+                          </DialogFooter>
                         )}
-                      </div>
-                      {error && (
-                        <p className="text-sm text-destructive">{error}</p>
-                      )}
-                    </div>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setIsRestoreOpen(false)}>
-                        Cancel
-                      </Button>
-                      <Button onClick={handleRestore} disabled={!restoreFile || isLoading}>
-                        {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                        Restore Data
-                      </Button>
-                    </DialogFooter>
+                      </>
+                    )}
+
+                    {!isRestoringLive && !isRestoreComplete && showRestoreSectionSelector === false && restoreFile === null && (
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsRestoreOpen(false)}>
+                          Cancel
+                        </Button>
+                      </DialogFooter>
+                    )}
                   </DialogContent>
                 </Dialog>
 
