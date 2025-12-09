@@ -2,7 +2,7 @@
   "name": "vite_react_shadcn_ts",
   "private": true,
   "version": "1.0.0",
-  "description": "DCEL Inventory Flow Application",
+  "description": "DCEL ASSET MANAGER",
   "author": "DCEL",
   "main": "electron/main.js",
   "type": "module",

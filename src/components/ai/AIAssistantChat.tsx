@@ -12,6 +12,25 @@ export const AIAssistantChat: React.FC = () => {
   const { messages, isProcessing, sendMessage, clearMessages, executeAction } = useAIAssistant();
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [isAIEnabled, setIsAIEnabled] = useState(true);
+
+  // Check if AI is enabled in company settings
+  useEffect(() => {
+    const checkAIStatus = async () => {
+      try {
+        if (window.db?.getCompanySettings) {
+          const settings = await window.db.getCompanySettings();
+          const remoteConfig = (settings as any)?.ai?.remote;
+          const r = remoteConfig?.enabled;
+          const enabled = r !== false && r !== 0 && r !== '0' && r !== 'false';
+          setIsAIEnabled(enabled);
+        }
+      } catch (error) {
+        console.error('Failed to check AI status:', error);
+      }
+    };
+    checkAIStatus();
+  }, []);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -22,7 +41,7 @@ export const AIAssistantChat: React.FC = () => {
 
   const handleSend = async () => {
     if (!input.trim() || isProcessing) return;
-    
+
     const messageToSend = input;
     setInput('');
     await sendMessage(messageToSend);
@@ -37,7 +56,7 @@ export const AIAssistantChat: React.FC = () => {
 
   const getIntentBadge = (action?: string) => {
     if (!action) return null;
-    
+
     const actionMap: Record<string, { label: string; variant: any }> = {
       create_waybill: { label: 'Create Waybill', variant: 'default' },
       add_asset: { label: 'Add Asset', variant: 'default' },
@@ -48,7 +67,7 @@ export const AIAssistantChat: React.FC = () => {
     };
 
     const config = actionMap[action] || { label: action, variant: 'outline' };
-    
+
     return (
       <Badge variant={config.variant} className="text-xs">
         {config.label}
@@ -90,7 +109,17 @@ export const AIAssistantChat: React.FC = () => {
       <CardContent className="flex-1 flex flex-col p-0 min-h-0">
         <ScrollArea className="flex-1 h-0 p-4">
           <div className="space-y-4">
-            {messages.length === 0 && (
+            {!isAIEnabled && (
+              <div className="text-center py-12">
+                <Bot className="h-16 w-16 mx-auto mb-4 opacity-20 text-muted-foreground" />
+                <p className="text-sm font-medium text-muted-foreground mb-2">AI Assistant is Disabled</p>
+                <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                  The AI Assistant has been turned off. To enable it, go to <strong>Settings → AI Assistant</strong> and toggle "Enable AI Assistant" on.
+                </p>
+              </div>
+            )}
+
+            {isAIEnabled && messages.length === 0 && (
               <div className="text-center py-12 text-muted-foreground">
                 <Bot className="h-16 w-16 mx-auto mb-4 opacity-20" />
                 <p className="text-sm">Start by asking me to help you with tasks...</p>
@@ -117,8 +146,8 @@ export const AIAssistantChat: React.FC = () => {
               >
                 <div className={cn(
                   'h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0',
-                  message.role === 'user' 
-                    ? 'bg-primary text-primary-foreground' 
+                  message.role === 'user'
+                    ? 'bg-primary text-primary-foreground'
                     : 'bg-muted'
                 )}>
                   {message.role === 'user' ? (
@@ -160,8 +189,8 @@ export const AIAssistantChat: React.FC = () => {
                         className="gap-2"
                       >
                         <CheckCircle className="h-4 w-4" />
-                        {message.suggestedAction.type === 'open_form' 
-                          ? 'Open Form' 
+                        {message.suggestedAction.type === 'open_form'
+                          ? 'Open Form'
                           : 'Execute Action'}
                       </Button>
                     </div>
@@ -171,9 +200,9 @@ export const AIAssistantChat: React.FC = () => {
                     'text-xs text-muted-foreground px-2',
                     message.role === 'user' ? 'text-right' : 'text-left'
                   )}>
-                    {message.timestamp.toLocaleTimeString([], { 
-                      hour: '2-digit', 
-                      minute: '2-digit' 
+                    {message.timestamp.toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit'
                     })}
                   </div>
                 </div>
@@ -201,13 +230,13 @@ export const AIAssistantChat: React.FC = () => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Ask me to create waybills, add assets, check inventory..."
-              disabled={isProcessing}
+              placeholder={isAIEnabled ? "Ask me to create waybills, add assets, check inventory..." : "AI Assistant is disabled"}
+              disabled={isProcessing || !isAIEnabled}
               className="flex-1"
             />
             <Button
               onClick={handleSend}
-              disabled={!input.trim() || isProcessing}
+              disabled={!input.trim() || isProcessing || !isAIEnabled}
               size="icon"
             >
               {isProcessing ? (
@@ -218,7 +247,7 @@ export const AIAssistantChat: React.FC = () => {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground mt-2 text-center">
-            All processing happens offline on your device
+            {isAIEnabled ? "All processing happens offline on your device" : "Enable AI in Settings to use this feature"}
           </p>
         </div>
       </CardContent>

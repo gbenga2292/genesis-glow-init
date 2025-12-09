@@ -40,6 +40,7 @@ interface AIAssistantProviderProps {
   employees: Employee[];
   vehicles: Vehicle[];
   onAction?: (action: AIResponse['suggestedAction']) => void;
+  aiEnabled?: boolean;
 }
 
 export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({
@@ -48,7 +49,8 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({
   sites,
   employees,
   vehicles,
-  onAction
+  onAction,
+  aiEnabled = true
 }) => {
   const { currentUser } = useAuth();
   const { addAsset } = useAssets();
@@ -98,6 +100,24 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({
           }
           return waybillData;
         },
+        openAnalytics: async (data) => {
+          if (onAction) {
+            onAction({
+              type: 'execute_action',
+              data: { action: 'open_analytics', ...data }
+            });
+          }
+          return { success: true, message: 'Opening analytics dashboard' };
+        },
+        viewWaybill: async (id) => {
+          if (onAction) {
+            onAction({
+              type: 'execute_action',
+              data: { action: 'view_waybill', waybillId: id }
+            });
+          }
+          return { success: true, message: `Opening waybill ${id}` };
+        },
         processReturn: async (returnData) => {
           if (onAction) {
             onAction({
@@ -137,6 +157,16 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({
   }, [assets, sites, employees, vehicles]);
 
   const sendMessage = async (content: string) => {
+    // STRICT DISABLE CHECK
+    if (!aiEnabled) {
+      toast({
+        title: "AI Disabled",
+        description: "AI Assistant is currently disabled.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     if (!content.trim() || !aiServiceRef.current) return;
 
     const userMessage: ChatMessage = {
@@ -196,7 +226,7 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
-      
+
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : 'Unknown error',
@@ -243,4 +273,3 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({
     </AIAssistantContext.Provider>
   );
 };
-

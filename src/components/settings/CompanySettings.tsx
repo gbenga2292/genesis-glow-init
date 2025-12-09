@@ -164,7 +164,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       setModelsLoading(false);
     }
   };
-  
+
   // Multi-key management
   const [savedApiKeys, setSavedApiKeys] = useState<Record<string, any>>({});
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
@@ -180,21 +180,27 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
   // Initialize AI settings from props on component mount
   useEffect(() => {
-    // Load saved API keys from database first
+    // Prevent re-initialization if we have already loaded settings
+    if (hasInitializedFromSettings) return;
+
+    let isActive = true;
+
     (async () => {
       try {
         if (window.db?.getSavedApiKeys) {
           const savedKeys = await window.db.getSavedApiKeys();
+          if (!isActive) return;
+
           const keysMap: Record<string, any> = {};
           savedKeys.forEach((key: any) => {
             keysMap[key.key_name] = key;
           });
           setSavedApiKeys(keysMap);
-          
+
           // Find active or previously selected key
           const active = savedKeys.find((k: any) => k.is_active);
           const settingsSelected = (settings as any)?.ai?.remote?.selectedSavedKey;
-          
+
           let keyToLoad = null;
           if (settingsSelected && keysMap[settingsSelected]) {
             keyToLoad = keysMap[settingsSelected];
@@ -205,14 +211,14 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           } else {
             setSelectedSavedKey('');
           }
-          
+
           // Auto-load the selected client's details if found
           if (keyToLoad) {
             const provider = keyToLoad.provider || 'openai';
             const apiKey = keyToLoad.api_key || keyToLoad.apiKey || '';
             const endpoint = keyToLoad.endpoint || '';
             const model = keyToLoad.model || '';
-            
+
             setAiProvider(provider);
             setAiApiKey(apiKey);
             setAiEndpoint(endpoint);
@@ -220,14 +226,26 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
             if (model) {
               setAiModel(model);
             }
-            setAiEnabled(true);
-            
+
+            const remoteSettings = (settings as any)?.ai?.remote;
+            if (remoteSettings?.enabled !== undefined) {
+              const r = remoteSettings.enabled;
+              // Handle boolean, number (0/1), and string ('0'/'false') variations
+              setAiEnabled(r !== false && r !== 0 && r !== '0' && r !== 'false');
+            } else {
+              setAiEnabled(true);
+            }
+
             // Do not auto-fetch models on init - user must click 'Fetch Models' button
             setHasInitializedFromSettings(true);
           } else if (settings && (settings as any)?.ai?.remote) {
             // Fallback to settings if no saved key found
             const remote = (settings as any).ai.remote;
-            setAiEnabled(!!remote.enabled);
+
+            const r = remote.enabled;
+            // Handle boolean, number (0/1), and string ('0'/'false') variations
+            setAiEnabled(r !== false && r !== 0 && r !== '0' && r !== 'false');
+
             setAiProvider(remote.provider || 'openai');
             setAiApiKey(remote.apiKey || '');
             setAiEndpoint(remote.endpoint || '');
@@ -239,6 +257,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           }
         }
       } catch (err) {
+        if (!isActive) return;
         console.error('Failed to load saved API keys', err);
         // Fallback to localStorage
         const savedKeys = localStorage.getItem('ai_api_keys');
@@ -247,12 +266,10 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         }
       }
     })();
-  }, [settings]);
 
-  // Auto-fetch removed: User must manually click 'Fetch Models' button
-  // This prevents unwanted API calls when settings dialog opens or provider changes
+    return () => { isActive = false; };
+  }, [settings, hasInitializedFromSettings]);
 
-  // Set default endpoint for providers if not set
   useEffect(() => {
     if (!aiEndpoint.trim()) {
       if (aiProvider === 'openai') {
@@ -426,7 +443,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
   const handleDelistEmployee = async () => {
     if (!employeeToDelist || !delistDate) return;
-    
+
     const updatedEmployee = {
       ...employeeToDelist,
       status: "inactive" as const,
@@ -477,7 +494,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       if (window.db) {
         await window.db.deleteEmployee(id);
       }
-      
+
       onEmployeesChange(employees.filter(emp => emp.id !== id));
 
       toast({
@@ -496,7 +513,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
   const handleAddVehicle = async () => {
     if (!vehicleName.trim()) return;
-    
+
     try {
       if (window.db) {
         await window.db.createVehicle({ name: vehicleName.trim(), status: 'active' });
@@ -521,7 +538,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       });
 
       setVehicleName('');
-      
+
       toast({
         title: 'Vehicle Added',
         description: `${vehicleName.trim()} has been added successfully`
@@ -542,7 +559,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       if (window.db) {
         await window.db.deleteVehicle(id);
       }
-      
+
       onVehiclesChange(vehicles.filter(v => v.id !== id));
 
       toast({
@@ -570,7 +587,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
   const handleSaveEmployeeEdit = async () => {
     if (!editingEmployeeId || !tempEmployeeName.trim()) return;
-    
+
     const employee = employees.find(emp => emp.id === editingEmployeeId);
     if (!employee) return;
 
@@ -634,7 +651,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
   const handleSaveVehicleEdit = async () => {
     if (editingVehicleIndex === null || !tempVehicleName.trim()) return;
-    
+
     const vehicle = vehicles[editingVehicleIndex];
     if (!vehicle) return;
 
@@ -705,7 +722,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       try {
         // Merge AI config with existing form data
         const updated = { ...(formData as any), ai: aiConfigToSave };
-        
+
         // Try to update if ID exists, otherwise create new record
         let savedSettings: any = null;
         if ((formData as any)?.id && window?.db?.updateCompanySettings) {
@@ -718,7 +735,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           savedSettings = Array.isArray(result) ? result[0] : result;
           console.log('AI settings saved to DB (new record created)', savedSettings);
         }
-        
+
         // Reload fresh settings from DB and pass back to parent to ensure consistency
         if (window?.db?.getCompanySettings) {
           const reloadedSettings = await window.db.getCompanySettings();
@@ -726,7 +743,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           onSave(reloadedSettings || updated);
           console.log('Reloaded company settings from DB after save', reloadedSettings);
         }
-        
+
         // Show success message
         toast({
           title: "AI Settings Saved",
@@ -745,7 +762,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     // Configure runtime via IPC bridge (main process will accept remote config)
     try {
       if ((window as any).llm?.configure) {
-        (window as any).llm.configure(aiConfigToSave).catch(() => {});
+        (window as any).llm.configure(aiConfigToSave).catch(() => { });
       }
     } catch (err) {
       // ignore
@@ -850,7 +867,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           }
           if (newId && window.db?.setActiveApiKey) {
             await window.db.setActiveApiKey(newId);
-            
+
             // Also update the selected key in settings
             setSelectedSavedKey(newKeyName.trim());
             // reflect active flag in local state
@@ -869,13 +886,13 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           description: `API key "${newKeyName.trim()}" has been saved to database.`
         });
 
-  // Reset form
-  setNewKeyName('');
-  setNewKeyValue('');
-  setNewKeyEndpoint('');
-  setNewKeyModel('gpt-4');
-  setEditingKeyId(null);
-  setShowApiKeyDialog(false);
+        // Reset form
+        setNewKeyName('');
+        setNewKeyValue('');
+        setNewKeyEndpoint('');
+        setNewKeyModel('gpt-4');
+        setEditingKeyId(null);
+        setShowApiKeyDialog(false);
       } catch (err) {
         console.error('Failed to save API key', err);
         toast({
@@ -982,8 +999,8 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
       setEditingKeyId(parsed.id || null);
       setNewKeyName(keyName);
-  setNewKeyValue(parsed.api_key || parsed.apiKey || '');
-  setNewKeyEndpoint(parsed.endpoint || '');
+      setNewKeyValue(parsed.api_key || parsed.apiKey || '');
+      setNewKeyEndpoint(parsed.endpoint || '');
       setNewKeyModel(parsed.model || 'gpt-3.5-turbo');
       setShowApiKeyDialog(true);
     } catch (err) {
@@ -1212,7 +1229,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     setIsLoading(true);
     setError(null);
     setIsRestoreComplete(false);
-    
+
     try {
       const backupData = loadedBackupData;
 
@@ -1222,7 +1239,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       // Prepare live progress tracking
       setIsRestoringLive(true);
       const progressState: any = { phase: 'Parsing backup', total: 0, done: 0, message: '', errors: [] };
-      
+
       // Estimate total steps for a finer progress indicator (count only selected sections)
       try {
         if (restoreSelectedSections.has('users') && backupData.users) progressState.total += 1;
@@ -1245,7 +1262,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       // Restore users
       if (restoreSelectedSections.has('users') && backupData.users && backupData.users.length > 0) {
         setRestoreProgress((p: any) => ({ ...p, phase: 'Restoring users', message: 'Creating user accounts...' }));
-        
+
         if (hasDB) {
           let idx = 0;
           for (const user of backupData.users) {
@@ -1265,12 +1282,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
       // Restore assets
       if (restoreSelectedSections.has('assets') && backupData.assets) {
-        const assets = backupData.assets.map((asset: any) => ({ 
-          ...asset, 
-          createdAt: new Date(asset.createdAt), 
-          updatedAt: new Date(asset.updatedAt) 
+        const assets = backupData.assets.map((asset: any) => ({
+          ...asset,
+          createdAt: new Date(asset.createdAt),
+          updatedAt: new Date(asset.updatedAt)
         }));
-        
+
         // Save to database if available
         if (hasDB) {
           setRestoreProgress((p: any) => ({ ...p, phase: 'Restoring assets', message: 'Saving assets to database...' }));
@@ -1278,7 +1295,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
             try {
               const existingAssets = await window.db.getAssets();
               const exists = existingAssets.some((a: any) => a.id === asset.id);
-              
+
               if (exists) {
                 await window.db.updateAsset(asset.id, asset);
               } else {
@@ -1292,23 +1309,23 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           // mark one step done for assets
           setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1 }));
         }
-        
+
         onAssetsChange(assets);
-        
+
         // Trigger AssetsContext to refresh from database
         window.dispatchEvent(new CustomEvent('refreshAssets', { detail: assets }));
       }
 
       // Restore waybills
       if (restoreSelectedSections.has('waybills') && backupData.waybills) {
-        const waybills = backupData.waybills.map((waybill: any) => ({ 
-          ...waybill, 
-          issueDate: new Date(waybill.issueDate), 
-          expectedReturnDate: waybill.expectedReturnDate ? new Date(waybill.expectedReturnDate) : undefined, 
-          createdAt: new Date(waybill.createdAt), 
-          updatedAt: new Date(waybill.updatedAt) 
+        const waybills = backupData.waybills.map((waybill: any) => ({
+          ...waybill,
+          issueDate: new Date(waybill.issueDate),
+          expectedReturnDate: waybill.expectedReturnDate ? new Date(waybill.expectedReturnDate) : undefined,
+          createdAt: new Date(waybill.createdAt),
+          updatedAt: new Date(waybill.updatedAt)
         }));
-        
+
         // Save to database if available
         const waybillPersistErrors: Array<{ id?: string; error: any }> = [];
         if (hasDB) {
@@ -1374,12 +1391,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
       // Restore quick checkouts
       if (restoreSelectedSections.has('quick_checkouts') && backupData.quick_checkouts) {
-        const checkouts = backupData.quick_checkouts.map((checkout: any) => ({ 
-          ...checkout, 
-          checkoutDate: new Date(checkout.checkoutDate), 
-          expectedReturnDays: checkout.expectedReturnDays 
+        const checkouts = backupData.quick_checkouts.map((checkout: any) => ({
+          ...checkout,
+          checkoutDate: new Date(checkout.checkoutDate),
+          expectedReturnDays: checkout.expectedReturnDays
         }));
-        
+
         // Save to database if available
         if (hasDB) {
           for (const checkout of checkouts) {
@@ -1390,7 +1407,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
             }
           }
         }
-        
+
         onQuickCheckoutsChange(checkouts);
         // progress: quick checkouts done
         setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring quick checkouts' }));
@@ -1398,19 +1415,19 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
       // Restore sites
       if (restoreSelectedSections.has('sites') && backupData.sites) {
-        const sites = backupData.sites.map((site: any) => ({ 
-          ...site, 
-          createdAt: new Date(site.createdAt), 
-          updatedAt: new Date(site.updatedAt) 
+        const sites = backupData.sites.map((site: any) => ({
+          ...site,
+          createdAt: new Date(site.createdAt),
+          updatedAt: new Date(site.updatedAt)
         }));
-        
+
         // Save to database if available
         if (hasDB) {
           for (const site of sites) {
             try {
               const existingSites = await window.db.getSites();
               const exists = existingSites.some((s: any) => s.id === site.id);
-              
+
               if (exists) {
                 await window.db.updateSite(site.id, site);
               } else {
@@ -1421,7 +1438,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
             }
           }
         }
-        
+
         onSitesChange(sites);
         // progress: sites done
         setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring sites' }));
@@ -1429,11 +1446,11 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
       // Restore site transactions
       if (restoreSelectedSections.has('site_transactions') && backupData.site_transactions) {
-        const transactions = backupData.site_transactions.map((transaction: any) => ({ 
-          ...transaction, 
-          createdAt: new Date(transaction.createdAt) 
+        const transactions = backupData.site_transactions.map((transaction: any) => ({
+          ...transaction,
+          createdAt: new Date(transaction.createdAt)
         }));
-        
+
         // Save to database if available
         if (hasDB) {
           for (const transaction of transactions) {
@@ -1444,7 +1461,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
             }
           }
         }
-        
+
         onSiteTransactionsChange(transactions);
         // progress: site transactions done
         setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring site transactions' }));
@@ -1452,19 +1469,19 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
       // Restore employees
       if (restoreSelectedSections.has('employees') && backupData.employees) {
-        const employees = backupData.employees.map((emp: any) => ({ 
-          ...emp, 
-          createdAt: new Date(emp.createdAt), 
-          updatedAt: new Date(emp.updatedAt) 
+        const employees = backupData.employees.map((emp: any) => ({
+          ...emp,
+          createdAt: new Date(emp.createdAt),
+          updatedAt: new Date(emp.updatedAt)
         }));
-        
+
         // Save to database if available
         if (hasDB) {
           for (const emp of employees) {
             try {
               const existingEmployees = await window.db.getEmployees();
               const exists = existingEmployees.some((e: any) => e.id === emp.id);
-              
+
               if (exists) {
                 await window.db.updateEmployee(emp.id, emp);
               } else {
@@ -1475,7 +1492,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
             }
           }
         }
-        
+
         onEmployeesChange(employees);
         // progress: employees done
         setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring employees' }));
@@ -1484,7 +1501,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       // Restore vehicles
       if (restoreSelectedSections.has('vehicles') && backupData.vehicles) {
         const vehicles = backupData.vehicles || [];
-        
+
         // Save to database if available
         if (hasDB) {
           for (const vehicle of vehicles) {
@@ -1492,7 +1509,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
               // Try to update existing vehicle first, then create if it doesn't exist
               const existingVehicles = await window.db.getVehicles();
               const exists = existingVehicles.some((v: any) => v.id === vehicle.id);
-              
+
               if (exists) {
                 await window.db.updateVehicle(vehicle.id, vehicle);
               } else {
@@ -1503,7 +1520,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
             }
           }
         }
-        
+
         onVehiclesChange(vehicles);
         // progress: vehicles done
         setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring vehicles' }));
@@ -1516,7 +1533,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           createdAt: new Date(log.createdAt),
           updatedAt: log.updatedAt ? new Date(log.updatedAt) : undefined
         }));
-        
+
         // Save to database if available
         if (hasDB) {
           for (const log of logs) {
@@ -1527,7 +1544,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
             }
           }
         }
-        
+
         onEquipmentLogsChange(logs);
         // progress: equipment logs done
         setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring equipment logs' }));
@@ -1540,7 +1557,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           createdAt: new Date(log.createdAt),
           updatedAt: log.updatedAt ? new Date(log.updatedAt) : undefined
         }));
-        
+
         // Save to database if available
         if (hasDB) {
           for (const log of logs) {
@@ -1551,7 +1568,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
             }
           }
         }
-        
+
         onConsumableLogsChange(logs);
         // progress: consumable logs done
         setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring consumable logs' }));
@@ -1563,7 +1580,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           ...activity,
           createdAt: new Date(activity.createdAt)
         }));
-        
+
         // Save to database if available
         if (hasDB) {
           for (const activity of activities) {
@@ -1574,7 +1591,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
             }
           }
         }
-        
+
         onActivitiesChange(activities);
         // progress: activities done
         setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring activities' }));
@@ -1584,12 +1601,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       if (restoreSelectedSections.has('company_settings') && backupData.company_settings && backupData.company_settings.length > 0) {
         try {
           const restoredSettings = { ...defaultSettings, ...backupData.company_settings[0] };
-          
+
           // Validate that required fields exist
           if (!restoredSettings.companyName) {
             restoredSettings.companyName = defaultSettings.companyName || 'Company';
           }
-          
+
           // Save to database if available
           if (hasDB) {
             try {
@@ -1599,7 +1616,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
               logger.warn('Could not restore company settings to database', err);
             }
           }
-          
+
           setFormData(restoredSettings);
           setLogoPreview(restoredSettings.logo || null);
           onSave(restoredSettings);
@@ -1680,7 +1697,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         try {
           const backupData = JSON.parse(text);
           setLoadedBackupData(backupData);
-          
+
           // Detect available sections
           const sections: string[] = [];
           if (backupData.users) sections.push('users');
@@ -1695,7 +1712,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           if (backupData.consumable_logs) sections.push('consumable_logs');
           if (backupData.activities) sections.push('activities');
           if (backupData.company_settings) sections.push('company_settings');
-          
+
           setAvailableSections(sections);
           // By default select all available sections
           setRestoreSelectedSections(new Set(sections));
@@ -2221,37 +2238,37 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
               </DialogContent>
             </Dialog>
 
-                {/* Live Restore Progress Dialog */}
-                <Dialog open={isRestoringLive} onOpenChange={(v) => { if (!v) setIsRestoringLive(false); }}>
-                  <DialogContent className="max-w-lg">
-                    <DialogHeader>
-                      <DialogTitle>Restoring Data</DialogTitle>
-                      <DialogDescription>
-                        The restore is running — progress updates will appear here.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-3 py-2">
-                      <div className="text-sm">Phase: <strong>{restoreProgress.phase}</strong></div>
-                      <div className="text-sm">Status: {restoreProgress.message || ''}</div>
-                      <div className="text-sm">Completed: {restoreProgress.done || 0}{restoreProgress.total ? ` / ${restoreProgress.total}` : ''}</div>
-                      {restoreProgress.errors && restoreProgress.errors.length > 0 && (
-                        <div className="pt-2">
-                          <div className="font-medium">Errors</div>
-                          <ul className="text-xs text-destructive max-h-40 overflow-auto">
-                            {restoreProgress.errors.map((e: any, i: number) => (
-                              <li key={i} className="truncate">{e.section}: {e.id || ''} — {String(e.error || e.message || e)}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
+            {/* Live Restore Progress Dialog */}
+            <Dialog open={isRestoringLive} onOpenChange={(v) => { if (!v) setIsRestoringLive(false); }}>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Restoring Data</DialogTitle>
+                  <DialogDescription>
+                    The restore is running — progress updates will appear here.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3 py-2">
+                  <div className="text-sm">Phase: <strong>{restoreProgress.phase}</strong></div>
+                  <div className="text-sm">Status: {restoreProgress.message || ''}</div>
+                  <div className="text-sm">Completed: {restoreProgress.done || 0}{restoreProgress.total ? ` / ${restoreProgress.total}` : ''}</div>
+                  {restoreProgress.errors && restoreProgress.errors.length > 0 && (
+                    <div className="pt-2">
+                      <div className="font-medium">Errors</div>
+                      <ul className="text-xs text-destructive max-h-40 overflow-auto">
+                        {restoreProgress.errors.map((e: any, i: number) => (
+                          <li key={i} className="truncate">{e.section}: {e.id || ''} — {String(e.error || e.message || e)}</li>
+                        ))}
+                      </ul>
                     </div>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => { setIsRestoringLive(false); }}>
-                        Close
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => { setIsRestoringLive(false); }}>
+                    Close
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
             <div className="flex justify-end">
               <Button
@@ -2343,467 +2360,495 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
             </CardContent>
           </Card>
 
-        <Dialog open={isAddEmployeeDialogOpen} onOpenChange={setIsAddEmployeeDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Employee</DialogTitle>
-              <DialogDescription>Enter the details for the new employee.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <Input
-                value={employeeName}
-                onChange={(e) => setEmployeeName(e.target.value)}
-                placeholder="Employee Name"
-              />
-              <Select value={employeeRole} onValueChange={(value) => setEmployeeRole(value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select Role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Head of Admin">Head of Admin</SelectItem>
-                  <SelectItem value="Head of Operations">Head of Operations</SelectItem>
-                  <SelectItem value="Projects Supervisor">Projects Supervisor</SelectItem>
-                  <SelectItem value="Logistics and Warehouse Officer">Logistics and Warehouse Officer</SelectItem>
-                  <SelectItem value="Admin Manager">Admin Manager</SelectItem>
-                  <SelectItem value="Admin Assistant">Admin Assistant</SelectItem>
-                  <SelectItem value="Foreman">Foreman</SelectItem>
-                  <SelectItem value="Engineer">Engineer</SelectItem>
-                  <SelectItem value="Trainee Site Manager">Trainee Site Manager</SelectItem>
-                  <SelectItem value="Site Supervisor">Site Supervisor</SelectItem>
-                  <SelectItem value="Admin Clerk">Admin Clerk</SelectItem>
-                  <SelectItem value="Assistant Supervisor">Assistant Supervisor</SelectItem>
-                  <SelectItem value="Site Worker">Site Worker</SelectItem>
-                  <SelectItem value="Driver">Driver</SelectItem>
-                  <SelectItem value="Security">Security</SelectItem>
-                  <SelectItem value="Adhoc Staff">Adhoc Staff</SelectItem>
-                  <SelectItem value="Consultant">Consultant</SelectItem>
-                  <SelectItem value="IT Student">IT Student</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input
-                value={employeeEmail}
-                onChange={(e) => setEmployeeEmail(e.target.value)}
-                placeholder="Email (optional)"
-              />
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddEmployeeDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handleAddEmployee}>Add Employee</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={isDelistEmployeeDialogOpen} onOpenChange={setIsDelistEmployeeDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Delist Employee</DialogTitle>
-              <DialogDescription>Enter the delisting date for {employeeToDelist?.name}.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <Input
-                type="date"
-                value={delistDate}
-                onChange={(e) => setDelistDate(e.target.value)}
-                placeholder="Delisting Date"
-              />
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsDelistEmployeeDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handleDelistEmployee}>Delist Employee</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <div className="flex justify-end">
-          <Button
-            onClick={handleSave}
-            className="bg-gradient-primary hover:scale-105 transition-all duration-300 shadow-medium"
-            disabled={isLoading}
-          >
-            <Save className="h-4 w-4 mr-2" />
-            Save Settings
-          </Button>
-        </div>
-      </TabsContent>
-
-      {/* Vehicles Tab */}
-      <TabsContent value="vehicles" className="space-y-6">
-        <Card className="border-0 shadow-soft">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Car className="h-5 w-5" />
-              Vehicle Management
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex gap-2">
-              <Input
-                placeholder="Vehicle Name/Plate"
-                value={vehicleName}
-                onChange={(e) => setVehicleName(e.target.value)}
-                className="flex-1"
-              />
-              <Button onClick={handleAddVehicle}>Add</Button>
-            </div>
-            <div>
-              {vehicles.length === 0 ? (
-                <p className="text-muted-foreground">No vehicles added yet.</p>
-              ) : (
-                <ul className="space-y-2 max-h-96 overflow-y-auto">
-                  {vehicles.map((vehicle) => (
-                    <li key={vehicle.id} className="flex justify-between items-center border p-2 rounded">
-                      {editingVehicleIndex === vehicles.indexOf(vehicle) ? (
-                        <div className="flex gap-2 flex-1">
-                          <Input
-                            value={tempVehicleName}
-                            onChange={(e) => setTempVehicleName(e.target.value)}
-                            placeholder="Vehicle Name/Plate"
-                            className="flex-1"
-                          />
-                          <Button size="sm" onClick={handleSaveVehicleEdit}>Save</Button>
-                          <Button size="sm" variant="outline" onClick={handleCancelVehicleEdit}>Cancel</Button>
-                        </div>
-                      ) : (
-                        <>
-                          <span>{vehicle.name}</span>
-                          <div className="flex gap-1">
-                            <Button size="sm" variant="outline" onClick={() => handleEditVehicle(vehicle.id)}>Edit</Button>
-                            <Button size="sm" variant="destructive" onClick={() => handleRemoveVehicle(vehicle.id)}>Remove</Button>
-                          </div>
-                        </>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="flex justify-end">
-          <Button
-            onClick={handleSave}
-            className="bg-gradient-primary hover:scale-105 transition-all duration-300 shadow-medium"
-            disabled={isLoading}
-          >
-            <Save className="h-4 w-4 mr-2" />
-            Save Settings
-          </Button>
-        </div>
-      </TabsContent>
-
-      {/* AI Assistant (Remote/API key) Configuration Tab */}
-      <TabsContent value="ai" className="space-y-6">
-        {/* Top-level controls: Add / View saved AI clients are now compact dialogs */}
-
-        <Card className="border-0 shadow-soft">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Bot className="h-5 w-5" />
-              AI Assistant Configuration
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground mb-2">Compact AI client manager — add clients, choose which client to use, then test/start the remote provider.</p>
-
-            <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => setShowApiKeyDialog(true)}>
-                <Upload className="h-4 w-4 mr-2" /> Add AI Client
-              </Button>
-
-              <Button variant="ghost" onClick={() => setShowSavedClientsDialog(true)}>
-                View Saved AI Clients
-              </Button>
-            </div>
-
-            {/* Add / Edit AI Client Dialog */}
-            <Dialog open={showApiKeyDialog} onOpenChange={setShowApiKeyDialog}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>{editingKeyId ? 'Edit AI Client' : 'Add AI Client'}</DialogTitle>
-                  <DialogDescription>Provide a name, API key, endpoint (optional) and model (optional).</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div>
-                    <Label htmlFor="keyName">Name</Label>
-                    <Input id="keyName" placeholder="e.g., Work OpenAI" value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} />
-                  </div>
-
-                  {/* Provider is now derived from endpoint: if an endpoint is provided the client is treated as 'custom', otherwise 'openai' */}
-
-                  <div>
-                    <Label htmlFor="keyValue">API Key</Label>
-                    <Input id="keyValue" type="password" placeholder="sk-..." value={newKeyValue} onChange={(e) => setNewKeyValue(e.target.value)} />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="keyEndpoint">Endpoint (optional)</Label>
-                    <Input id="keyEndpoint" placeholder="https://api.openai.com/v1/chat/completions" value={newKeyEndpoint} onChange={(e) => setNewKeyEndpoint(e.target.value)} />
-                  </div>
-
-
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => { setShowApiKeyDialog(false); setEditingKeyId(null); }}>Cancel</Button>
-                  <Button onClick={handleAddApiKey} className="bg-gradient-primary">{editingKeyId ? 'Save Changes' : 'Save Client'}</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-
-            <div className="mt-2">
-              <Label htmlFor="aiClientSelect">Select AI Client</Label>
-              <Select value={selectedSavedKey || undefined} onValueChange={(v) => {
-                setSelectedSavedKey(v);
-                handleSelectSavedKey(v);
-              }}>
-                <SelectTrigger id="aiClientSelect">
-                  <SelectValue placeholder="Choose client" />
-                </SelectTrigger>
-                <SelectContent>
-                  {/* Saved AI clients (select to auto-load) */}
-                  {Object.keys(savedApiKeys).map(k => {
-                    const d = savedApiKeys[k];
-                    const provider = typeof d === 'string' ? JSON.parse(d).provider : d.provider;
-                    return <SelectItem key={k} value={k}>{`${k} (${provider})`}</SelectItem>;
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-              <div>
-                <Label htmlFor="apiKey">API Key</Label>
-                <Input id="apiKey" type="password" value={aiApiKey} onChange={(e) => setAiApiKey(e.target.value)} placeholder="Enter API Key" />
-              </div>
-              <div>
-                <Label htmlFor="endpoint">Endpoint</Label>
-                <Input id="endpoint" value={aiEndpoint} onChange={(e) => setAiEndpoint(e.target.value)} placeholder="https://api.openai.com/v1/chat/completions" />
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <div className="flex items-center justify-between mb-2">
-                <Label htmlFor="model">Model</Label>
-                {aiProvider === 'google' && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => fetchGoogleModels()}
-                    disabled={modelsLoading || !aiApiKey}
-                    className="text-xs"
-                  >
-                    {modelsLoading ? (
-                      <>
-                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                        Fetching...
-                      </>
-                    ) : (
-                      'Fetch Models'
-                    )}
-                  </Button>
-                )}
-              </div>
-              {aiProvider === 'google' && googleModels.length > 0 ? (
-                <Select value={aiModel} onValueChange={setAiModel}>
+          <Dialog open={isAddEmployeeDialogOpen} onOpenChange={setIsAddEmployeeDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add New Employee</DialogTitle>
+                <DialogDescription>Enter the details for the new employee.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <Input
+                  value={employeeName}
+                  onChange={(e) => setEmployeeName(e.target.value)}
+                  placeholder="Employee Name"
+                />
+                <Select value={employeeRole} onValueChange={(value) => setEmployeeRole(value)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select Google Model" />
+                    <SelectValue placeholder="Select Role" />
                   </SelectTrigger>
                   <SelectContent>
-                    {googleModels.map(model => <SelectItem key={model} value={model}>{model}</SelectItem>)}
+                    <SelectItem value="Head of Admin">Head of Admin</SelectItem>
+                    <SelectItem value="Head of Operations">Head of Operations</SelectItem>
+                    <SelectItem value="Projects Supervisor">Projects Supervisor</SelectItem>
+                    <SelectItem value="Logistics and Warehouse Officer">Logistics and Warehouse Officer</SelectItem>
+                    <SelectItem value="Admin Manager">Admin Manager</SelectItem>
+                    <SelectItem value="Admin Assistant">Admin Assistant</SelectItem>
+                    <SelectItem value="Foreman">Foreman</SelectItem>
+                    <SelectItem value="Engineer">Engineer</SelectItem>
+                    <SelectItem value="Trainee Site Manager">Trainee Site Manager</SelectItem>
+                    <SelectItem value="Site Supervisor">Site Supervisor</SelectItem>
+                    <SelectItem value="Admin Clerk">Admin Clerk</SelectItem>
+                    <SelectItem value="Assistant Supervisor">Assistant Supervisor</SelectItem>
+                    <SelectItem value="Site Worker">Site Worker</SelectItem>
+                    <SelectItem value="Driver">Driver</SelectItem>
+                    <SelectItem value="Security">Security</SelectItem>
+                    <SelectItem value="Adhoc Staff">Adhoc Staff</SelectItem>
+                    <SelectItem value="Consultant">Consultant</SelectItem>
+                    <SelectItem value="IT Student">IT Student</SelectItem>
                   </SelectContent>
                 </Select>
-              ) : (
-                <Input id="model" value={aiModel} onChange={(e) => setAiModel(e.target.value)} placeholder="gpt-3.5-turbo" />
-              )}
-            </div>
-
-
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  setIsLoading(true);
-                  try {
-                    // Configure remote settings first (persist key to secure store if possible)
-                    // Ensure remote is enabled for the test; also reflect in UI toggle
-                    setAiEnabled(true);
-                    const cfg = { remote: { enabled: true, provider: aiProvider, apiKey: aiApiKey || null, endpoint: aiEndpoint || null, model: aiModel || null } };
-                    await (window as any).llm?.configure(cfg).catch(() => {});
-
-                    // Use start() which now runs a detailed connectivity check and returns a message
-                    const startRes = await (window as any).llm?.start();
-                    const status = await (window as any).llm?.status();
-                    setAiStatus(status);
-
-                    if (startRes?.success) {
-                      toast({ title: 'AI Ready', description: startRes.message || 'Remote AI provider configured and reachable.' });
-                    } else {
-                      toast({ title: 'AI Not Reachable', description: startRes?.error || 'The provider did not respond as expected. Check your API key and endpoint.', variant: 'destructive' });
-                    }
-                  } catch (err) {
-                    toast({ title: 'Connection Failed', description: String(err), variant: 'destructive' });
-                  } finally { setIsLoading(false); }
-                }}
-              >
-                Test Connection
-              </Button>
-
-              <Button
-                onClick={async () => {
-                  setIsLoading(true);
-                  try {
-                    const res = await (window as any).llm?.start();
-                    if (res?.success) toast({ title: 'AI Started', description: res.message });
-                    else toast({ title: 'Start Failed', description: res?.error || 'Failed to start', variant: 'destructive' });
-                  } finally { setIsLoading(false); }
-                }}
-              >
-                Start
-              </Button>
-
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  setIsLoading(true);
-                  try {
-                    const res = await (window as any).llm?.stop();
-                    if (res?.success) toast({ title: 'AI Stopped', description: res.message });
-                  } finally { setIsLoading(false); }
-                }}
-              >
-                Stop
-              </Button>
-            </div>
-
-            {aiStatus && (
-              <div className="mt-2 p-3 rounded-md bg-muted text-sm space-y-1">
-                <p className="font-medium">Status: {aiStatus.available ? '✓ Available' : '✗ Not Available'}</p>
-                {aiStatus.url && <p className="text-xs text-muted-foreground">URL: {aiStatus.url}</p>}
+                <Input
+                  value={employeeEmail}
+                  onChange={(e) => setEmployeeEmail(e.target.value)}
+                  placeholder="Email (optional)"
+                />
               </div>
-            )}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsAddEmployeeDialogOpen(false)}>Cancel</Button>
+                <Button onClick={handleAddEmployee}>Add Employee</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
-            {/* Saved Clients viewer dialog */}
-            <Dialog open={showSavedClientsDialog} onOpenChange={setShowSavedClientsDialog}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Saved AI Clients</DialogTitle>
-                  <DialogDescription>View and manage your saved AI client configurations.</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-2 py-2">
-                  {Object.keys(savedApiKeys).length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No saved clients</p>
-                  ) : (
-                    Object.keys(savedApiKeys).map((k) => {
-                      const d = savedApiKeys[k];
-                      const provider = typeof d === 'string' ? JSON.parse(d).provider : d.provider;
-                      return (
-                        <div key={k} className="flex items-center justify-between p-2 border rounded">
-                          <div>
-                            <div className="font-medium">{k}</div>
-                            <div className="text-xs text-muted-foreground">{provider}</div>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button size="sm" variant="outline" onClick={() => { handleSelectSavedKey(k); setShowSavedClientsDialog(false); }}>Load</Button>
-                            <Button size="sm" variant="ghost" onClick={() => handleEditSavedKey(k)}>Edit</Button>
-                            <Button size="sm" variant="destructive" onClick={() => handleDeleteApiKey(k)}>Delete</Button>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setShowSavedClientsDialog(false)}>Close</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </CardContent>
-        </Card>
-
-        <div className="pt-4 border-t">
-          <div className="flex items-center justify-between gap-4 mb-3">
-            <div className="flex items-center gap-3">
-              <div className="text-sm">
-                <div className="font-medium">API Key Storage</div>
-                <div className="text-xs text-muted-foreground">{keyStatus ? (keyStatus.inSecureStore ? 'Stored in secure OS credential store' : (keyStatus.inDB ? 'Stored in database only' : 'No API key saved')) : 'Checking...'}</div>
+          <Dialog open={isDelistEmployeeDialogOpen} onOpenChange={setIsDelistEmployeeDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Delist Employee</DialogTitle>
+                <DialogDescription>Enter the delisting date for {employeeToDelist?.name}.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <Input
+                  type="date"
+                  value={delistDate}
+                  onChange={(e) => setDelistDate(e.target.value)}
+                  placeholder="Delisting Date"
+                />
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  setIsLoading(true);
-                  try {
-                    const res = await (window as any).llm?.migrateKeys();
-                    toast({ title: res?.success ? 'Migration started' : 'Migration failed', description: res?.message || res?.error || '' });
-                    const s = await (window as any).llm?.getKeyStatus();
-                    setKeyStatus(s);
-                  } catch (err) {
-                    toast({ title: 'Migration Error', description: String(err), variant: 'destructive' });
-                  } finally { setIsLoading(false); }
-                }}
-              >
-                Migrate Key to Secure Store
-              </Button>
-
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  setIsLoading(true);
-                  try {
-                    if (window.db?.migrateSavedKeysToKeytar) {
-                      const r = await window.db.migrateSavedKeysToKeytar();
-                      toast({ title: 'Saved Keys Migration', description: `Migrated ${r?.migrated || 0} saved keys to secure store` });
-                      // reload saved keys
-                      const updatedKeys = await window.db.getSavedApiKeys();
-                      const keysMap: Record<string, any> = {};
-                      updatedKeys.forEach((k: any) => { keysMap[k.key_name] = k; });
-                      setSavedApiKeys(keysMap);
-                    } else {
-                      toast({ title: 'Not Available', description: 'Migration helper not available', variant: 'destructive' });
-                    }
-                  } catch (err) {
-                    console.error('Saved keys migration failed', err);
-                    toast({ title: 'Migration Failed', description: String(err), variant: 'destructive' });
-                  } finally { setIsLoading(false); }
-                }}
-              >
-                Migrate Saved Keys
-              </Button>
-
-              <Button
-                variant="destructive"
-                onClick={async () => {
-                  setIsLoading(true);
-                  try {
-                    // clear only secure store copy by default
-                    await (window as any).llm?.clearKey({ removeFromDB: false });
-                    const s = await (window as any).llm?.getKeyStatus();
-                    setKeyStatus(s);
-                    toast({ title: 'Cleared', description: 'Cleared secure store copy of API key.' });
-                  } catch (err) {
-                    toast({ title: 'Clear Failed', description: String(err), variant: 'destructive' });
-                  } finally { setIsLoading(false); }
-                }}
-              >
-                Clear Secure Key
-              </Button>
-
-            </div>
-          </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsDelistEmployeeDialogOpen(false)}>Cancel</Button>
+                <Button onClick={handleDelistEmployee}>Delist Employee</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           <div className="flex justify-end">
-            <Button onClick={handleSave} className="bg-gradient-primary hover:scale-105 transition-all duration-300 shadow-medium" disabled={isLoading}>
+            <Button
+              onClick={handleSave}
+              className="bg-gradient-primary hover:scale-105 transition-all duration-300 shadow-medium"
+              disabled={isLoading}
+            >
               <Save className="h-4 w-4 mr-2" />
-              Save AI Settings
+              Save Settings
             </Button>
           </div>
-        </div>
-      </TabsContent>
+        </TabsContent>
 
-      {/* Data Management Tab */}
-      <TabsContent value="data" className="space-y-6">
+        {/* Vehicles Tab */}
+        <TabsContent value="vehicles" className="space-y-6">
+          <Card className="border-0 shadow-soft">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Car className="h-5 w-5" />
+                Vehicle Management
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Vehicle Name/Plate"
+                  value={vehicleName}
+                  onChange={(e) => setVehicleName(e.target.value)}
+                  className="flex-1"
+                />
+                <Button onClick={handleAddVehicle}>Add</Button>
+              </div>
+              <div>
+                {vehicles.length === 0 ? (
+                  <p className="text-muted-foreground">No vehicles added yet.</p>
+                ) : (
+                  <ul className="space-y-2 max-h-96 overflow-y-auto">
+                    {vehicles.map((vehicle) => (
+                      <li key={vehicle.id} className="flex justify-between items-center border p-2 rounded">
+                        {editingVehicleIndex === vehicles.indexOf(vehicle) ? (
+                          <div className="flex gap-2 flex-1">
+                            <Input
+                              value={tempVehicleName}
+                              onChange={(e) => setTempVehicleName(e.target.value)}
+                              placeholder="Vehicle Name/Plate"
+                              className="flex-1"
+                            />
+                            <Button size="sm" onClick={handleSaveVehicleEdit}>Save</Button>
+                            <Button size="sm" variant="outline" onClick={handleCancelVehicleEdit}>Cancel</Button>
+                          </div>
+                        ) : (
+                          <>
+                            <span>{vehicle.name}</span>
+                            <div className="flex gap-1">
+                              <Button size="sm" variant="outline" onClick={() => handleEditVehicle(vehicle.id)}>Edit</Button>
+                              <Button size="sm" variant="destructive" onClick={() => handleRemoveVehicle(vehicle.id)}>Remove</Button>
+                            </div>
+                          </>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="flex justify-end">
+            <Button
+              onClick={handleSave}
+              className="bg-gradient-primary hover:scale-105 transition-all duration-300 shadow-medium"
+              disabled={isLoading}
+            >
+              <Save className="h-4 w-4 mr-2" />
+              Save Settings
+            </Button>
+          </div>
+        </TabsContent>
+
+        {/* AI Assistant (Remote/API key) Configuration Tab */}
+        <TabsContent value="ai" className="space-y-6">
+          {/* Top-level controls: Add / View saved AI clients are now compact dialogs */}
+
+          <Card className="border-0 shadow-soft">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bot className="h-5 w-5" />
+                AI Assistant Configuration
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Master AI Enable/Disable Toggle */}
+              <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border">
+                <div className="space-y-1">
+                  <Label htmlFor="ai-enabled" className="text-base font-semibold">Enable AI Assistant</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Turn on to use AI-powered natural language task execution throughout the app
+                  </p>
+                </div>
+                <Switch
+                  id="ai-enabled"
+                  checked={aiEnabled}
+                  onCheckedChange={setAiEnabled}
+                />
+              </div>
+
+              {aiEnabled && (
+                <>
+                  <p className="text-sm text-muted-foreground mb-2">Compact AI client manager — add clients, choose which client to use, then test/start the remote provider.</p>
+
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" onClick={() => setShowApiKeyDialog(true)}>
+                      <Upload className="h-4 w-4 mr-2" /> Add AI Client
+                    </Button>
+
+                    <Button variant="ghost" onClick={() => setShowSavedClientsDialog(true)}>
+                      View Saved AI Clients
+                    </Button>
+                  </div>
+
+                  {/* Add / Edit AI Client Dialog */}
+                  <Dialog open={showApiKeyDialog} onOpenChange={setShowApiKeyDialog}>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>{editingKeyId ? 'Edit AI Client' : 'Add AI Client'}</DialogTitle>
+                        <DialogDescription>Provide a name, API key, endpoint (optional) and model (optional).</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div>
+                          <Label htmlFor="keyName">Name</Label>
+                          <Input id="keyName" placeholder="e.g., Work OpenAI" value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} />
+                        </div>
+
+                        {/* Provider is now derived from endpoint: if an endpoint is provided the client is treated as 'custom', otherwise 'openai' */}
+
+                        <div>
+                          <Label htmlFor="keyValue">API Key</Label>
+                          <Input id="keyValue" type="password" placeholder="sk-..." value={newKeyValue} onChange={(e) => setNewKeyValue(e.target.value)} />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="keyEndpoint">Endpoint (optional)</Label>
+                          <Input id="keyEndpoint" placeholder="https://api.openai.com/v1/chat/completions" value={newKeyEndpoint} onChange={(e) => setNewKeyEndpoint(e.target.value)} />
+                        </div>
+
+
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => { setShowApiKeyDialog(false); setEditingKeyId(null); }}>Cancel</Button>
+                        <Button onClick={handleAddApiKey} className="bg-gradient-primary">{editingKeyId ? 'Save Changes' : 'Save Client'}</Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+
+                  <div className="mt-2">
+                    <Label htmlFor="aiClientSelect">Select AI Client</Label>
+                    <Select value={selectedSavedKey || undefined} onValueChange={(v) => {
+                      setSelectedSavedKey(v);
+                      handleSelectSavedKey(v);
+                    }}>
+                      <SelectTrigger id="aiClientSelect">
+                        <SelectValue placeholder="Choose client" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {/* Saved AI clients (select to auto-load) */}
+                        {Object.keys(savedApiKeys).map(k => {
+                          const d = savedApiKeys[k];
+                          const provider = typeof d === 'string' ? JSON.parse(d).provider : d.provider;
+                          return <SelectItem key={k} value={k}>{`${k} (${provider})`}</SelectItem>;
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div>
+                      <Label htmlFor="apiKey">API Key</Label>
+                      <Input id="apiKey" type="password" value={aiApiKey} onChange={(e) => setAiApiKey(e.target.value)} placeholder="Enter API Key" />
+                    </div>
+                    <div>
+                      <Label htmlFor="endpoint">Endpoint</Label>
+                      <Input id="endpoint" value={aiEndpoint} onChange={(e) => setAiEndpoint(e.target.value)} placeholder="https://api.openai.com/v1/chat/completions" />
+                    </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <Label htmlFor="model">Model</Label>
+                      {aiProvider === 'google' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => fetchGoogleModels()}
+                          disabled={modelsLoading || !aiApiKey}
+                          className="text-xs"
+                        >
+                          {modelsLoading ? (
+                            <>
+                              <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                              Fetching...
+                            </>
+                          ) : (
+                            'Fetch Models'
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                    {aiProvider === 'google' && googleModels.length > 0 ? (
+                      <Select value={aiModel} onValueChange={setAiModel}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select Google Model" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {googleModels.map(model => <SelectItem key={model} value={model}>{model}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input id="model" value={aiModel} onChange={(e) => setAiModel(e.target.value)} placeholder="gpt-3.5-turbo" />
+                    )}
+                  </div>
+
+
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
+                    <Button
+                      variant="outline"
+                      onClick={async () => {
+                        setIsLoading(true);
+                        try {
+                          // Configure remote settings first (persist key to secure store if possible)
+                          // Ensure remote is enabled for the test; also reflect in UI toggle
+                          setAiEnabled(true);
+                          const cfg = { remote: { enabled: true, provider: aiProvider, apiKey: aiApiKey || null, endpoint: aiEndpoint || null, model: aiModel || null } };
+                          await (window as any).llm?.configure(cfg).catch(() => { });
+
+                          // Use start() which now runs a detailed connectivity check and returns a message
+                          const startRes = await (window as any).llm?.start();
+                          const status = await (window as any).llm?.status();
+                          setAiStatus(status);
+
+                          if (startRes?.success) {
+                            toast({ title: 'AI Ready', description: startRes.message || 'Remote AI provider configured and reachable.' });
+                          } else {
+                            toast({ title: 'AI Not Reachable', description: startRes?.error || 'The provider did not respond as expected. Check your API key and endpoint.', variant: 'destructive' });
+                          }
+                        } catch (err) {
+                          toast({ title: 'Connection Failed', description: String(err), variant: 'destructive' });
+                        } finally { setIsLoading(false); }
+                      }}
+                    >
+                      Test Connection
+                    </Button>
+
+                    <Button
+                      onClick={async () => {
+                        setIsLoading(true);
+                        try {
+                          const res = await (window as any).llm?.start();
+                          if (res?.success) toast({ title: 'AI Started', description: res.message });
+                          else toast({ title: 'Start Failed', description: res?.error || 'Failed to start', variant: 'destructive' });
+                        } finally { setIsLoading(false); }
+                      }}
+                    >
+                      Start
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      onClick={async () => {
+                        setIsLoading(true);
+                        try {
+                          const res = await (window as any).llm?.stop();
+                          if (res?.success) toast({ title: 'AI Stopped', description: res.message });
+                        } finally { setIsLoading(false); }
+                      }}
+                    >
+                      Stop
+                    </Button>
+                  </div>
+
+                  {aiStatus && (
+                    <div className="mt-2 p-3 rounded-md bg-muted text-sm space-y-1">
+                      <p className="font-medium">Status: {aiStatus.available ? '✓ Available' : '✗ Not Available'}</p>
+                      {aiStatus.url && <p className="text-xs text-muted-foreground">URL: {aiStatus.url}</p>}
+                    </div>
+                  )}
+
+                  {/* Saved Clients viewer dialog */}
+                  <Dialog open={showSavedClientsDialog} onOpenChange={setShowSavedClientsDialog}>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Saved AI Clients</DialogTitle>
+                        <DialogDescription>View and manage your saved AI client configurations.</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-2 py-2">
+                        {Object.keys(savedApiKeys).length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No saved clients</p>
+                        ) : (
+                          Object.keys(savedApiKeys).map((k) => {
+                            const d = savedApiKeys[k];
+                            const provider = typeof d === 'string' ? JSON.parse(d).provider : d.provider;
+                            return (
+                              <div key={k} className="flex items-center justify-between p-2 border rounded">
+                                <div>
+                                  <div className="font-medium">{k}</div>
+                                  <div className="text-xs text-muted-foreground">{provider}</div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button size="sm" variant="outline" onClick={() => { handleSelectSavedKey(k); setShowSavedClientsDialog(false); }}>Load</Button>
+                                  <Button size="sm" variant="ghost" onClick={() => handleEditSavedKey(k)}>Edit</Button>
+                                  <Button size="sm" variant="destructive" onClick={() => handleDeleteApiKey(k)}>Delete</Button>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowSavedClientsDialog(false)}>Close</Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+
+
+                  <div className="pt-4 border-t">
+                    <div className="flex items-center justify-between gap-4 mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="text-sm">
+                          <div className="font-medium">API Key Storage</div>
+                          <div className="text-xs text-muted-foreground">{keyStatus ? (keyStatus.inSecureStore ? 'Stored in secure OS credential store' : (keyStatus.inDB ? 'Stored in database only' : 'No API key saved')) : 'Checking...'}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={async () => {
+                            setIsLoading(true);
+                            try {
+                              const res = await (window as any).llm?.migrateKeys();
+                              toast({ title: res?.success ? 'Migration started' : 'Migration failed', description: res?.message || res?.error || '' });
+                              const s = await (window as any).llm?.getKeyStatus();
+                              setKeyStatus(s);
+                            } catch (err) {
+                              toast({ title: 'Migration Error', description: String(err), variant: 'destructive' });
+                            } finally { setIsLoading(false); }
+                          }}
+                        >
+                          Migrate Key to Secure Store
+                        </Button>
+
+                        <Button
+                          variant="outline"
+                          onClick={async () => {
+                            setIsLoading(true);
+                            try {
+                              if (window.db?.migrateSavedKeysToKeytar) {
+                                const r = await window.db.migrateSavedKeysToKeytar();
+                                toast({ title: 'Saved Keys Migration', description: `Migrated ${r?.migrated || 0} saved keys to secure store` });
+                                // reload saved keys
+                                const updatedKeys = await window.db.getSavedApiKeys();
+                                const keysMap: Record<string, any> = {};
+                                updatedKeys.forEach((k: any) => { keysMap[k.key_name] = k; });
+                                setSavedApiKeys(keysMap);
+                              } else {
+                                toast({ title: 'Not Available', description: 'Migration helper not available', variant: 'destructive' });
+                              }
+                            } catch (err) {
+                              console.error('Saved keys migration failed', err);
+                              toast({ title: 'Migration Failed', description: String(err), variant: 'destructive' });
+                            } finally { setIsLoading(false); }
+                          }}
+                        >
+                          Migrate Saved Keys
+                        </Button>
+
+                        <Button
+                          variant="destructive"
+                          onClick={async () => {
+                            setIsLoading(true);
+                            try {
+                              // clear only secure store copy by default
+                              await (window as any).llm?.clearKey({ removeFromDB: false });
+                              const s = await (window as any).llm?.getKeyStatus();
+                              setKeyStatus(s);
+                              toast({ title: 'Cleared', description: 'Cleared secure store copy of API key.' });
+                            } catch (err) {
+                              toast({ title: 'Clear Failed', description: String(err), variant: 'destructive' });
+                            } finally { setIsLoading(false); }
+                          }}
+                        >
+                          Clear Secure Key
+                        </Button>
+
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end">
+                      <Button onClick={handleSave} className="bg-gradient-primary hover:scale-105 transition-all duration-300 shadow-medium" disabled={isLoading}>
+                        <Save className="h-4 w-4 mr-2" />
+                        Save AI Settings
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {!aiEnabled && (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Bot className="h-16 w-16 mx-auto mb-4 opacity-20" />
+                  <p className="text-sm font-medium">AI Assistant is currently disabled</p>
+                  <p className="text-xs mt-2">Enable the toggle above to configure and use AI features</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent >
+
+        {/* Data Management Tab */}
+        < TabsContent value="data" className="space-y-6" >
           <Card className="border-0 shadow-soft">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -2815,7 +2860,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
               <p className="text-sm text-muted-foreground">
                 Backup, restore, or reset all your inventory data. Use these features carefully as some actions cannot be undone.
               </p>
-              
+
               <div className="flex flex-wrap gap-3">
                 <AlertDialog open={isResetOpen} onOpenChange={setIsResetOpen}>
                   <AlertDialogTrigger asChild>
@@ -3004,9 +3049,8 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                             </div>
                             <div className="w-full bg-secondary rounded-full h-2">
                               <div
-                                className={`h-2 rounded-full transition-all duration-300 ${
-                                  isRestoreComplete ? 'bg-green-500' : 'bg-blue-500'
-                                }`}
+                                className={`h-2 rounded-full transition-all duration-300 ${isRestoreComplete ? 'bg-green-500' : 'bg-blue-500'
+                                  }`}
                                 style={{
                                   width: `${restoreProgress.total > 0 ? (restoreProgress.done / restoreProgress.total) * 100 : 0}%`
                                 }}
@@ -3161,13 +3205,13 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
               Save Settings
             </Button>
           </div>
-        </TabsContent>
+        </TabsContent >
 
         {/* Database Sync Tab */}
-        <TabsContent value="sync" className="space-y-6">
+        < TabsContent value="sync" className="space-y-6" >
           <SyncStatusPanel />
-        </TabsContent>
-      </Tabs>
-    </div>
+        </TabsContent >
+      </Tabs >
+    </div >
   );
 };

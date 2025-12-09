@@ -27,7 +27,7 @@ const App = () => {
         try {
           const dbInfo = await window.db.getDatabaseInfo();
           let storageTypeLabel = '';
-          
+
           switch (dbInfo.storageType) {
             case 'network':
               storageTypeLabel = '🌐 Network/NAS';
@@ -41,7 +41,7 @@ const App = () => {
             default:
               storageTypeLabel = '📊 Database';
           }
-          
+
           toast.success(`Database Connected`, {
             description: storageTypeLabel,
             duration: 6000,
@@ -53,7 +53,7 @@ const App = () => {
               color: 'inherit',
             },
           });
-          
+
           logger.info('Database initialized');
         } catch (error) {
           logger.error('Failed to get database info', error);
@@ -68,10 +68,11 @@ const App = () => {
         if ((window as any).db?.getCompanySettings) {
           const cs = await (window as any).db.getCompanySettings();
           const remote = cs?.ai?.remote;
-          if (remote && remote.enabled) {
+          const r = remote?.enabled;
+          if (remote && r !== false && r !== 0 && r !== '0' && r !== 'false') {
             // configure main process with remote config and test status
             try {
-              await (window as any).llm?.configure({ remote }).catch(() => {});
+              await (window as any).llm?.configure({ remote }).catch(() => { });
               const status = await (window as any).llm?.status();
               if (!status?.available && !(status && status.remoteConfigured)) {
                 toast.info('AI Assistant Not Available', { description: 'Remote AI is configured but not reachable. Check your API key and endpoint.', duration: 8000 });
@@ -89,11 +90,11 @@ const App = () => {
         logger.warn('Failed to validate AI configuration', err);
       }
     };
-    
+
     showDatabaseInfo();
     validateLLMConfig();
   }, []);
-  
+
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>

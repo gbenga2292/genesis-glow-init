@@ -213,7 +213,7 @@ const Index = () => {
     })();
   }, []);
 
-const [siteTransactions, setSiteTransactions] = useState<SiteTransaction[]>([]);
+  const [siteTransactions, setSiteTransactions] = useState<SiteTransaction[]>([]);
 
   // Load site transactions from database
   useEffect(() => {
@@ -232,7 +232,7 @@ const [siteTransactions, setSiteTransactions] = useState<SiteTransaction[]>([]);
     })();
   }, []);
 
-const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLog[]>([]);
+  const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLog[]>([]);
 
   // Load equipment logs from database
   useEffect(() => {
@@ -249,7 +249,7 @@ const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLog[]>([]);
     })();
   }, []);
 
-const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
+  const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
 
   // Load consumable logs from database
   useEffect(() => {
@@ -478,27 +478,27 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
             availableQuantity: totalQuantity - newReservedQuantity - (asset.damagedCount || 0) - (asset.missingCount || 0),
             updatedAt: new Date()
           };
-          
+
           // Update in database
           await window.db.updateAsset(asset.id, updatedAsset);
-          
+
           // Update local state
           setAssets(prev => prev.map(a => a.id === asset.id ? updatedAsset : a));
         }
       }
 
       setWaybills(prev => [...prev, newWaybill]);
-      
+
       // Trigger assets refresh
       const loadedAssets = await window.db.getAssets();
-      window.dispatchEvent(new CustomEvent('refreshAssets', { 
+      window.dispatchEvent(new CustomEvent('refreshAssets', {
         detail: loadedAssets.map((item: any) => ({
           ...item,
           createdAt: new Date(item.createdAt),
           updatedAt: new Date(item.updatedAt)
         }))
       }));
-      
+
       setShowWaybillDocument(newWaybill);
       setActiveTab("waybills");
 
@@ -642,7 +642,7 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
     try {
       // Call the database transaction to handle all updates
       const result = await window.db.sendToSiteWithTransaction(
-        waybill.id, 
+        waybill.id,
         sentToSiteDate.toISOString()
       );
 
@@ -735,7 +735,7 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
     const warnings: string[] = [];
     const errors: string[] = [];
     const currentSiteInventory = getSiteInventory(waybillData.siteId);
-    
+
     waybillData.items.forEach(item => {
       // Check for pending returns
       const pendingReturns = waybills.filter(wb =>
@@ -744,7 +744,7 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
         wb.siteId === waybillData.siteId &&
         wb.items.some(wbItem => wbItem.assetId === item.assetId)
       );
-      
+
       const pendingQty = pendingReturns.reduce((sum, wb) => {
         const wbItem = wb.items.find(i => i.assetId === item.assetId);
         // Only count unreturned quantity (quantity minus what's already returned)
@@ -995,13 +995,13 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
             title: "Return Processed",
             description: "Return has been successfully processed.",
           });
-          
+
           // Refresh data from database
           const [updatedAssets, updatedWaybills] = await Promise.all([
             window.db.getAssets(),
             window.db.getWaybills()
           ]);
-          
+
           // Data is already transformed by database layer
           setAssets(updatedAssets);
           setWaybills(updatedWaybills);
@@ -1100,7 +1100,7 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
         const newReservedQuantity = Math.max(0, (asset.reservedQuantity || 0) - quantity);
         const totalAtSites = prev.filter(a => a.id === asset.id && a.siteId).reduce((sum, a) => sum + a.quantity, 0);
         const totalQuantity = asset.quantity + totalAtSites;
-        
+
         let newDamagedCount = asset.damagedCount || 0;
         let newMissingCount = asset.missingCount || 0;
 
@@ -1187,9 +1187,9 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
         />;
       case "add-asset":
         return isAuthenticated ? (
-          <AddAssetForm 
-            onAddAsset={handleAddAsset} 
-            sites={sites} 
+          <AddAssetForm
+            onAddAsset={handleAddAsset}
+            sites={sites}
             existingAssets={assets}
             initialData={aiPrefillData?.formType === 'asset' ? aiPrefillData : undefined}
           />
@@ -1209,17 +1209,17 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
           <>
             <div className="flex flex-col space-y-3 md:space-y-0 md:flex-row md:justify-between md:items-center mb-6">
               <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
-          {isAuthenticated && hasPermission('write_waybills') && (
-            <Button
-              variant="default"
-              onClick={() => setActiveTab("create-waybill")}
-              className="w-full sm:w-auto bg-gradient-primary"
-              size={isMobile ? "lg" : "default"}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Create Waybill
-            </Button>
-          )}
+                {isAuthenticated && hasPermission('write_waybills') && (
+                  <Button
+                    variant="default"
+                    onClick={() => setActiveTab("create-waybill")}
+                    className="w-full sm:w-auto bg-gradient-primary"
+                    size={isMobile ? "lg" : "default"}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Waybill
+                  </Button>
+                )}
               </div>
             </div>
             <WaybillList
@@ -1407,271 +1407,271 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
         );
       case "sites":
         return (
-        <SitesPage
-          sites={sites}
-          assets={assets}
-          waybills={waybills}
-          employees={employees}
-          vehicles={vehicles}
-          transactions={siteTransactions}
-          equipmentLogs={equipmentLogs}
-          consumableLogs={consumableLogs}
-          siteInventory={siteInventory}
-          getSiteInventory={getSiteInventory}
-          aiPrefillData={aiPrefillData?.formType === 'site' ? aiPrefillData : undefined}
-          onAddSite={async site => {
-            if (!isAuthenticated) {
-              toast({
-                title: 'Authentication Required',
-                description: 'Please login to add sites',
-                variant: 'destructive'
-              });
-              return;
-            }
-            try {
-              if (window.db) {
-                await window.db.createSite(site);
-                const loadedSites = await window.db.getSites();
-                setSites(loadedSites.map((item: any) => ({
-                  ...item,
-                  createdAt: new Date(item.createdAt),
-                  updatedAt: new Date(item.updatedAt)
-                })));
-              } else {
-                setSites(prev => [...prev, site]);
+          <SitesPage
+            sites={sites}
+            assets={assets}
+            waybills={waybills}
+            employees={employees}
+            vehicles={vehicles}
+            transactions={siteTransactions}
+            equipmentLogs={equipmentLogs}
+            consumableLogs={consumableLogs}
+            siteInventory={siteInventory}
+            getSiteInventory={getSiteInventory}
+            aiPrefillData={aiPrefillData?.formType === 'site' ? aiPrefillData : undefined}
+            onAddSite={async site => {
+              if (!isAuthenticated) {
+                toast({
+                  title: 'Authentication Required',
+                  description: 'Please login to add sites',
+                  variant: 'destructive'
+                });
+                return;
               }
-            } catch (error) {
-              logger.error('Failed to add site', error);
-              toast({ title: 'Error', description: 'Failed to save site to database', variant: 'destructive' });
-            }
-          }}
-          onUpdateSite={async updatedSite => {
-            if (!isAuthenticated) {
-              toast({
-                title: 'Authentication Required',
-                description: 'Please login to update sites',
-                variant: 'destructive'
-              });
-              return;
-            }
-            try {
-              if (window.db) {
-                await window.db.updateSite(updatedSite.id, updatedSite);
-                const loadedSites = await window.db.getSites();
-                setSites(loadedSites.map((item: any) => ({
-                  ...item,
-                  createdAt: new Date(item.createdAt),
-                  updatedAt: new Date(item.updatedAt)
-                })));
-              } else {
-                setSites(prev => prev.map(site => (site.id === updatedSite.id ? updatedSite : site)));
-              }
-            } catch (error) {
-              logger.error('Failed to update site', error);
-              toast({ title: 'Error', description: 'Failed to update site in database', variant: 'destructive' });
-            }
-          }}
-          onDeleteSite={async siteId => {
-            if (!isAuthenticated) {
-              toast({
-                title: 'Authentication Required',
-                description: 'Please login to delete sites',
-                variant: 'destructive'
-              });
-              return;
-            }
-            try {
-              if (window.db) {
-                await window.db.deleteSite(siteId);
-                const loadedSites = await window.db.getSites();
-                setSites(loadedSites.map((item: any) => ({
-                  ...item,
-                  createdAt: new Date(item.createdAt),
-                  updatedAt: new Date(item.updatedAt)
-                })));
-              } else {
-                setSites(prev => prev.filter(site => site.id !== siteId));
-              }
-            } catch (error) {
-              logger.error('Failed to delete site', error);
-              toast({ title: 'Error', description: 'Failed to delete site from database', variant: 'destructive' });
-            }
-          }}
-          onUpdateAsset={(updatedAsset) => {
-            if (!isAuthenticated) {
-              toast({
-                title: "Authentication Required",
-                description: "Please login to update assets",
-                variant: "destructive"
-              });
-              return;
-            }
-            setAssets(prev => prev.map(asset => (asset.id === updatedAsset.id ? updatedAsset : asset)));
-          }}
-          onCreateWaybill={handleCreateWaybill}
-          onCreateReturnWaybill={handleCreateReturnWaybill}
-          onProcessReturn={(returnData) => {
-            // Check if returnData has siteId and waybill items
-            if (returnData && returnData.waybillId) {
-              handleProcessReturn(returnData);
-            } else {
-              // If no returnData, fallback to previous behavior
-              handleProcessReturn(returnData);
-            }
-          }}
-          onAddEquipmentLog={async (log: EquipmentLog) => {
-            if (!isAuthenticated) {
-              toast({
-                title: "Authentication Required",
-                description: "Please login to add equipment logs",
-                variant: "destructive"
-              });
-              return;
-            }
-            
-            if (window.db) {
               try {
-                await window.db.createEquipmentLog(log);
-                const logs = await window.db.getEquipmentLogs();
-                setEquipmentLogs(logs);
-                toast({
-                  title: "Equipment Log Added",
-                  description: "Equipment log saved successfully"
-                });
-              } catch (error) {
-                logger.error('Failed to save equipment log', error);
-                toast({
-                  title: "Error",
-                  description: "Failed to save equipment log to database.",
-                  variant: "destructive"
-                });
-              }
-            } else {
-              setEquipmentLogs(prev => [...prev, log]);
-            }
-          }}
-          onUpdateEquipmentLog={async (log: EquipmentLog) => {
-            if (!isAuthenticated) {
-              toast({
-                title: "Authentication Required",
-                description: "Please login to update equipment logs",
-                variant: "destructive"
-              });
-              return;
-            }
-            
-            if (window.db) {
-              try {
-                await window.db.updateEquipmentLog(log.id, log);
-                const logs = await window.db.getEquipmentLogs();
-                setEquipmentLogs(logs);
-                toast({
-                  title: "Equipment Log Updated",
-                  description: "Equipment log updated successfully"
-                });
-              } catch (error) {
-                logger.error('Failed to update equipment log', error);
-                toast({
-                  title: "Error",
-                  description: "Failed to update equipment log in database.",
-                  variant: "destructive"
-                });
-              }
-            } else {
-              setEquipmentLogs(prev => prev.map(l => l.id === log.id ? log : l));
-            }
-          }}
-          onAddConsumableLog={async (log: ConsumableUsageLog) => {
-            if (!isAuthenticated) {
-              toast({
-                title: "Authentication Required",
-                description: "Please login to add consumable logs",
-                variant: "destructive"
-              });
-              return;
-            }
-            
-            if (window.db) {
-              try {
-                await window.db.createConsumableLog(log);
-                const logs = await window.db.getConsumableLogs();
-                // Database already returns transformed data (camelCase), no need to map again
-                setConsumableLogs(logs);
-                
-                // Update asset siteQuantities to reflect consumption
-                const asset = assets.find(a => a.id === log.consumableId);
-                if (asset && asset.siteQuantities) {
-                  const updatedSiteQuantities = {
-                    ...asset.siteQuantities,
-                    [log.siteId]: log.quantityRemaining
-                  };
-                  const updatedAsset = {
-                    ...asset,
-                    siteQuantities: updatedSiteQuantities,
-                    updatedAt: new Date()
-                  };
-                  await window.db.updateAsset(asset.id, updatedAsset);
-                  setAssets(prev => prev.map(a => a.id === asset.id ? updatedAsset : a));
+                if (window.db) {
+                  await window.db.createSite(site);
+                  const loadedSites = await window.db.getSites();
+                  setSites(loadedSites.map((item: any) => ({
+                    ...item,
+                    createdAt: new Date(item.createdAt),
+                    updatedAt: new Date(item.updatedAt)
+                  })));
+                } else {
+                  setSites(prev => [...prev, site]);
                 }
-                
-                toast({
-                  title: "Consumable Log Added",
-                  description: "Consumable usage log saved successfully"
-                });
               } catch (error) {
-                logger.error('Failed to save consumable log', error);
-                toast({
-                  title: "Error",
-                  description: "Failed to save consumable log to database.",
-                  variant: "destructive"
-                });
+                logger.error('Failed to add site', error);
+                toast({ title: 'Error', description: 'Failed to save site to database', variant: 'destructive' });
               }
-            } else {
-              setConsumableLogs(prev => [...prev, log]);
-            }
-          }}
-          onUpdateConsumableLog={async (log: ConsumableUsageLog) => {
-            if (!isAuthenticated) {
-              toast({
-                title: "Authentication Required",
-                description: "Please login to update consumable logs",
-                variant: "destructive"
-              });
-              return;
-            }
-            
-            if (window.db) {
+            }}
+            onUpdateSite={async updatedSite => {
+              if (!isAuthenticated) {
+                toast({
+                  title: 'Authentication Required',
+                  description: 'Please login to update sites',
+                  variant: 'destructive'
+                });
+                return;
+              }
               try {
-                const logData = {
-                  ...log,
-                  consumable_id: log.consumableId,
-                  consumable_name: log.consumableName,
-                  site_id: log.siteId,
-                  date: log.date.toISOString(),
-                  quantity_used: log.quantityUsed,
-                  quantity_remaining: log.quantityRemaining,
-                  unit: log.unit,
-                  used_for: log.usedFor,
-                  used_by: log.usedBy,
-                  notes: log.notes
-                };
-                await window.db.updateConsumableLog(log.id, logData);
-                const logs = await window.db.getConsumableLogs();
-                // Database already returns transformed data (camelCase), no need to map again
-                setConsumableLogs(logs);
+                if (window.db) {
+                  await window.db.updateSite(updatedSite.id, updatedSite);
+                  const loadedSites = await window.db.getSites();
+                  setSites(loadedSites.map((item: any) => ({
+                    ...item,
+                    createdAt: new Date(item.createdAt),
+                    updatedAt: new Date(item.updatedAt)
+                  })));
+                } else {
+                  setSites(prev => prev.map(site => (site.id === updatedSite.id ? updatedSite : site)));
+                }
               } catch (error) {
-                console.error('Failed to update consumable log:', error);
+                logger.error('Failed to update site', error);
+                toast({ title: 'Error', description: 'Failed to update site in database', variant: 'destructive' });
+              }
+            }}
+            onDeleteSite={async siteId => {
+              if (!isAuthenticated) {
                 toast({
-                  title: "Error",
-                  description: "Failed to update consumable log in database.",
+                  title: 'Authentication Required',
+                  description: 'Please login to delete sites',
+                  variant: 'destructive'
+                });
+                return;
+              }
+              try {
+                if (window.db) {
+                  await window.db.deleteSite(siteId);
+                  const loadedSites = await window.db.getSites();
+                  setSites(loadedSites.map((item: any) => ({
+                    ...item,
+                    createdAt: new Date(item.createdAt),
+                    updatedAt: new Date(item.updatedAt)
+                  })));
+                } else {
+                  setSites(prev => prev.filter(site => site.id !== siteId));
+                }
+              } catch (error) {
+                logger.error('Failed to delete site', error);
+                toast({ title: 'Error', description: 'Failed to delete site from database', variant: 'destructive' });
+              }
+            }}
+            onUpdateAsset={(updatedAsset) => {
+              if (!isAuthenticated) {
+                toast({
+                  title: "Authentication Required",
+                  description: "Please login to update assets",
                   variant: "destructive"
                 });
+                return;
               }
-            } else {
-              setConsumableLogs(prev => prev.map(l => l.id === log.id ? log : l));
-            }
-          }}
-        />
+              setAssets(prev => prev.map(asset => (asset.id === updatedAsset.id ? updatedAsset : asset)));
+            }}
+            onCreateWaybill={handleCreateWaybill}
+            onCreateReturnWaybill={handleCreateReturnWaybill}
+            onProcessReturn={(returnData) => {
+              // Check if returnData has siteId and waybill items
+              if (returnData && returnData.waybillId) {
+                handleProcessReturn(returnData);
+              } else {
+                // If no returnData, fallback to previous behavior
+                handleProcessReturn(returnData);
+              }
+            }}
+            onAddEquipmentLog={async (log: EquipmentLog) => {
+              if (!isAuthenticated) {
+                toast({
+                  title: "Authentication Required",
+                  description: "Please login to add equipment logs",
+                  variant: "destructive"
+                });
+                return;
+              }
+
+              if (window.db) {
+                try {
+                  await window.db.createEquipmentLog(log);
+                  const logs = await window.db.getEquipmentLogs();
+                  setEquipmentLogs(logs);
+                  toast({
+                    title: "Equipment Log Added",
+                    description: "Equipment log saved successfully"
+                  });
+                } catch (error) {
+                  logger.error('Failed to save equipment log', error);
+                  toast({
+                    title: "Error",
+                    description: "Failed to save equipment log to database.",
+                    variant: "destructive"
+                  });
+                }
+              } else {
+                setEquipmentLogs(prev => [...prev, log]);
+              }
+            }}
+            onUpdateEquipmentLog={async (log: EquipmentLog) => {
+              if (!isAuthenticated) {
+                toast({
+                  title: "Authentication Required",
+                  description: "Please login to update equipment logs",
+                  variant: "destructive"
+                });
+                return;
+              }
+
+              if (window.db) {
+                try {
+                  await window.db.updateEquipmentLog(log.id, log);
+                  const logs = await window.db.getEquipmentLogs();
+                  setEquipmentLogs(logs);
+                  toast({
+                    title: "Equipment Log Updated",
+                    description: "Equipment log updated successfully"
+                  });
+                } catch (error) {
+                  logger.error('Failed to update equipment log', error);
+                  toast({
+                    title: "Error",
+                    description: "Failed to update equipment log in database.",
+                    variant: "destructive"
+                  });
+                }
+              } else {
+                setEquipmentLogs(prev => prev.map(l => l.id === log.id ? log : l));
+              }
+            }}
+            onAddConsumableLog={async (log: ConsumableUsageLog) => {
+              if (!isAuthenticated) {
+                toast({
+                  title: "Authentication Required",
+                  description: "Please login to add consumable logs",
+                  variant: "destructive"
+                });
+                return;
+              }
+
+              if (window.db) {
+                try {
+                  await window.db.createConsumableLog(log);
+                  const logs = await window.db.getConsumableLogs();
+                  // Database already returns transformed data (camelCase), no need to map again
+                  setConsumableLogs(logs);
+
+                  // Update asset siteQuantities to reflect consumption
+                  const asset = assets.find(a => a.id === log.consumableId);
+                  if (asset && asset.siteQuantities) {
+                    const updatedSiteQuantities = {
+                      ...asset.siteQuantities,
+                      [log.siteId]: log.quantityRemaining
+                    };
+                    const updatedAsset = {
+                      ...asset,
+                      siteQuantities: updatedSiteQuantities,
+                      updatedAt: new Date()
+                    };
+                    await window.db.updateAsset(asset.id, updatedAsset);
+                    setAssets(prev => prev.map(a => a.id === asset.id ? updatedAsset : a));
+                  }
+
+                  toast({
+                    title: "Consumable Log Added",
+                    description: "Consumable usage log saved successfully"
+                  });
+                } catch (error) {
+                  logger.error('Failed to save consumable log', error);
+                  toast({
+                    title: "Error",
+                    description: "Failed to save consumable log to database.",
+                    variant: "destructive"
+                  });
+                }
+              } else {
+                setConsumableLogs(prev => [...prev, log]);
+              }
+            }}
+            onUpdateConsumableLog={async (log: ConsumableUsageLog) => {
+              if (!isAuthenticated) {
+                toast({
+                  title: "Authentication Required",
+                  description: "Please login to update consumable logs",
+                  variant: "destructive"
+                });
+                return;
+              }
+
+              if (window.db) {
+                try {
+                  const logData = {
+                    ...log,
+                    consumable_id: log.consumableId,
+                    consumable_name: log.consumableName,
+                    site_id: log.siteId,
+                    date: log.date.toISOString(),
+                    quantity_used: log.quantityUsed,
+                    quantity_remaining: log.quantityRemaining,
+                    unit: log.unit,
+                    used_for: log.usedFor,
+                    used_by: log.usedBy,
+                    notes: log.notes
+                  };
+                  await window.db.updateConsumableLog(log.id, logData);
+                  const logs = await window.db.getConsumableLogs();
+                  // Database already returns transformed data (camelCase), no need to map again
+                  setConsumableLogs(logs);
+                } catch (error) {
+                  console.error('Failed to update consumable log:', error);
+                  toast({
+                    title: "Error",
+                    description: "Failed to update consumable log in database.",
+                    variant: "destructive"
+                  });
+                }
+              } else {
+                setConsumableLogs(prev => prev.map(l => l.id === log.id ? log : l));
+              }
+            }}
+          />
         );
       default:
         return <Dashboard assets={assets} waybills={waybills} quickCheckouts={quickCheckouts} sites={sites} equipmentLogs={equipmentLogs} employees={employees} onQuickLogEquipment={async (log: EquipmentLog) => {
@@ -1763,10 +1763,10 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
 
       // Check for duplicate names within imported data
       const importedNames = mapped.map(a => a.name.toLowerCase());
-      const duplicatesInImport = importedNames.filter((name, index) => 
+      const duplicatesInImport = importedNames.filter((name, index) =>
         name && importedNames.indexOf(name) !== index
       );
-      
+
       if (duplicatesInImport.length > 0) {
         const uniqueDuplicates = [...new Set(duplicatesInImport)];
         toast({
@@ -1779,7 +1779,7 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
 
       // Check for duplicates against existing assets
       const existingNames = assets.map(a => a.name.toLowerCase());
-      const duplicatesWithExisting = mapped.filter(asset => 
+      const duplicatesWithExisting = mapped.filter(asset =>
         asset.name && existingNames.includes(asset.name.toLowerCase())
       );
 
@@ -1861,10 +1861,10 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
 
     if (action.type === 'open_form' && action.data) {
       const { formType, prefillData } = action.data;
-      
+
       // Store prefill data with formType embedded
       setAiPrefillData({ ...prefillData, formType });
-      
+
       // Close AI assistant
       setShowAIAssistant(false);
 
@@ -1877,7 +1877,7 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
             description: "Form populated with AI-extracted data",
           });
           break;
-        
+
         case 'asset':
           setActiveTab('add-asset');
           toast({
@@ -1885,7 +1885,7 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
             description: "Form populated with AI-extracted data",
           });
           break;
-        
+
         case 'return':
           setActiveTab('waybills');
           toast({
@@ -1893,7 +1893,7 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
             description: "Form populated with AI-extracted data",
           });
           break;
-        
+
         case 'site':
           setActiveTab('sites');
           toast({
@@ -1901,7 +1901,7 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
             description: "Form populated with AI-extracted data",
           });
           break;
-        
+
         default:
           toast({
             title: "Action Triggered",
@@ -1973,8 +1973,14 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
 
   const isAssetInventoryTab = activeTab === "assets";
 
+  // Calculate AI enabled state (handle all boolean/string/number falsey variants)
+  const aiConfig = (companySettings as any)?.ai?.remote;
+  const aiEnabledVal = aiConfig?.enabled;
+  const isAIEnabled = aiEnabledVal !== false && aiEnabledVal !== 0 && aiEnabledVal !== '0' && aiEnabledVal !== 'false';
+
   return (
     <AIAssistantProvider
+      aiEnabled={isAIEnabled}
       assets={assets}
       sites={sites}
       employees={employees}
@@ -1986,7 +1992,7 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
         {!isMobile && (
           <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
         )}
-        
+
         {/* Mobile Header */}
         {isMobile && (
           <div className="fixed top-0 left-0 right-0 z-50 bg-background border-b border-border p-4 flex items-center justify-between">
@@ -2000,18 +2006,18 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
                 </Button>
               </SheetTrigger>
               <SheetContent side="left" className="w-64 p-0">
-                <Sidebar 
-                  activeTab={activeTab} 
+                <Sidebar
+                  activeTab={activeTab}
                   onTabChange={(tab) => {
                     setActiveTab(tab);
                     setMobileMenuOpen(false);
-                  }} 
+                  }}
                 />
               </SheetContent>
             </Sheet>
           </div>
         )}
-        
+
         <main className={cn(
           "flex-1 overflow-y-auto p-4 md:p-6",
           isMobile && "pt-20"
@@ -2019,223 +2025,225 @@ const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
           {isAssetInventoryTab && (
             <div className="flex flex-col space-y-3 md:space-y-0 md:flex-row md:justify-between md:items-center mb-6">
               <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
-              {isAuthenticated && hasPermission('write_assets') && (
-                <Button
-                  variant="default"
-                  onClick={() => setActiveTab("add-asset")}
-                  className="w-full sm:w-auto bg-gradient-primary"
-                  size={isMobile ? "lg" : "default"}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Asset
-                </Button>
-              )}
-              {isAuthenticated && hasPermission('write_assets') && <BulkImportAssets onImport={handleImport} />}
-      <InventoryReport assets={assets} companySettings={companySettings} />
-      
+                {isAuthenticated && hasPermission('write_assets') && (
+                  <Button
+                    variant="default"
+                    onClick={() => setActiveTab("add-asset")}
+                    className="w-full sm:w-auto bg-gradient-primary"
+                    size={isMobile ? "lg" : "default"}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Asset
+                  </Button>
+                )}
+                {isAuthenticated && hasPermission('write_assets') && <BulkImportAssets onImport={handleImport} />}
+                <InventoryReport assets={assets} companySettings={companySettings} />
+
+              </div>
+
             </div>
+          )}
+          {processingReturnWaybill && (
+            <ReturnProcessingDialog
+              waybill={processingReturnWaybill}
+              onClose={() => setProcessingReturnWaybill(null)}
+              onSubmit={(returnData) => {
+                setProcessingReturnWaybill(null);
+                handleProcessReturn(returnData);
+              }}
+            />
+          )}
 
-          </div>
-        )}
-        {processingReturnWaybill && (
-          <ReturnProcessingDialog
-            waybill={processingReturnWaybill}
-            onClose={() => setProcessingReturnWaybill(null)}
-            onSubmit={(returnData) => {
-              setProcessingReturnWaybill(null);
-              handleProcessReturn(returnData);
-            }}
-          />
-        )}
+          {renderContent()}
 
-        {renderContent()}
+          {/* Edit Dialog */}
+          <Dialog open={!!editingAsset} onOpenChange={open => !open && setEditingAsset(null)}>
+            <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>Edit Asset</DialogHeader>
+              {editingAsset && (
+                <AddAssetForm
+                  asset={editingAsset}
+                  onSave={handleSaveAsset}
+                  onCancel={() => setEditingAsset(null)}
+                  sites={sites}
+                  existingAssets={assets}
+                />
+              )}
+            </DialogContent>
+          </Dialog>
 
-        {/* Edit Dialog */}
-        <Dialog open={!!editingAsset} onOpenChange={open => !open && setEditingAsset(null)}>
-          <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>Edit Asset</DialogHeader>
-            {editingAsset && (
-              <AddAssetForm
-                asset={editingAsset}
-                onSave={handleSaveAsset}
-                onCancel={() => setEditingAsset(null)}
-                sites={sites}
-                existingAssets={assets}
-              />
-            )}
-          </DialogContent>
-        </Dialog>
-
-        {/* Delete Confirmation Dialog */}
-        <Dialog open={!!deletingAsset} onOpenChange={open => !open && setDeletingAsset(null)}>
-          <DialogContent>
-            <DialogHeader>
-              Are you sure you want to delete this asset?
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setDeletingAsset(null)}>
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={confirmDeleteAsset}
-              >
-                Yes, Delete
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          {/* Delete Confirmation Dialog */}
+          <Dialog open={!!deletingAsset} onOpenChange={open => !open && setDeletingAsset(null)}>
+            <DialogContent>
+              <DialogHeader>
+                Are you sure you want to delete this asset?
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDeletingAsset(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={confirmDeleteAsset}
+                >
+                  Yes, Delete
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
 
 
-        {/* Waybill Document Modal */}
-      {showWaybillDocument && (
-        <WaybillDocument 
-          waybill={showWaybillDocument} 
-          sites={sites}
-          companySettings={companySettings}
-          onClose={() => setShowWaybillDocument(null)} 
-        />
-      )}
+          {/* Waybill Document Modal */}
+          {showWaybillDocument && (
+            <WaybillDocument
+              waybill={showWaybillDocument}
+              sites={sites}
+              companySettings={companySettings}
+              onClose={() => setShowWaybillDocument(null)}
+            />
+          )}
 
-        {/* Return Form Modal */}
-        {showReturnForm && (
-          <ReturnForm 
-            waybill={showReturnForm} 
-            onSubmit={handleProcessReturn}
-            onClose={() => setShowReturnForm(null)} 
-          />
-        )}
+          {/* Return Form Modal */}
+          {showReturnForm && (
+            <ReturnForm
+              waybill={showReturnForm}
+              onSubmit={handleProcessReturn}
+              onClose={() => setShowReturnForm(null)}
+            />
+          )}
 
-        {/* Return Waybill Document Modal */}
-      {showReturnWaybillDocument && (
-        <ReturnWaybillDocument 
-          waybill={showReturnWaybillDocument} 
-          sites={sites}
-          companySettings={companySettings}
-          onClose={() => setShowReturnWaybillDocument(null)} 
-        />
-      )}
+          {/* Return Waybill Document Modal */}
+          {showReturnWaybillDocument && (
+            <ReturnWaybillDocument
+              waybill={showReturnWaybillDocument}
+              sites={sites}
+              companySettings={companySettings}
+              onClose={() => setShowReturnWaybillDocument(null)}
+            />
+          )}
 
-        {/* Edit Waybill Dialog */}
-        <Dialog open={!!editingWaybill} onOpenChange={open => !open && setEditingWaybill(null)}>
-          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Edit Waybill {editingWaybill?.id}</DialogTitle>
-            </DialogHeader>
-            {editingWaybill && (
-              <EditWaybillForm
-                waybill={editingWaybill}
-                assets={assets}
-                sites={sites}
-                employees={employees}
-                vehicles={vehicles}
-                onUpdate={async (updatedWaybill) => {
-                  if (!window.db) return;
-                  
-                  try {
-                    const result = await window.db.updateWaybillWithTransaction(
-                      updatedWaybill.id as string,
-                      updatedWaybill
-                    );
-                    
-                    if (!result.success) {
-                      throw new Error(result.error || 'Failed to update waybill');
-                    }
-                    
-                    // Reload assets to reflect reserved quantity changes
-                    const loadedAssets = await window.db.getAssets();
-                    const processedAssets = loadedAssets.map((item: any) => {
-                      const asset = {
+          {/* Edit Waybill Dialog */}
+          <Dialog open={!!editingWaybill} onOpenChange={open => !open && setEditingWaybill(null)}>
+            <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Edit Waybill {editingWaybill?.id}</DialogTitle>
+              </DialogHeader>
+              {editingWaybill && (
+                <EditWaybillForm
+                  waybill={editingWaybill}
+                  assets={assets}
+                  sites={sites}
+                  employees={employees}
+                  vehicles={vehicles}
+                  onUpdate={async (updatedWaybill) => {
+                    if (!window.db) return;
+
+                    try {
+                      const result = await window.db.updateWaybillWithTransaction(
+                        updatedWaybill.id as string,
+                        updatedWaybill
+                      );
+
+                      if (!result.success) {
+                        throw new Error(result.error || 'Failed to update waybill');
+                      }
+
+                      // Reload assets to reflect reserved quantity changes
+                      const loadedAssets = await window.db.getAssets();
+                      const processedAssets = loadedAssets.map((item: any) => {
+                        const asset = {
+                          ...item,
+                          siteQuantities: typeof item.siteQuantities === 'string' ? JSON.parse(item.siteQuantities || '{}') : (item.siteQuantities || {}),
+                          purchaseDate: item.purchaseDate ? new Date(item.purchaseDate) : undefined,
+                          createdAt: new Date(item.createdAt),
+                          updatedAt: new Date(item.updatedAt)
+                        };
+                        return asset;
+                      });
+                      setAssets(processedAssets);
+
+                      // Reload waybills to reflect changes
+                      const loadedWaybills = await window.db.getWaybills();
+                      setWaybills(loadedWaybills.map((item: any) => ({
                         ...item,
-                        siteQuantities: typeof item.siteQuantities === 'string' ? JSON.parse(item.siteQuantities || '{}') : (item.siteQuantities || {}),
-                        purchaseDate: item.purchaseDate ? new Date(item.purchaseDate) : undefined,
+                        issueDate: new Date(item.issueDate),
+                        expectedReturnDate: item.expectedReturnDate ? new Date(item.expectedReturnDate) : undefined,
+                        sentToSiteDate: item.sentToSiteDate ? new Date(item.sentToSiteDate) : undefined,
                         createdAt: new Date(item.createdAt),
                         updatedAt: new Date(item.updatedAt)
-                      };
-                      return asset;
-                    });
-                    setAssets(processedAssets);
+                      })));
 
-                    // Reload waybills to reflect changes
-                    const loadedWaybills = await window.db.getWaybills();
-                    setWaybills(loadedWaybills.map((item: any) => ({
-                      ...item,
-                      issueDate: new Date(item.issueDate),
-                      expectedReturnDate: item.expectedReturnDate ? new Date(item.expectedReturnDate) : undefined,
-                      sentToSiteDate: item.sentToSiteDate ? new Date(item.sentToSiteDate) : undefined,
-                      createdAt: new Date(item.createdAt),
-                      updatedAt: new Date(item.updatedAt)
-                    })));
-                    
-                    setEditingWaybill(null);
-                    toast({
-                      title: "Waybill Updated",
-                      description: `Waybill ${updatedWaybill.id} updated successfully. Reserved quantities adjusted.`
-                    });
-                  } catch (error) {
-                    console.error('Failed to update waybill:', error);
-                    toast({
-                      title: "Error",
-                      description: `Failed to update waybill: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                      variant: "destructive"
-                    });
-                  }
-                }}
-                onCancel={() => setEditingWaybill(null)}
-              />
-            )}
-          </DialogContent>
-        </Dialog>
+                      setEditingWaybill(null);
+                      toast({
+                        title: "Waybill Updated",
+                        description: `Waybill ${updatedWaybill.id} updated successfully. Reserved quantities adjusted.`
+                      });
+                    } catch (error) {
+                      console.error('Failed to update waybill:', error);
+                      toast({
+                        title: "Error",
+                        description: `Failed to update waybill: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                        variant: "destructive"
+                      });
+                    }
+                  }}
+                  onCancel={() => setEditingWaybill(null)}
+                />
+              )}
+            </DialogContent>
+          </Dialog>
 
-        {/* Edit Return Waybill Dialog */}
-        <Dialog open={!!editingReturnWaybill} onOpenChange={open => !open && setEditingReturnWaybill(null)}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Edit Return Waybill</DialogTitle>
-            </DialogHeader>
-            {editingReturnWaybill ? (
-              <ReturnWaybillForm
-                site={sites.find(s => s.id === editingReturnWaybill.siteId) || { id: editingReturnWaybill.siteId, name: 'Unknown Site', location: '', description: '', contactPerson: '', phone: '', status: 'active', createdAt: new Date(), updatedAt: new Date() } as Site}
-                sites={sites}
-                assets={assets}
-                employees={employees}
-                vehicles={vehicles}
-                siteInventory={getSiteInventory(editingReturnWaybill.siteId)}
-                initialWaybill={editingReturnWaybill}
-                isEditMode={true}
-                onCreateReturnWaybill={handleCreateReturnWaybill}
-                onUpdateReturnWaybill={handleUpdateReturnWaybill}
-                onCancel={() => setEditingReturnWaybill(null)}
-              />
-            ) : null}
-          </DialogContent>
-        </Dialog>
+          {/* Edit Return Waybill Dialog */}
+          <Dialog open={!!editingReturnWaybill} onOpenChange={open => !open && setEditingReturnWaybill(null)}>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Edit Return Waybill</DialogTitle>
+              </DialogHeader>
+              {editingReturnWaybill ? (
+                <ReturnWaybillForm
+                  site={sites.find(s => s.id === editingReturnWaybill.siteId) || { id: editingReturnWaybill.siteId, name: 'Unknown Site', location: '', description: '', contactPerson: '', phone: '', status: 'active', createdAt: new Date(), updatedAt: new Date() } as Site}
+                  sites={sites}
+                  assets={assets}
+                  employees={employees}
+                  vehicles={vehicles}
+                  siteInventory={getSiteInventory(editingReturnWaybill.siteId)}
+                  initialWaybill={editingReturnWaybill}
+                  isEditMode={true}
+                  onCreateReturnWaybill={handleCreateReturnWaybill}
+                  onUpdateReturnWaybill={handleUpdateReturnWaybill}
+                  onCancel={() => setEditingReturnWaybill(null)}
+                />
+              ) : null}
+            </DialogContent>
+          </Dialog>
 
-        {/* Asset Analytics Dialog */}
-        <AssetAnalyticsDialog
-          asset={selectedAssetForAnalytics}
-          open={showAnalyticsDialog}
-          onOpenChange={setShowAnalyticsDialog}
-        />
+          {/* Asset Analytics Dialog */}
+          <AssetAnalyticsDialog
+            asset={selectedAssetForAnalytics}
+            open={showAnalyticsDialog}
+            onOpenChange={setShowAnalyticsDialog}
+          />
 
-        {/* AI Assistant Dialog */}
-        <Dialog open={showAIAssistant} onOpenChange={setShowAIAssistant}>
-          <DialogContent className="max-w-2xl h-[80vh] p-0">
-            <AIAssistantChat />
-          </DialogContent>
-        </Dialog>
+          {/* AI Assistant Dialog */}
+          <Dialog open={showAIAssistant} onOpenChange={setShowAIAssistant}>
+            <DialogContent className="max-w-2xl h-[80vh] p-0">
+              <AIAssistantChat />
+            </DialogContent>
+          </Dialog>
 
-        {/* Floating AI Assistant Button */}
-        <Button
-          onClick={() => setShowAIAssistant(true)}
-          className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 z-50 bg-gradient-primary"
-          size="icon"
-        >
-          <Bot className="h-6 w-6" />
-        </Button>
-      </main>
-    </div>
+          {/* Floating AI Assistant Button - Only shown when AI is enabled */}
+          {isAIEnabled && (
+            <Button
+              onClick={() => setShowAIAssistant(true)}
+              className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 z-50 bg-gradient-primary"
+              size="icon"
+            >
+              <Bot className="h-6 w-6" />
+            </Button>
+          )}
+        </main>
+      </div>
     </AIAssistantProvider>
   );
 };
