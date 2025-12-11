@@ -16,8 +16,8 @@ interface ReturnWaybillDocumentProps {
 
 export const ReturnWaybillDocument = ({ waybill, sites, companySettings, onClose }: ReturnWaybillDocumentProps) => {
   const { hasPermission } = useAuth();
-  const handlePrint = () => {
-    const { pdf } = generateProfessionalPDF({
+  const handlePrint = async () => {
+    const { pdf } = await generateProfessionalPDF({
       waybill,
       companySettings,
       sites,
@@ -37,8 +37,8 @@ export const ReturnWaybillDocument = ({ waybill, sites, companySettings, onClose
     }
   };
 
-  const handleDownloadPDF = () => {
-    const { pdf } = generateProfessionalPDF({
+  const handleDownloadPDF = async () => {
+    const { pdf } = await generateProfessionalPDF({
       waybill,
       companySettings,
       sites,
@@ -72,25 +72,25 @@ export const ReturnWaybillDocument = ({ waybill, sites, companySettings, onClose
               </div>
               <div>
                 <DialogTitle className="text-2xl">Return Waybill {waybill.id}</DialogTitle>
-            <div className="flex items-center gap-2 mt-1">
-              {getStatusBadge(waybill.status)}
-              <span className="text-sm text-muted-foreground">
-                Created: {new Date(waybill.createdAt).toLocaleDateString()}
-              </span>
-              {waybill.status === 'return_completed' && (
-                <span className="text-sm text-muted-foreground ml-4">
-                  Actual Return: {new Date(waybill.updatedAt).toLocaleDateString()}
-                </span>
-              )}
-              {waybill.siteId && (
-                <div className="flex items-center gap-1 ml-4">
-                  <MapPin className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground font-medium">
-                    {sites.find(site => site.id === waybill.siteId)?.name || 'Unknown Site'}
+                <div className="flex items-center gap-2 mt-1">
+                  {getStatusBadge(waybill.status)}
+                  <span className="text-sm text-muted-foreground">
+                    Created: {new Date(waybill.createdAt).toLocaleDateString()}
                   </span>
+                  {waybill.status === 'return_completed' && (
+                    <span className="text-sm text-muted-foreground ml-4">
+                      Actual Return: {new Date(waybill.updatedAt).toLocaleDateString()}
+                    </span>
+                  )}
+                  {waybill.siteId && (
+                    <div className="flex items-center gap-1 ml-4">
+                      <MapPin className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground font-medium">
+                        {sites.find(site => site.id === waybill.siteId)?.name || 'Unknown Site'}
+                      </span>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
               </div>
             </div>
             <div className="flex gap-2">
@@ -180,7 +180,7 @@ export const ReturnWaybillDocument = ({ waybill, sites, companySettings, onClose
                     <Badge
                       variant={
                         item.status === 'outstanding' ? 'secondary' :
-                        item.status === 'return_completed' ? 'default' : 'outline'
+                          item.status === 'return_completed' ? 'default' : 'outline'
                       }
                       className="text-xs"
                     >
@@ -190,27 +190,27 @@ export const ReturnWaybillDocument = ({ waybill, sites, companySettings, onClose
                 </div>
               ))}
             </div>
-            </div>
+          </div>
 
-            {/* Summary */}
-            <div className="bg-muted/30 p-4 rounded-lg print:bg-transparent print:border">
-              <div className="flex justify-between items-center text-sm">
-                <span>Total Items:</span>
-                <span className="font-medium">{waybill.items.length}</span>
-              </div>
-              <div className="flex justify-between items-center text-sm mt-1">
-                <span>Total Quantity Expected:</span>
-                <span className="font-medium">
-                  {waybill.items.reduce((sum, item) => sum + item.quantity, 0)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center text-sm mt-1">
-                <span>Total Quantity Returned:</span>
-                <span className="font-medium">
-                  {waybill.items.reduce((sum, item) => sum + item.returnedQuantity, 0)}
-                </span>
-              </div>
+          {/* Summary */}
+          <div className="bg-muted/30 p-4 rounded-lg print:bg-transparent print:border">
+            <div className="flex justify-between items-center text-sm">
+              <span>Total Items:</span>
+              <span className="font-medium">{waybill.items.length}</span>
             </div>
+            <div className="flex justify-between items-center text-sm mt-1">
+              <span>Total Quantity Expected:</span>
+              <span className="font-medium">
+                {waybill.items.reduce((sum, item) => sum + item.quantity, 0)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center text-sm mt-1">
+              <span>Total Quantity Returned:</span>
+              <span className="font-medium">
+                {waybill.items.reduce((sum, item) => sum + item.returnedQuantity, 0)}
+              </span>
+            </div>
+          </div>
         </div>
 
         <div className="flex justify-end gap-3 pt-6 print:hidden">

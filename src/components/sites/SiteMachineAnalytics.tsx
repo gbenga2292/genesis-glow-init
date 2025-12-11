@@ -163,7 +163,7 @@ export const SiteMachineAnalytics = ({
     };
   }, [machineAnalytics]);
 
-  const generatePDFReport = () => {
+  const generatePDFReport = async () => {
     if (!companySettings) return;
 
     const periodLabel = selectedPeriod.charAt(0).toUpperCase() + selectedPeriod.slice(1);
@@ -180,7 +180,7 @@ export const SiteMachineAnalytics = ({
       avgDowntime: machine.averageDowntimePerActiveDay.toFixed(2)
     }));
 
-    generateUnifiedReport({
+    await generateUnifiedReport({
       title: 'Machine Analytics Report',
       subtitle: `${site.name} | ${periodLabel} Period`,
       reportType: `${dateRangeText}`,

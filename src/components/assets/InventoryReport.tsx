@@ -37,7 +37,7 @@ export const InventoryReport = ({ assets, companySettings }: InventoryReportProp
   // Use provided companySettings or default to company information
   const effectiveCompanySettings = companySettings || defaultCompanySettings;
 
-  const generateReport = (filteredAssets: Asset[], title: string) => {
+  const generateReport = async (filteredAssets: Asset[], title: string) => {
     setLoading(true);
 
     // Calculate summary statistics
@@ -59,7 +59,7 @@ export const InventoryReport = ({ assets, companySettings }: InventoryReportProp
       description: asset.description || '-'
     }));
 
-    generateUnifiedReport({
+    await generateUnifiedReport({
       title: 'Inventory Report',
       subtitle: title,
       reportType: 'INVENTORY',

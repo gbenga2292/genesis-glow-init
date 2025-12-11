@@ -11,7 +11,6 @@ import { ShoppingCart, RotateCcw, User, Calendar, Trash2, FileText } from "lucid
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { QuickCheckoutReport } from "./QuickCheckoutReport";
-import { EmployeeAnalyticsDialog } from "./EmployeeAnalyticsDialog";
 
 interface QuickCheckoutFormProps {
   assets: Asset[];
@@ -21,6 +20,7 @@ interface QuickCheckoutFormProps {
   onReturnItem: (checkoutId: string) => void;
   onPartialReturn?: (checkoutId: string, quantity: number, condition: 'good' | 'damaged' | 'missing') => void;
   onDeleteCheckout?: (checkoutId: string) => void;
+  onNavigateToAnalytics?: () => void;
 }
 
 export const QuickCheckoutForm = ({
@@ -30,7 +30,8 @@ export const QuickCheckoutForm = ({
   onQuickCheckout,
   onReturnItem,
   onPartialReturn,
-  onDeleteCheckout
+  onDeleteCheckout,
+  onNavigateToAnalytics
 }: QuickCheckoutFormProps) => {
   const [formData, setFormData] = useState({
     assetId: '',
@@ -150,12 +151,12 @@ export const QuickCheckoutForm = ({
           <p className="text-muted-foreground mt-2">
             Fast checkout for individual employees and short-term loans
           </p>
-          <p className="text-muted-foreground mt-2">
-            Fast checkout for individual employees and short-term loans
-          </p>
         </div>
         <div className="flex gap-2">
-          <EmployeeAnalyticsDialog employees={employees} quickCheckouts={quickCheckouts} />
+          <Button variant="outline" className="gap-2" onClick={onNavigateToAnalytics}>
+            <User className="h-4 w-4" />
+            Employees
+          </Button>
           <QuickCheckoutReport quickCheckouts={quickCheckouts} />
         </div>
       </div>

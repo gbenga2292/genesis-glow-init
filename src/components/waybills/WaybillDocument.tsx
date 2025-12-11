@@ -18,8 +18,8 @@ export const WaybillDocument = ({ waybill, sites, companySettings, onClose }: Wa
   const { hasPermission } = useAuth();
   const documentType = waybill.type === 'return' ? 'Return Waybill' : 'Waybill';
 
-  const handlePrint = () => {
-    const { pdf } = generateProfessionalPDF({
+  const handlePrint = async () => {
+    const { pdf } = await generateProfessionalPDF({
       waybill,
       companySettings,
       sites,
@@ -39,8 +39,8 @@ export const WaybillDocument = ({ waybill, sites, companySettings, onClose }: Wa
     }
   };
 
-  const handleDownloadPDF = () => {
-    const { pdf } = generateProfessionalPDF({
+  const handleDownloadPDF = async () => {
+    const { pdf } = await generateProfessionalPDF({
       waybill,
       companySettings,
       sites,
@@ -72,24 +72,24 @@ export const WaybillDocument = ({ waybill, sites, companySettings, onClose }: Wa
               <div className="w-10 h-10 bg-gradient-primary rounded-full flex items-center justify-center">
                 <FileText className="h-5 w-5 text-white" />
               </div>
-                <div>
-                  <DialogTitle className="text-2xl">Waybill {waybill.id}</DialogTitle>
-                  <div className="flex items-center gap-2 mt-1">
-                    {getStatusBadge(waybill.status)}
-                    <span className="text-sm text-muted-foreground">
-                      Created: {new Date(waybill.createdAt).toLocaleDateString()}
-                    </span>
-                    {waybill.siteId && (
-                      <div className="flex items-center gap-1 ml-4">
-                        <MapPin className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground font-medium">
-                          {sites.find(site => site.id === waybill.siteId)?.name || 'Unknown Site'}
-                        </span>
-                      </div>
-                    )}
-                  </div>
+              <div>
+                <DialogTitle className="text-2xl">Waybill {waybill.id}</DialogTitle>
+                <div className="flex items-center gap-2 mt-1">
+                  {getStatusBadge(waybill.status)}
+                  <span className="text-sm text-muted-foreground">
+                    Created: {new Date(waybill.createdAt).toLocaleDateString()}
+                  </span>
+                  {waybill.siteId && (
+                    <div className="flex items-center gap-1 ml-4">
+                      <MapPin className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground font-medium">
+                        {sites.find(site => site.id === waybill.siteId)?.name || 'Unknown Site'}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
+            </div>
             <div className="flex gap-2">
               <Button onClick={handlePrint} variant="outline" className="gap-2" disabled={waybill.status === 'outstanding' || !hasPermission('print_documents')}>
                 <Printer className="h-4 w-4" />
@@ -136,7 +136,7 @@ export const WaybillDocument = ({ waybill, sites, companySettings, onClose }: Wa
                     <p className="font-medium">{waybill.driverName}</p>
                   </div>
                 </div>
-                
+
                 {waybill.vehicle && (
                   <div className="flex items-center gap-2">
                     <Truck className="h-4 w-4 text-muted-foreground" />
@@ -167,17 +167,17 @@ export const WaybillDocument = ({ waybill, sites, companySettings, onClose }: Wa
                 <div>Quantity Returned</div>
                 <div>Status</div>
               </div>
-              
+
               {waybill.items.map((item, index) => (
                 <div key={index} className="px-4 py-3 border-t grid grid-cols-4 gap-4 text-sm">
                   <div className="font-medium">{item.assetName}</div>
                   <div>{item.quantity}</div>
                   <div>{item.returnedQuantity}</div>
                   <div>
-                    <Badge 
+                    <Badge
                       variant={
                         item.status === 'outstanding' ? 'secondary' :
-                        item.status === 'return_completed' ? 'default' : 'outline'
+                          item.status === 'return_completed' ? 'default' : 'outline'
                       }
                       className="text-xs"
                     >

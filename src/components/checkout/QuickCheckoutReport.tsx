@@ -37,7 +37,7 @@ export const QuickCheckoutReport = ({ quickCheckouts, companySettings }: QuickCh
   const [selectedReport, setSelectedReport] = useState("all");
   const [previewData, setPreviewData] = useState<{ checkouts: QuickCheckout[]; title: string } | null>(null);
 
-  const generatePDFReport = (filteredCheckouts: QuickCheckout[], title: string) => {
+  const generatePDFReport = async (filteredCheckouts: QuickCheckout[], title: string) => {
     setLoading(true);
 
     const effectiveSettings = companySettings || defaultCompanySettings;
@@ -61,7 +61,7 @@ export const QuickCheckoutReport = ({ quickCheckouts, companySettings }: QuickCh
       status: checkout.status.replace('_', ' ').toUpperCase()
     }));
 
-    generateUnifiedReport({
+    await generateUnifiedReport({
       title: 'Quick Checkout Report',
       subtitle: title,
       reportType: 'CHECKOUTS',

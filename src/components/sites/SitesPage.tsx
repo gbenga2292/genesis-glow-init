@@ -214,7 +214,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
     }
   };
 
-  const handleGenerateTransactionsReport = () => {
+  const handleGenerateTransactionsReport = async () => {
     if (selectedSiteForReport && companySettings) {
       // Get and sort transactions
       const siteTransactions = transactions
@@ -243,7 +243,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
         notes: transaction.notes || '-'
       }));
 
-      generateUnifiedReport({
+      await generateUnifiedReport({
         title: 'Site Transactions Report',
         subtitle: `${selectedSiteForReport.name} - Transaction History`,
         reportType: 'SITE TRANSACTIONS',
@@ -283,7 +283,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
     setShowWaybillView(true);
   };
 
-  const generateReport = (assetsToReport: Asset[], title: string) => {
+  const generateReport = async (assetsToReport: Asset[], title: string) => {
     if (!companySettings) return;
 
     // Calculate summary statistics
@@ -307,7 +307,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
       cost: asset.cost || 0
     }));
 
-    generateUnifiedReport({
+    await generateUnifiedReport({
       title: 'Site Materials Report',
       subtitle: title,
       reportType: 'MATERIALS ON SITE',
@@ -336,7 +336,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
     });
   };
 
-  const generateWaybillPDF = (waybill: Waybill) => {
+  const generateWaybillPDF = async (waybill: Waybill) => {
     if (!companySettings) return;
 
     const site = sites.find(s => s.id === waybill.siteId);
@@ -356,7 +356,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
     const totalReturned = waybill.items.reduce((sum, item) => sum + (item.returnedQuantity || 0), 0);
     const outstandingQty = totalQuantity - totalReturned;
 
-    generateUnifiedReport({
+    await generateUnifiedReport({
       title: waybill.type === 'return' ? 'Return Waybill' : 'Waybill',
       subtitle: `Waybill #${waybill.id} | Driver: ${waybill.driverName} | Vehicle: ${waybill.vehicle}`,
       reportType: `${waybill.type === 'return' ? 'RETURN' : 'OUTBOUND'} | Site: ${siteName}`,
@@ -461,7 +461,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
                     </Button>
                   </CollapsibleTrigger>
                 </div>
-                
+
                 <CollapsibleContent className="space-y-2">
                   {(() => {
                     const materialsAtSite = getSiteInventory(selectedSite.id);
@@ -529,7 +529,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
                     </Button>
                   </CollapsibleTrigger>
                 </div>
-                
+
                 <CollapsibleContent className="space-y-2">
                   {waybills.filter(waybill => waybill.siteId === selectedSite.id).length === 0 ? (
                     <p className="text-muted-foreground">No waybills for this site.</p>
@@ -707,7 +707,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
                     const siteTransactions = transactions
                       .filter((t) => t.siteId === selectedSite.id)
                       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-                    
+
                     // Group by referenceId (waybill ID)
                     const grouped = siteTransactions.reduce((acc, t) => {
                       const key = t.referenceId || 'Unassigned';
@@ -755,7 +755,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
                     const siteTransactions = transactions
                       .filter((t) => t.siteId === selectedSite.id)
                       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-                    
+
                     const inflows = siteTransactions.filter(t => t.type === 'in');
                     const outflows = siteTransactions.filter(t => t.type === 'out');
 

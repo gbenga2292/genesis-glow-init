@@ -19,6 +19,7 @@ import { ReturnWaybillForm } from "@/components/waybills/ReturnWaybillForm";
 import { ReturnWaybillDocument } from "@/components/waybills/ReturnWaybillDocument";
 import { ReturnProcessingDialog } from "@/components/waybills/ReturnProcessingDialog";
 import { QuickCheckoutForm } from "@/components/checkout/QuickCheckoutForm";
+import { EmployeeAnalyticsPage } from "@/components/checkout/EmployeeAnalyticsPage";
 
 import { CompanySettings } from "@/components/settings/CompanySettings";
 import { Asset, Waybill, WaybillItem, QuickCheckout, ReturnBill, Site, CompanySettings as CompanySettingsType, Employee, ReturnItem, SiteTransaction, Vehicle } from "@/types/asset";
@@ -1252,6 +1253,39 @@ const Index = () => {
     }
   };
 
+  const handleDeleteCheckout = async (checkoutId: string) => {
+    if (!isAuthenticated) {
+      toast({
+        title: "Authentication Required",
+        description: "Please login to delete checkout items",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      if (window.db) {
+        await window.db.deleteQuickCheckout(checkoutId);
+      }
+      setQuickCheckouts(prev => prev.filter(c => c.id !== checkoutId));
+
+      await logActivity({
+        action: 'delete',
+        entity: 'checkout',
+        entityId: checkoutId,
+        details: `Deleted checkout ${checkoutId}`
+      });
+
+      toast({
+        title: "Checkout Deleted",
+        description: `Checkout item deleted successfully`
+      });
+    } catch (err) {
+      logger.error("Failed to delete checkout", err);
+      toast({ title: "Error", description: "Failed to delete checkout", variant: "destructive" });
+    }
+  };
+
   const handleReturnItem = (checkoutId: string) => {
     handleUpdateCheckoutStatus(checkoutId, 'return_completed');
   };
@@ -1492,22 +1526,16 @@ const Index = () => {
           onQuickCheckout={handleQuickCheckout}
           onReturnItem={handleReturnItem}
           onPartialReturn={handlePartialReturn}
-          onDeleteCheckout={(checkoutId) => {
-            if (!isAuthenticated) {
-              toast({
-                title: "Authentication Required",
-                description: "Please login to delete checkout items",
-                variant: "destructive"
-              });
-              return;
-            }
-            setQuickCheckouts(prev => prev.filter(c => c.id !== checkoutId));
-            toast({
-              title: "Checkout Deleted",
-              description: `Checkout item deleted successfully`
-            });
-          }}
+          onDeleteCheckout={handleDeleteCheckout}
+          onNavigateToAnalytics={() => setActiveTab("employee-analytics")}
         />;
+      case "employee-analytics":
+        return <EmployeeAnalyticsPage
+          employees={employees}
+          quickCheckouts={quickCheckouts}
+          onBack={() => setActiveTab("quick-checkout")}
+        />;
+
       case "settings":
         return (
           <CompanySettings
