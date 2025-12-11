@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { CompanySettings as CompanySettingsType, Employee, Asset, Waybill, QuickCheckout, Site, SiteTransaction, Activity, Vehicle } from "@/types/asset";
-import { Settings, Upload, Save, Building, Phone, Globe, Trash2, Download, UploadCloud, Loader2, Sun, FileText, Activity as ActivityIcon, Users, UserPlus, Edit, UserMinus, Car, Database, Bot } from "lucide-react";
+import { Settings, Upload, Save, Building, Phone, Globe, Trash2, Download, UploadCloud, Loader2, Sun, FileText, Activity as ActivityIcon, Users, UserPlus, Edit, UserMinus, Car, Database, Bot, BarChart3 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "next-themes";
 import { Switch } from "@/components/ui/switch";
@@ -20,6 +20,7 @@ import { saveAs } from "file-saver";
 import { logActivity, exportActivitiesToTxt, getActivities, clearActivities } from "@/utils/activityLogger";
 import { useAuth, User, UserRole } from "@/contexts/AuthContext";
 import { SyncStatusPanel } from "./SyncStatusPanel";
+import { EmployeeAnalytics } from "./EmployeeAnalytics";
 
 interface CompanySettingsProps {
   settings: CompanySettingsType;
@@ -37,7 +38,9 @@ interface CompanySettingsProps {
   sites: Site[];
   onSitesChange: (sites: Site[]) => void;
   siteTransactions: SiteTransaction[];
+
   onSiteTransactionsChange: (siteTransactions: SiteTransaction[]) => void;
+  onUpdateCheckoutStatus?: (checkoutId: string, status: 'return_completed' | 'used' | 'lost' | 'damaged', quantity?: number) => void;
   equipmentLogs?: any[];
   onEquipmentLogsChange?: (logs: any[]) => void;
   consumableLogs?: any[];
@@ -47,7 +50,7 @@ interface CompanySettingsProps {
   onResetAllData: () => void;
 }
 
-export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange, vehicles, onVehiclesChange, assets, onAssetsChange, waybills, onWaybillsChange, quickCheckouts, onQuickCheckoutsChange, sites, onSitesChange, siteTransactions, onSiteTransactionsChange, equipmentLogs = [], onEquipmentLogsChange, consumableLogs = [], onConsumableLogsChange, activities: activitiesFromProps = [], onActivitiesChange, onResetAllData }: CompanySettingsProps) => {
+export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange, vehicles, onVehiclesChange, assets, onAssetsChange, waybills, onWaybillsChange, quickCheckouts, onQuickCheckoutsChange, sites, onSitesChange, siteTransactions, onSiteTransactionsChange, onUpdateCheckoutStatus, equipmentLogs = [], onEquipmentLogsChange, consumableLogs = [], onConsumableLogsChange, activities: activitiesFromProps = [], onActivitiesChange, onResetAllData }: CompanySettingsProps) => {
   const defaultSettings: CompanySettingsType = {
     companyName: "Dewatering Construction Etc Limited",
     logo: undefined,
@@ -95,6 +98,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
   const [newUserName, setNewUserName] = useState('');
   const [newUserUsername, setNewUserUsername] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
+  const [analyticsEmployee, setAnalyticsEmployee] = useState<Employee | null>(null);
   const [newUserRole, setNewUserRole] = useState<UserRole>('staff');
   const [newUserEmail, setNewUserEmail] = useState('');
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
@@ -1098,8 +1102,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           id: user.id,
           name: user.name,
           username: user.username,
-          role: user.role,
-          email: user.email || null
+          role: user.role
         }));
       }
 
@@ -1334,7 +1337,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           let idx = 0;
           for (const waybill of waybills) {
             try {
-              await window.db.createWaybill(waybill);
+              await window.db.createWaybill(waybill, { skipStockUpdate: true });
             } catch (err) {
               logger.warn(`Could not restore waybill ${waybill.id} - may already exist`, err);
               waybillPersistErrors.push({ id: waybill.id, error: err });
@@ -1775,6 +1778,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       setNewUserUsername('');
       setNewUserPassword('');
       setNewUserRole('staff');
+      setIsAddUserDialogOpen(false);
       toast({
         title: "User Created",
         description: "New user has been created successfully."
@@ -1796,7 +1800,6 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       setEditUserUsername(user.username);
       setEditUserPassword('');
       setEditUserRole(user.role);
-      setEditUserEmail(user.email || '');
     }
   };
 
@@ -1806,8 +1809,6 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     const updateData: any = {
       name: editUserName.trim(),
       username: editUserUsername.trim(),
-      role: editUserRole,
-      email: editUserEmail.trim() || undefined
     };
 
     // Only include password if it's been entered
@@ -1825,7 +1826,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       setEditUserUsername('');
       setEditUserPassword('');
       setEditUserRole('staff');
-      setEditUserEmail('');
+      setEditUserRole('staff');
       toast({
         title: "User Updated",
         description: "User has been updated successfully."
@@ -1863,7 +1864,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     setEditUserUsername('');
     setEditUserPassword('');
     setEditUserRole('staff');
-    setEditUserEmail('');
+    setEditUserRole('staff');
   };
 
   return (
@@ -2025,7 +2026,6 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                               <TableHead>Name</TableHead>
                               <TableHead>Username</TableHead>
                               <TableHead>Role</TableHead>
-                              <TableHead>Email</TableHead>
                               <TableHead>Actions</TableHead>
                             </TableRow>
                           </TableHeader>
@@ -2062,13 +2062,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                                         </SelectContent>
                                       </Select>
                                     </TableCell>
-                                    <TableCell>
-                                      <Input
-                                        value={editUserEmail}
-                                        onChange={(e) => setEditUserEmail(e.target.value)}
-                                        placeholder="Email"
-                                      />
-                                    </TableCell>
+
                                     <TableCell>
                                       <div className="flex gap-1">
                                         <Button size="sm" onClick={handleSaveUserEdit}>Save</Button>
@@ -2081,7 +2075,6 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                                     <TableCell>{user.name}</TableCell>
                                     <TableCell>@{user.username}</TableCell>
                                     <TableCell className="capitalize">{user.role.replace('_', ' ')}</TableCell>
-                                    <TableCell>{user.email || 'No email'}</TableCell>
                                     <TableCell>
                                       <div className="flex gap-1">
                                         <Button size="sm" variant="outline" onClick={() => handleEditUser(user.id)}>
@@ -2145,12 +2138,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                                     <SelectItem value="staff">Staff</SelectItem>
                                   </SelectContent>
                                 </Select>
-                                <Input
-                                  value={editUserEmail}
-                                  onChange={(e) => setEditUserEmail(e.target.value)}
-                                  placeholder="Email"
-                                  className="flex-1"
-                                />
+
                                 <Button size="sm" onClick={handleSaveUserEdit}>Save</Button>
                                 <Button size="sm" variant="outline" onClick={handleCancelUserEdit}>Cancel</Button>
                               </div>
@@ -2159,7 +2147,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                                 <div>
                                   <div className="font-medium">{user.name}</div>
                                   <div className="text-sm text-muted-foreground">
-                                    @{user.username} • {user.role.replace('_', ' ')} • {user.email || 'No email'}
+                                    @{user.username} • {user.role.replace('_', ' ')}
                                   </div>
                                 </div>
                                 <div className="flex gap-1">
@@ -2225,11 +2213,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                       <SelectItem value="staff">Staff</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Input
-                    value={newUserEmail}
-                    onChange={(e) => setNewUserEmail(e.target.value)}
-                    placeholder="Email (optional)"
-                  />
+
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setIsAddUserDialogOpen(false)}>Cancel</Button>
@@ -2335,6 +2319,9 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                           <>
                             <span>{emp.name} ({emp.role}) {emp.email && `- ${emp.email}`}</span>
                             <div className="flex gap-1">
+                              <Button size="sm" variant="ghost" onClick={() => setAnalyticsEmployee(emp)} title="View Analytics">
+                                <BarChart3 className="h-4 w-4" />
+                              </Button>
                               <Button size="sm" variant="outline" onClick={() => handleEditEmployee(emp.id)}>Edit</Button>
                               <Button size="sm" variant="destructive" onClick={() => { setEmployeeToDelist(emp); setIsDelistEmployeeDialogOpen(true); }}>Delist</Button>
                             </div>
@@ -3208,10 +3195,23 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         </TabsContent >
 
         {/* Database Sync Tab */}
-        < TabsContent value="sync" className="space-y-6" >
+        <TabsContent value="sync" className="space-y-6">
           <SyncStatusPanel />
-        </TabsContent >
-      </Tabs >
-    </div >
+        </TabsContent>
+      </Tabs>
+
+      {/* Employee Analytics Dialog */}
+      <Dialog open={!!analyticsEmployee} onOpenChange={(open) => !open && setAnalyticsEmployee(null)}>
+        {analyticsEmployee && (
+          <EmployeeAnalytics
+            employee={analyticsEmployee}
+            assets={assets}
+            quickCheckouts={quickCheckouts}
+            onUpdateCheckoutStatus={onUpdateCheckoutStatus}
+            onClose={() => setAnalyticsEmployee(null)}
+          />
+        )}
+      </Dialog>
+    </div>
   );
 };

@@ -26,7 +26,7 @@ interface Window {
     updateAsset: (id: string, data: any) => Promise<any>;
     deleteAsset: (id: string) => Promise<any>;
     getWaybills: () => Promise<any[]>;
-    createWaybill: (data: any) => Promise<any>;
+    createWaybill: (data: any, options?: any) => Promise<any>;
     updateWaybill: (id: string, data: any) => Promise<any>;
     deleteWaybill: (id: string) => Promise<any>;
     getWaybillItems: () => Promise<any[]>;
@@ -66,7 +66,7 @@ interface Window {
     getMetricsSnapshots: (days?: number) => Promise<any[]>;
     getTodayMetricsSnapshot: () => Promise<any>;
     createMetricsSnapshot: (data: any) => Promise<any[]>;
-    createWaybillWithTransaction: (waybillData: any) => Promise<{ success: boolean; waybill?: any; error?: string }>;
+    createWaybillWithTransaction: (waybillData: any, options?: any) => Promise<{ success: boolean; waybill?: any; error?: string }>;
     processReturnWithTransaction: (returnData: any) => Promise<{ success: boolean; returnBill?: any; error?: string }>;
     sendToSiteWithTransaction: (waybillId: string, sentToSiteDate?: string) => Promise<{ success: boolean; error?: string }>;
     deleteWaybillWithTransaction: (waybillId: string) => Promise<{ success: boolean; error?: string }>;
@@ -77,8 +77,8 @@ interface Window {
     setActiveApiKey: (id: number) => Promise<any[]>;
     deleteSavedApiKey: (id: number) => Promise<any>;
     getActiveApiKey: () => Promise<any>;
-  migrateSavedKeysToKeytar: () => Promise<{ migrated: number }>;
-  getApiKeyFromKeyRef: (keyRef: string) => Promise<string | null>;
+    migrateSavedKeysToKeytar: () => Promise<{ migrated: number }>;
+    getApiKeyFromKeyRef: (keyRef: string) => Promise<string | null>;
     getDatabaseInfo: () => Promise<{ storageType: string; dbPath: string; masterDbPath: string; localDbPath: string; lockingEnabled: boolean }>;
     wipeLocalDatabase: () => Promise<{ success: boolean; message?: string; error?: string }>;
   };

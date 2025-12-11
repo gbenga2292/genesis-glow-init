@@ -16,6 +16,7 @@ export interface Asset {
   condition: 'excellent' | 'good' | 'fair' | 'poor';
   missingCount?: number;
   damagedCount?: number;
+  usedCount?: number;
   lowStockLevel: number;
   criticalStockLevel: number;
   purchaseDate?: Date;
@@ -72,7 +73,7 @@ export interface QuickCheckout {
   checkoutDate: Date;
   expectedReturnDays: number;
   returnDate?: Date;
-  status: 'outstanding' | 'return_completed' | 'lost' | 'damaged';
+  status: 'outstanding' | 'return_completed' | 'lost' | 'damaged' | 'used';
 }
 
 export interface ReturnBill {

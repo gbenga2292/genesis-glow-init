@@ -24,6 +24,7 @@ export function transformAssetFromDB(dbAsset) {
     availableQuantity: dbAsset.available_quantity || 0,
     damagedCount: dbAsset.damaged_count || 0,
     missingCount: dbAsset.missing_count || 0,
+    usedCount: dbAsset.used_count || 0,
   };
 }
 
@@ -45,6 +46,7 @@ export function transformAssetToDB(asset) {
     condition: asset.condition,
     missing_count: asset.missingCount,
     damaged_count: asset.damagedCount,
+    used_count: asset.usedCount,
     low_stock_level: asset.lowStockLevel,
     critical_stock_level: asset.criticalStockLevel,
     purchase_date: asset.purchaseDate,
@@ -200,7 +202,7 @@ export function transformCompanySettingsFromDB(dbSettings) {
       push: dbSettings.notifications_push,
     },
     // Parse stored AI config JSON if present
-    ai: (function() {
+    ai: (function () {
       if (!dbSettings || !dbSettings.ai_config) return undefined;
       try {
         return JSON.parse(dbSettings.ai_config);
@@ -340,4 +342,48 @@ export function transformConsumableLogToDB(log) {
     created_at: log.createdAt instanceof Date ? log.createdAt.toISOString() : log.createdAt,
     updated_at: log.updatedAt instanceof Date ? log.updatedAt.toISOString() : log.updatedAt,
   };
+}
+
+/**
+ * Transform quick checkout data from database format to frontend format
+ */
+export function transformQuickCheckoutFromDB(dbCheckout) {
+  return {
+    id: String(dbCheckout.id),
+    assetId: String(dbCheckout.asset_id),
+    assetName: dbCheckout.asset_name,
+    employee: dbCheckout.employee_name || (dbCheckout.employee_id ? String(dbCheckout.employee_id) : dbCheckout.employee), // Use joined name, fallback to ID/legacy column
+    quantity: dbCheckout.quantity,
+    checkoutDate: new Date(dbCheckout.checkout_date),
+    expectedReturnDays: dbCheckout.expected_return_days,
+    status: dbCheckout.status,
+    returnedQuantity: dbCheckout.returned_quantity || 0,
+    createdAt: new Date(dbCheckout.created_at),
+    updatedAt: new Date(dbCheckout.updated_at),
+  };
+}
+
+/**
+ * Transform quick checkout data from frontend format to database format
+ */
+export function transformQuickCheckoutToDB(checkout) {
+  // Ensure strict mapping to DB schema (snake_case)
+  // quick_checkouts table columns: id, asset_id, employee_id, quantity, checkout_date, expected_return_days, status, returned_quantity, created_at, updated_at
+
+  const dbData = {
+    asset_id: parseInt(checkout.assetId, 10), // Ensure integer
+    // employee_id: is handled in database.js by looking up name if needed
+    quantity: parseInt(checkout.quantity, 10),
+    checkout_date: checkout.checkoutDate instanceof Date ? checkout.checkoutDate.toISOString() : checkout.checkoutDate,
+    expected_return_days: parseInt(checkout.expectedReturnDays, 10),
+    status: checkout.status || 'outstanding',
+    returned_quantity: checkout.returnedQuantity ? parseInt(checkout.returnedQuantity, 10) : 0,
+    created_at: checkout.createdAt instanceof Date ? checkout.createdAt.toISOString() : checkout.createdAt,
+    updated_at: checkout.updatedAt instanceof Date ? checkout.updatedAt.toISOString() : checkout.updatedAt,
+  };
+
+  // Remove undefined values to let DB defaults handle them if valid
+  Object.keys(dbData).forEach(key => dbData[key] === undefined && delete dbData[key]);
+
+  return dbData;
 }

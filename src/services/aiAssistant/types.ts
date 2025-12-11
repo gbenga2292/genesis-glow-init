@@ -2,9 +2,9 @@ import { UserRole } from '@/contexts/AuthContext';
 import { Asset, Site, Employee, Vehicle } from '@/types/asset';
 
 export interface AIIntent {
-  action: 'create_waybill' | 'add_asset' | 'process_return' | 'create_site' | 
-          'add_employee' | 'add_vehicle' | 'generate_report' | 'view_analytics' |
-          'send_to_site' | 'check_inventory' | 'update_asset' | 'unknown';
+  action: 'create_waybill' | 'add_asset' | 'process_return' | 'create_site' |
+  'add_employee' | 'add_vehicle' | 'generate_report' | 'view_analytics' |
+  'send_to_site' | 'check_inventory' | 'update_asset' | 'unknown';
   confidence: number;
   parameters: Record<string, any>;
   missingParameters: string[];
@@ -53,6 +53,8 @@ export interface ActionExecutionContext {
   processReturn: (returnData: any) => Promise<any>;
   createSite: (site: any) => Promise<Site>;
   updateAsset: (id: string, updates: Partial<Asset>) => Promise<Asset>;
+  openAnalytics: (data: any) => Promise<any>;
+  viewWaybill: (id: string) => Promise<any>;
 }
 
 export interface ExtractedItem {

@@ -101,6 +101,7 @@ async function initializeDatabase(dbPath) {
       table.string('condition').defaultTo('good');
       table.integer('missing_count').defaultTo(0);
       table.integer('damaged_count').defaultTo(0);
+      table.integer('used_count').defaultTo(0);
       table.integer('low_stock_level').defaultTo(10);
       table.integer('critical_stock_level').defaultTo(5);
       table.string('power_source');
@@ -148,6 +149,7 @@ async function initializeDatabase(dbPath) {
       table.integer('quantity').notNullable();
       table.dateTime('checkout_date').notNullable();
       table.integer('expected_return_days').notNullable();
+      table.integer('returned_quantity').defaultTo(0);
       table.string('status').defaultTo('outstanding');
       table.timestamps(true, true);
     });

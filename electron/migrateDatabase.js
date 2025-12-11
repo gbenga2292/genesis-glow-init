@@ -95,6 +95,14 @@ async function migrateDatabase(dbPath) {
       });
     }
 
+    const hasUsedCount = await db.schema.hasColumn('assets', 'used_count');
+    if (!hasUsedCount) {
+      console.log('Adding used_count column to assets table...');
+      await db.schema.alterTable('assets', (table) => {
+        table.integer('used_count').defaultTo(0);
+      });
+    }
+
     // Sites table migrations
     const hasClientName = await db.schema.hasColumn('sites', 'client_name');
     if (!hasClientName) {
@@ -199,6 +207,22 @@ async function migrateDatabase(dbPath) {
       });
     }
 
+    // Quick Checkouts table migrations
+    const hasQuickCheckoutsTable = await db.schema.hasTable('quick_checkouts');
+    if (hasQuickCheckoutsTable) {
+      const hasReturnedQuantity = await db.schema.hasColumn('quick_checkouts', 'returned_quantity');
+      if (!hasReturnedQuantity) {
+        console.log('Adding returned_quantity column to quick_checkouts table...');
+        await db.schema.alterTable('quick_checkouts', (table) => {
+          table.integer('returned_quantity').defaultTo(0);
+        });
+      }
+    } else {
+      // If table doesn't exist, it will be created by initializeDatabase if needed, 
+      // but migrateDatabase usually runs on existing DBs.
+      console.log('quick_checkouts table not found during migration.');
+    }
+
     // Activities table migrations - rename columns to match application code
     const hasActivityEntityId = await db.schema.hasColumn('activities', 'entityId');
     const hasActivityEntityIdOld = await db.schema.hasColumn('activities', 'entity_id');
@@ -256,10 +280,11 @@ async function migrateDatabase(dbPath) {
       const reservedQty = asset.reserved_quantity || 0;
       const damagedCount = asset.damaged_count || 0;
       const missingCount = asset.missing_count || 0;
-      // Available = quantity - reserved - damaged - missing (NOT subtracting site quantities)
+      const usedCount = asset.used_count || 0;
+      // Available = quantity - reserved - damaged - missing - used (NOT subtracting site quantities)
       // Site quantities are already accounted for in reserved quantity
-      const correctAvailable = asset.quantity - reservedQty - damagedCount - missingCount;
-      
+      const correctAvailable = asset.quantity - reservedQty - damagedCount - missingCount - usedCount;
+
       if (asset.available_quantity !== correctAvailable) {
         console.log(`Fixing asset ${asset.id} (${asset.name}): available ${asset.available_quantity} -> ${correctAvailable}`);
         await db('assets')

@@ -1019,52 +1019,162 @@ const Index = () => {
     }
   };
 
-  const handleQuickCheckout = (checkoutData: Omit<QuickCheckout, 'id'>) => {
+  const handleQuickCheckout = async (checkoutData: Omit<QuickCheckout, 'id'>) => {
+    if (!isAuthenticated) {
+      toast({
+        title: "Authentication Required",
+        description: "Please login to checkout items",
+        variant: "destructive"
+      });
+      return;
+    }
+
     const newCheckout: QuickCheckout = {
       ...checkoutData,
       id: Date.now().toString(),
-      returnedQuantity: 0
+      returnedQuantity: 0,
+      status: 'outstanding'
     };
 
-    // Reserve the quantity in asset inventory (similar to waybill creation)
-    setAssets(prev => prev.map(asset => {
-      if (asset.id === checkoutData.assetId) {
-        const newReservedQuantity = (asset.reservedQuantity || 0) + checkoutData.quantity;
-        const totalAtSites = prev.filter(a => a.id === asset.id && a.siteId).reduce((sum, a) => sum + a.quantity, 0);
-        const totalQuantity = asset.quantity + totalAtSites;
-        return {
-          ...asset,
-          reservedQuantity: newReservedQuantity,
-          availableQuantity: totalQuantity - newReservedQuantity - (asset.damagedCount || 0) - (asset.missingCount || 0),
-          updatedAt: new Date()
-        };
+    try {
+      if (window.db) {
+        // Save to DB
+        await window.db.createQuickCheckout(newCheckout);
       }
-      return asset;
-    }));
 
-    setQuickCheckouts(prev => [...prev, newCheckout]);
+      // Reserve the quantity in asset inventory
+      setAssets(prev => prev.map(asset => {
+        if (asset.id === checkoutData.assetId) {
+          const newReservedQuantity = (asset.reservedQuantity || 0) + checkoutData.quantity;
+          const totalAtSites = prev.filter(a => a.id === asset.id && a.siteId).reduce((sum, a) => sum + a.quantity, 0);
+          const totalQuantity = asset.quantity + totalAtSites;
+          // Optimistic update
+          const updatedAsset = {
+            ...asset,
+            reservedQuantity: newReservedQuantity,
+            availableQuantity: totalQuantity - newReservedQuantity - (asset.damagedCount || 0) - (asset.missingCount || 0) - (asset.usedCount || 0),
+            updatedAt: new Date()
+          };
+
+          // Persist asset update if DB available
+          if (window.db) {
+            window.db.updateAsset(asset.id, updatedAsset).catch(err => logger.error("Failed to update asset for checkout", err));
+          }
+          return updatedAsset;
+        }
+        return asset;
+      }));
+
+      setQuickCheckouts(prev => [...prev, newCheckout]);
+      toast({
+        title: "Checkout Successful",
+        description: `${checkoutData.quantity} ${checkoutData.assetName} checked out to ${checkoutData.employee}`
+      });
+
+    } catch (error) {
+      logger.error('Failed to process quick checkout', error);
+      toast({
+        title: "Checkout Failed",
+        description: "Failed to save checkout record.",
+        variant: "destructive"
+      });
+    }
   };
 
-  const handleReturnItem = (checkoutId: string) => {
+  const handleUpdateCheckoutStatus = async (checkoutId: string, status: 'return_completed' | 'used' | 'lost' | 'damaged', quantity?: number) => {
+    if (!isAuthenticated) return;
+
     const checkout = quickCheckouts.find(c => c.id === checkoutId);
     if (!checkout) return;
 
-    // Update checkout status
-    setQuickCheckouts(prev => prev.map(c =>
-      c.id === checkoutId ? { ...c, status: 'return_completed' } : c
-    ));
+    // Default to remaining quantity if not specified
+    const qtyToUpdate = quantity || (checkout.quantity - (checkout.returnedQuantity || 0));
 
-    // Return quantity to asset
-    setAssets(prev => prev.map(asset =>
-      asset.id === checkout.assetId
-        ? { ...asset, quantity: asset.quantity + checkout.quantity, updatedAt: new Date() }
-        : asset
-    ));
+    if (qtyToUpdate <= 0) return;
 
-    toast({
-      title: "Item Returned",
-      description: `${checkout.assetName} returned by ${checkout.employee}`
-    });
+    const newReturnedQuantity = (checkout.returnedQuantity || 0) + qtyToUpdate;
+    const isFullyReturned = newReturnedQuantity >= checkout.quantity;
+    const newStatus = isFullyReturned ? status : 'outstanding'; // Only change status if fully "returned/processed"
+
+    try {
+      // Update Checkout in DB
+      const updatedCheckout = {
+        ...checkout,
+        returnedQuantity: newReturnedQuantity,
+        status: newStatus === 'outstanding' ? checkout.status : newStatus // Keep original status if not fully processed, else update
+      };
+      // Note: If status is 'outstanding', we might want to flag partials, but for now we follow simple logic. 
+      // Actually, the newStatus logic above: if I return 1 of 2, it's still 'outstanding'. 
+
+      if (window.db) {
+        await window.db.updateQuickCheckout(checkout.id, updatedCheckout);
+      }
+
+      setQuickCheckouts(prev => prev.map(c => c.id === checkoutId ? updatedCheckout : c));
+
+      // Update Asset Inventory
+      setAssets(prev => prev.map(asset => {
+        if (asset.id === checkout.assetId) {
+          // Logic: checkout reserved the quantity. 
+          // Processing means we reduce reserved quantity.
+          // Where it goes depends on status:
+          // - return_completed: back to available. (Just reduce reserved).
+          // - used: Consumed. Reduce total quantity AND reserved.
+          // - lost: Missing. Reduce reserved, Increase missingCount.
+          // - damaged: Damaged. Reduce reserved, Increase damagedCount.
+
+          const newReserved = Math.max(0, (asset.reservedQuantity || 0) - qtyToUpdate);
+          let newTotal = asset.quantity;
+          let newDamaged = asset.damagedCount || 0;
+          let newMissing = asset.missingCount || 0;
+          let newUsed = asset.usedCount || 0;
+
+          if (status === 'used') {
+            // New logic: Do NOT reduce total quantity. Increase usedCount.
+            newUsed += qtyToUpdate;
+            // newTotal remains same
+          } else if (status === 'lost') {
+            newMissing += qtyToUpdate;
+          } else if (status === 'damaged') {
+            newDamaged += qtyToUpdate;
+          }
+          // for return_completed, we just reduce reserved, so avail increases automatically.
+
+          const totalAtSites = prev.filter(a => a.id === asset.id && a.siteId).reduce((sum, a) => sum + a.quantity, 0);
+          const totalWithSites = newTotal + totalAtSites;
+
+          const updatedAssetData: Asset = {
+            ...asset,
+            quantity: newTotal,
+            reservedQuantity: newReserved,
+            damagedCount: newDamaged,
+            missingCount: newMissing,
+            usedCount: newUsed,
+            availableQuantity: totalWithSites - newReserved - newDamaged - newMissing - newUsed,
+            updatedAt: new Date()
+          };
+
+          if (window.db) {
+            window.db.updateAsset(asset.id, updatedAssetData).catch(e => logger.error("Failed to update asset after return", e));
+          }
+          return updatedAssetData;
+        }
+        return asset;
+      }));
+
+      toast({
+        title: "Status Updated",
+        description: `Item marked as ${status} (${qtyToUpdate})`
+      });
+
+    } catch (err) {
+      logger.error("Failed to update checkout status", err);
+      toast({ title: "Error", description: "Failed to update status", variant: "destructive" });
+    }
+  };
+
+  const handleReturnItem = (checkoutId: string) => {
+    handleUpdateCheckoutStatus(checkoutId, 'return_completed');
   };
 
   const handlePartialReturn = (checkoutId: string, quantity: number, condition: 'good' | 'damaged' | 'missing') => {
@@ -1103,6 +1213,7 @@ const Index = () => {
 
         let newDamagedCount = asset.damagedCount || 0;
         let newMissingCount = asset.missingCount || 0;
+        let newUsedCount = asset.usedCount || 0;
 
         if (condition === 'damaged') {
           newDamagedCount += quantity;
@@ -1115,7 +1226,8 @@ const Index = () => {
           reservedQuantity: newReservedQuantity,
           damagedCount: newDamagedCount,
           missingCount: newMissingCount,
-          availableQuantity: totalQuantity - newReservedQuantity - newDamagedCount - newMissingCount,
+          usedCount: newUsedCount, // Maintain existing used count
+          availableQuantity: totalQuantity - newReservedQuantity - newDamagedCount - newMissingCount - newUsedCount,
           updatedAt: new Date()
         };
       }
@@ -1403,6 +1515,7 @@ const Index = () => {
               setSiteTransactions(stTrans);
             }}
             onResetAllData={handleResetAllData}
+            onUpdateCheckoutStatus={handleUpdateCheckoutStatus}
           />
         );
       case "sites":

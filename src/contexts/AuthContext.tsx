@@ -9,11 +9,9 @@ export interface User {
   username: string;
   role: UserRole;
   name: string;
-  email?: string;
   created_at: string;
   updated_at: string;
 }
-
 interface AuthContextType {
   isAuthenticated: boolean;
   currentUser: User | null;
@@ -21,8 +19,8 @@ interface AuthContextType {
   logout: () => void;
   hasPermission: (permission: string) => boolean;
   getUsers: () => Promise<User[]>;
-  createUser: (userData: { name: string; username: string; password: string; role: UserRole; email?: string }) => Promise<{ success: boolean; message?: string }>;
-  updateUser: (userId: string, userData: { name: string; username: string; role: UserRole; email?: string }) => Promise<{ success: boolean; message?: string }>;
+  createUser: (userData: { name: string; username: string; password: string; role: UserRole }) => Promise<{ success: boolean; message?: string }>;
+  updateUser: (userId: string, userData: { name: string; username: string; role: UserRole }) => Promise<{ success: boolean; message?: string }>;
   deleteUser: (userId: string) => Promise<{ success: boolean; message?: string }>;
 }
 
@@ -65,7 +63,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         // If database login fails, fall through to hardcoded admin check
       }
-      
+
       // Hardcoded admin fallback (only used if database login fails or unavailable)
       if (username === 'admin' && password === 'admin123') {
         const hardcodedAdmin: User = {
@@ -73,18 +71,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           username: 'admin',
           role: 'admin',
           name: 'Administrator',
-          email: 'admin@example.com',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
-        
+
         setCurrentUser(hardcodedAdmin);
         setIsAuthenticated(true);
         localStorage.setItem('isAuthenticated', 'true');
         localStorage.setItem('currentUser', JSON.stringify(hardcodedAdmin));
         return { success: true };
       }
-      
+
       // If we reach here, credentials were invalid
       return { success: false, message: 'Invalid credentials' };
     } catch (error) {
@@ -106,47 +103,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!currentUser) return false;
 
     const rolePermissions: Record<UserRole, string[]> = {
-        admin: ['*'], // Admin has all permissions
-        data_entry_supervisor: [
-          'read_assets', 'write_assets',
-          'read_waybills', 'write_waybills',
-          'read_returns', 'write_returns', 'delete_returns',
-          'read_sites',
-          'read_employees', 'write_employees', 'delete_employees',
-          'write_vehicles', 'delete_vehicles',
-          'manage_users',
-          'edit_company_info', 'view_activity_log', 'change_theme',
-          'print_documents'
-        ],
-        regulatory: [
-          'read_assets',
-          'read_waybills',
-          'read_returns',
-          'read_sites',
-          'read_reports',
-          'write_employees',
-          'write_vehicles',
-          'edit_company_info', 'change_theme',
-          'print_documents'
-        ],
-        manager: [
-          'read_assets', 'write_assets',
-          'read_waybills', 'write_waybills',
-          'read_returns', 'write_returns',
-          'read_sites',
-          'read_employees',
-          'read_reports',
-          'read_quick_checkouts', 'write_quick_checkouts',
-          'print_documents'
-        ],
-        staff: [
-          'read_assets', 'write_assets',
-          'read_waybills',
-          'read_returns',
-          'read_sites',
-          'read_quick_checkouts'
-        ]
-      };
+      admin: ['*'], // Admin has all permissions
+      data_entry_supervisor: [
+        'read_assets', 'write_assets',
+        'read_waybills', 'write_waybills',
+        'read_returns', 'write_returns', 'delete_returns',
+        'read_sites',
+        'read_employees', 'write_employees', 'delete_employees',
+        'write_vehicles', 'delete_vehicles',
+        'manage_users',
+        'edit_company_info', 'view_activity_log', 'change_theme',
+        'print_documents'
+      ],
+      regulatory: [
+        'read_assets',
+        'read_waybills',
+        'read_returns',
+        'read_sites',
+        'read_reports',
+        'write_employees',
+        'write_vehicles',
+        'edit_company_info', 'change_theme',
+        'print_documents'
+      ],
+      manager: [
+        'read_assets', 'write_assets',
+        'read_waybills', 'write_waybills',
+        'read_returns', 'write_returns',
+        'read_sites',
+        'read_employees',
+        'read_reports',
+        'read_quick_checkouts', 'write_quick_checkouts',
+        'print_documents'
+      ],
+      staff: [
+        'read_assets', 'write_assets',
+        'read_waybills',
+        'read_returns',
+        'read_sites',
+        'read_quick_checkouts'
+      ]
+    };
 
     const userPermissions = rolePermissions[currentUser.role] || [];
     return userPermissions.includes('*') || userPermissions.includes(permission);
@@ -164,7 +161,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const createUser = async (userData: { name: string; username: string; password: string; role: UserRole; email?: string }): Promise<{ success: boolean; message?: string }> => {
+  const createUser = async (userData: { name: string; username: string; password: string; role: UserRole }): Promise<{ success: boolean; message?: string }> => {
     try {
       if (!window.db) {
         return { success: false, message: 'Database not available' };
@@ -177,7 +174,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const updateUser = async (userId: string, userData: { name: string; username: string; role: UserRole; email?: string; password?: string }): Promise<{ success: boolean; message?: string }> => {
+  const updateUser = async (userId: string, userData: { name: string; username: string; role: UserRole; password?: string }): Promise<{ success: boolean; message?: string }> => {
     try {
       if (!window.db) {
         return { success: false, message: 'Database not available' };

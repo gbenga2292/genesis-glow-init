@@ -7,14 +7,14 @@ import { transformWaybillToDB, transformWaybillFromDB, transformAssetFromDB } fr
  * @param {Object} waybillData - Waybill data
  * @returns {Object} - { success: boolean, error?: string }
  */
-export async function createWaybillTransaction(db, waybillData) {
+export async function createWaybillTransaction(db, waybillData, options = {}) {
   const trx = await db.transaction();
   try {
-    console.log('Creating waybill with data:', waybillData);
+    console.log('Creating waybill with data:', waybillData, 'options:', options);
 
     // Generate unique waybill ID inside transaction to avoid race conditions
     let waybillId;
-    
+
     // If an ID was provided, verify it doesn't exist
     if (waybillData.id) {
       const existing = await trx('waybills').where({ id: waybillData.id }).first();
@@ -53,53 +53,57 @@ export async function createWaybillTransaction(db, waybillData) {
     const [newWaybill] = await trx('waybills').insert(waybillToInsert).returning('*');
     console.log('Waybill inserted:', newWaybill);
 
-    // Update asset quantities based on status
-    for (const item of items) {
-      const assetId = parseInt(item.assetId);
-      console.log(`Updating quantities for asset ${assetId}, quantity: ${item.quantity}, status: ${waybillData.status}`);
+    // Update asset quantities based on status (unless skipped, e.g. during restore)
+    if (!options.skipStockUpdate) {
+      for (const item of items) {
+        const assetId = parseInt(item.assetId);
+        console.log(`Updating quantities for asset ${assetId}, quantity: ${item.quantity}, status: ${waybillData.status}`);
 
-      const asset = await trx('assets').where({ id: assetId }).first();
-      if (!asset) {
-        throw new Error(`Asset with ID ${assetId} not found`);
-      }
-
-      if (waybillData.type === 'return') {
-        // For return waybills: DO NOT reserve quantities (items are coming back FROM site)
-        // Just validate that items exist at the site
-        const siteQuantities = asset.site_quantities ? JSON.parse(asset.site_quantities) : {};
-        const siteQty = siteQuantities[waybillData.siteId] || 0;
-        
-        if (siteQty < item.quantity) {
-          throw new Error(`Insufficient quantity at site for asset ${asset.name}. Available at site: ${siteQty}, Requested: ${item.quantity}`);
-        }
-        
-        console.log(`Return waybill: Asset ${assetId} - no reservation needed (returning ${item.quantity} from site)`);
-      } else {
-        // For outstanding waybills: ADD to reserved quantities
-        // Reserved = items in use (whether at warehouse or site)
-        const currentReserved = asset.reserved_quantity || 0;
-        const newReserved = currentReserved + item.quantity;
-        const currentDamaged = asset.damaged_count || 0;
-        const currentMissing = asset.missing_count || 0;
-        
-        // Available = quantity - reserved - damaged - missing (NOT subtracting site quantities)
-        const newAvailable = asset.quantity - newReserved - currentDamaged - currentMissing;
-
-        console.log(`Asset ${assetId}: current reserved=${currentReserved}, new reserved=${newReserved}, available=${newAvailable}`);
-
-        if (newAvailable < 0) {
-          throw new Error(`Insufficient quantity for asset ${asset.name}. Available: ${asset.quantity - currentReserved - currentDamaged - currentMissing}, Requested: ${item.quantity}`);
+        const asset = await trx('assets').where({ id: assetId }).first();
+        if (!asset) {
+          throw new Error(`Asset with ID ${assetId} not found`);
         }
 
-        await trx('assets')
-          .where({ id: assetId })
-          .update({
-            reserved_quantity: newReserved,
-            available_quantity: newAvailable
-          });
-      }
+        if (waybillData.type === 'return') {
+          // For return waybills: DO NOT reserve quantities (items are coming back FROM site)
+          // Just validate that items exist at the site
+          const siteQuantities = asset.site_quantities ? JSON.parse(asset.site_quantities) : {};
+          const siteQty = siteQuantities[waybillData.siteId] || 0;
 
-      console.log(`Asset ${assetId} quantities updated successfully`);
+          if (siteQty < item.quantity) {
+            throw new Error(`Insufficient quantity at site for asset ${asset.name}. Available at site: ${siteQty}, Requested: ${item.quantity}`);
+          }
+
+          console.log(`Return waybill: Asset ${assetId} - no reservation needed (returning ${item.quantity} from site)`);
+        } else {
+          // For outstanding waybills: ADD to reserved quantities
+          // Reserved = items in use (whether at warehouse or site)
+          const currentReserved = asset.reserved_quantity || 0;
+          const newReserved = currentReserved + item.quantity;
+          const currentDamaged = asset.damaged_count || 0;
+          const currentMissing = asset.missing_count || 0;
+
+          // Available = quantity - reserved - damaged - missing (NOT subtracting site quantities)
+          const newAvailable = asset.quantity - newReserved - currentDamaged - currentMissing;
+
+          console.log(`Asset ${assetId}: current reserved=${currentReserved}, new reserved=${newReserved}, available=${newAvailable}`);
+
+          if (newAvailable < 0) {
+            throw new Error(`Insufficient quantity for asset ${asset.name}. Available: ${asset.quantity - currentReserved - currentDamaged - currentMissing}, Requested: ${item.quantity}`);
+          }
+
+          await trx('assets')
+            .where({ id: assetId })
+            .update({
+              reserved_quantity: newReserved,
+              available_quantity: newAvailable
+            });
+        }
+
+        console.log(`Asset ${assetId} quantities updated successfully`);
+      }
+    } else {
+      console.log('Skipping stock update for waybill creation (e.g. restore mode)');
     }
 
     await trx.commit();
@@ -230,7 +234,7 @@ export async function processReturnTransaction(db, returnData) {
 
     // Parse waybill items
     const waybillItems = typeof waybill.items === 'string' ? JSON.parse(waybill.items) : waybill.items;
-    
+
     // Group return items by assetId
     const returnSummary = returnData.items.reduce((acc, item) => {
       if (!acc[item.assetId]) {
@@ -266,7 +270,7 @@ export async function processReturnTransaction(db, returnData) {
       const currentSiteQty = siteQuantities[siteIdKey] || 0;
       const newSiteQty = Math.max(0, currentSiteQty - summary.total);
       console.log(`✅ Site ${siteIdKey}: current=${currentSiteQty}, reducing by=${summary.total}, new=${newSiteQty}`);
-      
+
       if (newSiteQty === 0) {
         delete siteQuantities[siteIdKey];
       } else {

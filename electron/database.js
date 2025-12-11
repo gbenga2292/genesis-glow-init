@@ -17,10 +17,12 @@ import {
   transformConsumableLogToDB,
   transformWaybillFromDB,
   transformWaybillToDB,
-  transformSiteTransactionFromDB,
   transformSiteTransactionToDB,
+  transformSiteTransactionFromDB,
   transformActivityFromDB,
-  transformActivityToDB
+  transformActivityToDB,
+  transformQuickCheckoutFromDB,
+  transformQuickCheckoutToDB
 } from './dataTransform.js';
 
 let db;
@@ -63,95 +65,95 @@ async function login(username, password) {
 }
 
 async function createUser(userData) {
-    if (!db) throw new Error('Database not connected');
-    const { username, password, role, name, email } = userData;
+  if (!db) throw new Error('Database not connected');
+  const { username, password, role, name } = userData;
 
-    const existingUser = await db('users').where({ username }).first();
-    if (existingUser) {
-        return { success: false, message: 'Username already exists' };
-    }
+  const existingUser = await db('users').where({ username }).first();
+  if (existingUser) {
+    return { success: false, message: 'Username already exists' };
+  }
 
-    const saltRounds = 10;
-    const password_hash = await bcrypt.hash(password, saltRounds);
+  const saltRounds = 10;
+  const password_hash = await bcrypt.hash(password, saltRounds);
 
-    const [newUser] = await db('users').insert({ username, password_hash, role, name, email }).returning('*');
-    const userWithoutHash = { ...newUser };
-    delete userWithoutHash.password_hash;
-    return { success: true, user: userWithoutHash };
+  const [newUser] = await db('users').insert({ username, password_hash, role, name }).returning('*');
+  const userWithoutHash = { ...newUser };
+  delete userWithoutHash.password_hash;
+  return { success: true, user: userWithoutHash };
 }
 
 async function updateUser(userId, userData) {
-    if (!db) throw new Error('Database not connected');
-    const { name, username, role, email, password } = userData;
+  if (!db) throw new Error('Database not connected');
+  const { name, username, role, password } = userData;
 
-    // Check if username is already taken by another user
-    if (username) {
-        const existingUser = await db('users').where({ username }).whereNot({ id: userId }).first();
-        if (existingUser) {
-            return { success: false, message: 'Username already exists' };
-        }
+  // Check if username is already taken by another user
+  if (username) {
+    const existingUser = await db('users').where({ username }).whereNot({ id: userId }).first();
+    if (existingUser) {
+      return { success: false, message: 'Username already exists' };
     }
+  }
 
-    const updateData = { name, username, role, email };
-    if (password) {
-        const saltRounds = 10;
-        updateData.password_hash = await bcrypt.hash(password, saltRounds);
-    }
+  const updateData = { name, username, role };
+  if (password) {
+    const saltRounds = 10;
+    updateData.password_hash = await bcrypt.hash(password, saltRounds);
+  }
 
-    const updatedRows = await db('users').where({ id: userId }).update(updateData);
-    if (updatedRows > 0) {
-        const updatedUser = await db('users').where({ id: userId }).first();
-        const userWithoutHash = { ...updatedUser };
-        delete userWithoutHash.password_hash;
-        return { success: true, user: userWithoutHash };
-    } else {
-        return { success: false, message: 'User not found' };
-    }
+  const updatedRows = await db('users').where({ id: userId }).update(updateData);
+  if (updatedRows > 0) {
+    const updatedUser = await db('users').where({ id: userId }).first();
+    const userWithoutHash = { ...updatedUser };
+    delete userWithoutHash.password_hash;
+    return { success: true, user: userWithoutHash };
+  } else {
+    return { success: false, message: 'User not found' };
+  }
 }
 
 async function deleteUser(userId) {
-    if (!db) throw new Error('Database not connected');
-    // Prevent deleting the admin user
-    const user = await db('users').where({ id: userId }).first();
-    if (!user) {
-        return { success: false, message: 'User not found' };
-    }
-    if (user.username === 'admin') {
-        return { success: false, message: 'Cannot delete admin user' };
-    }
+  if (!db) throw new Error('Database not connected');
+  // Prevent deleting the admin user
+  const user = await db('users').where({ id: userId }).first();
+  if (!user) {
+    return { success: false, message: 'User not found' };
+  }
+  if (user.username === 'admin') {
+    return { success: false, message: 'Cannot delete admin user' };
+  }
 
-    const deletedRows = await db('users').where({ id: userId }).del();
-    if (deletedRows > 0) {
-        return { success: true };
-    } else {
-        return { success: false, message: 'Failed to delete user' };
-    }
+  const deletedRows = await db('users').where({ id: userId }).del();
+  if (deletedRows > 0) {
+    return { success: true };
+  } else {
+    return { success: false, message: 'Failed to delete user' };
+  }
 }
 
 // --- GENERIC CRUD HELPERS ---
 const getAll = (tableName) => () => {
-    if (!db) throw new Error('Database not connected');
-    return db(tableName).select('*');
+  if (!db) throw new Error('Database not connected');
+  return db(tableName).select('*');
 }
 
 const getById = (tableName) => (id) => {
-    if (!db) throw new Error('Database not connected');
-    return db(tableName).where({ id }).first();
+  if (!db) throw new Error('Database not connected');
+  return db(tableName).where({ id }).first();
 }
 
 const create = (tableName) => (data) => {
-    if (!db) throw new Error('Database not connected');
-    return db(tableName).insert(data).returning('*');
+  if (!db) throw new Error('Database not connected');
+  return db(tableName).insert(data).returning('*');
 }
 
 const update = (tableName) => (id, data) => {
-    if (!db) throw new Error('Database not connected');
-    return db(tableName).where({ id }).update(data).returning('*');
+  if (!db) throw new Error('Database not connected');
+  return db(tableName).where({ id }).update(data).returning('*');
 }
 
 const remove = (tableName) => (id) => {
-    if (!db) throw new Error('Database not connected');
-    return db(tableName).where({ id }).del();
+  if (!db) throw new Error('Database not connected');
+  return db(tableName).where({ id }).del();
 }
 
 // Declare all functions as constants before exporting
@@ -218,17 +220,17 @@ const getWaybills = () => {
   return db('waybills').select('*').then(waybills => waybills.map(transformWaybillFromDB));
 }
 
-const createWaybill = async (data) => {
+const createWaybill = async (data, options = {}) => {
   if (!db) throw new Error('Database not connected');
-  
+
   // Use the transaction operations module for proper waybill creation
   const { createWaybillTransaction } = await import('./transactionOperations.js');
-  const result = await createWaybillTransaction(db, data);
-  
+  const result = await createWaybillTransaction(db, data, options);
+
   if (!result.success) {
     throw new Error(result.error || 'Failed to create waybill');
   }
-  
+
   // Fetch and return the created waybill
   const waybill = await db('waybills').where({ id: result.waybillId }).first();
   return transformWaybillFromDB(waybill);
@@ -241,31 +243,31 @@ const updateWaybill = (id, data) => {
 
 const deleteWaybill = async (id) => {
   if (!db) throw new Error('Database not connected');
-  
+
   const trx = await db.transaction();
   try {
     console.log(`Attempting to delete waybill ${id}`);
-    
+
     // Get waybill
     const waybill = await trx('waybills').where({ id }).first();
     if (!waybill) {
       console.log(`Waybill ${id} not found in database`);
       throw new Error('Waybill not found');
     }
-    
+
     console.log(`Found waybill ${id} with status ${waybill.status}`);
-    
+
     // Parse items
     const items = typeof waybill.items === 'string' ? JSON.parse(waybill.items) : waybill.items;
     console.log(`Waybill has ${items.length} items`);
-    
+
     // Unreserve assets if waybill is outstanding
     if (waybill.status === 'outstanding') {
       console.log('Unreserving assets for outstanding waybill');
       for (const item of items) {
         const assetId = parseInt(item.assetId);
         const asset = await trx('assets').where({ id: assetId }).first();
-        
+
         if (asset) {
           const currentReserved = asset.reserved_quantity || 0;
           const newReserved = Math.max(0, currentReserved - item.quantity);
@@ -273,9 +275,9 @@ const deleteWaybill = async (id) => {
           const currentMissing = asset.missing_count || 0;
           // Available = quantity - reserved - damaged - missing
           const newAvailable = asset.quantity - newReserved - currentDamaged - currentMissing;
-          
+
           console.log(`Asset ${assetId}: unreserving ${item.quantity}, reserved ${currentReserved} -> ${newReserved}`);
-          
+
           await trx('assets')
             .where({ id: assetId })
             .update({
@@ -290,20 +292,20 @@ const deleteWaybill = async (id) => {
       for (const item of items) {
         const assetId = parseInt(item.assetId);
         const asset = await trx('assets').where({ id: assetId }).first();
-        
+
         if (asset) {
           const currentReserved = asset.reserved_quantity || 0;
           const siteQuantities = asset.site_quantities ? JSON.parse(asset.site_quantities) : {};
           const currentSiteQty = siteQuantities[waybill.siteId] || 0;
           siteQuantities[waybill.siteId] = Math.max(0, currentSiteQty - item.quantity);
-          
+
           const currentDamaged = asset.damaged_count || 0;
           const currentMissing = asset.missing_count || 0;
           // Available = quantity - reserved - damaged - missing
           const newAvailable = asset.quantity - currentReserved - currentDamaged - currentMissing;
-          
+
           console.log(`Asset ${assetId}: removing ${item.quantity} from site, site qty ${currentSiteQty} -> ${siteQuantities[waybill.siteId]}`);
-          
+
           await trx('assets')
             .where({ id: assetId })
             .update({
@@ -312,16 +314,16 @@ const deleteWaybill = async (id) => {
             });
         }
       }
-      
+
       // Delete site transactions
       await trx('site_transactions').where({ reference_id: id, reference_type: 'waybill' }).del();
       console.log('Deleted site transactions');
     }
-    
+
     // Delete waybill
     const deletedCount = await trx('waybills').where({ id }).del();
     console.log(`Deleted ${deletedCount} waybill record(s)`);
-    
+
     await trx.commit();
     console.log(`Waybill ${id} deletion committed successfully`);
     return deletedCount;
@@ -335,9 +337,59 @@ const getWaybillItems = getAll('waybill_items');
 const createWaybillItem = create('waybill_items');
 const updateWaybillItem = update('waybill_items');
 const deleteWaybillItem = remove('waybill_items');
-const getQuickCheckouts = getAll('quick_checkouts');
-const createQuickCheckout = create('quick_checkouts');
-const updateQuickCheckout = update('quick_checkouts');
+const getQuickCheckouts = () => {
+  if (!db) throw new Error('Database not connected');
+  return db('quick_checkouts')
+    .leftJoin('assets', 'quick_checkouts.asset_id', 'assets.id')
+    .leftJoin('employees', 'quick_checkouts.employee_id', 'employees.id')
+    .select(
+      'quick_checkouts.*',
+      'assets.name as asset_name',
+      'employees.name as employee_name'
+    )
+    .then(checkouts => checkouts.map(transformQuickCheckoutFromDB));
+}
+const createQuickCheckout = async (data) => {
+  if (!db) throw new Error('Database not connected');
+
+  // We need to resolve employee name to employee_id if possible
+  // For now, let's try to find the employee by name
+  let employeeId = null;
+  if (data.employee) {
+    const emp = await db('employees').where({ name: data.employee }).first();
+    if (emp) {
+      employeeId = emp.id;
+    }
+  }
+
+  const dbData = transformQuickCheckoutToDB(data);
+  if (employeeId) {
+    dbData.employee_id = employeeId;
+  }
+
+  // Remove id, created_at, updated_at for creation
+  delete dbData.id;
+  delete dbData.created_at;
+  delete dbData.updated_at;
+
+  return db('quick_checkouts').insert(dbData).returning('*').then(rows => rows.map(transformQuickCheckoutFromDB));
+}
+
+const updateQuickCheckout = (id, data) => {
+  if (!db) throw new Error('Database not connected');
+  const dbData = transformQuickCheckoutToDB(data);
+
+  // Remove id and created_at
+  delete dbData.id;
+  delete dbData.created_at;
+
+  if (!dbData.updated_at) {
+    dbData.updated_at = new Date().toISOString();
+  }
+
+  return db('quick_checkouts').where({ id }).update(dbData).returning('*').then(rows => rows.map(transformQuickCheckoutFromDB));
+}
+
 const deleteQuickCheckout = remove('quick_checkouts');
 const getReturnBills = getAll('return_bills');
 const createReturnBill = create('return_bills');
@@ -354,13 +406,13 @@ const getEquipmentLogs = () => {
 
 const createEquipmentLog = (data) => {
   if (!db) throw new Error('Database not connected');
-  
+
   // Validate that the equipment exists before inserting
   const equipmentExists = db('assets').where({ id: data.equipmentId }).first();
   if (!equipmentExists) {
     throw new Error(`Cannot create equipment log: Asset with id ${data.equipmentId} does not exist`);
   }
-  
+
   const dbData = transformEquipmentLogToDB(data);
   // Remove id, created_at, and updated_at for creation - let DB handle them
   delete dbData.id;
@@ -392,13 +444,13 @@ const getConsumableLogs = () => {
 
 const createConsumableLog = (data) => {
   if (!db) throw new Error('Database not connected');
-  
+
   // Validate that the consumable exists before inserting
   const consumableExists = db('assets').where({ id: data.consumableId }).first();
   if (!consumableExists) {
     throw new Error(`Cannot create consumable log: Asset with id ${data.consumableId} does not exist`);
   }
-  
+
   const dbData = transformConsumableLogToDB(data);
   // Remove created_at and updated_at for creation - let DB handle them
   delete dbData.created_at;
@@ -514,16 +566,16 @@ const createMetricsSnapshot = (data) => {
 // --- TRANSACTION OPERATIONS ---
 
 // Create waybill with transaction
-const createWaybillWithTransaction = async (waybillData) => {
+const createWaybillWithTransaction = async (waybillData, options = {}) => {
   if (!db) throw new Error('Database not connected');
-  
+
   const { createWaybillTransaction } = await import('./transactionOperations.js');
-  const result = await createWaybillTransaction(db, waybillData);
-  
+  const result = await createWaybillTransaction(db, waybillData, options);
+
   if (!result.success) {
     throw new Error(result.error || 'Failed to create waybill');
   }
-  
+
   // Return the created waybill
   const waybill = await db('waybills').where({ id: result.waybillId }).first();
   return { success: true, waybill: transformWaybillFromDB(waybill) };
@@ -532,42 +584,42 @@ const createWaybillWithTransaction = async (waybillData) => {
 // Send to site with transaction
 const sendToSiteWithTransaction = async (waybillId, sentToSiteDate) => {
   if (!db) throw new Error('Database not connected');
-  
+
   const { sendToSiteTransaction } = await import('./transactionOperations.js');
   const result = await sendToSiteTransaction(db, waybillId);
-  
+
   if (!result.success) {
     throw new Error(result.error || 'Failed to send waybill to site');
   }
-  
+
   // Update sent_to_site_date if provided
   if (sentToSiteDate) {
     await db('waybills')
       .where({ id: waybillId })
       .update({ sent_to_site_date: sentToSiteDate });
   }
-  
+
   return result;
 }
 
 // Process return with transaction
 const processReturnWithTransaction = async (returnData) => {
   if (!db) throw new Error('Database not connected');
-  
+
   const { processReturnTransaction } = await import('./transactionOperations.js');
   const result = await processReturnTransaction(db, returnData);
-  
+
   if (!result.success) {
     throw new Error(result.error || 'Failed to process return');
   }
-  
+
   return result;
 }
 
 // Delete waybill with transaction
 const deleteWaybillWithTransaction = async (waybillId) => {
   if (!db) throw new Error('Database not connected');
-  
+
   const trx = await db.transaction();
   try {
     const waybill = await trx('waybills').where({ id: waybillId }).first();
@@ -587,7 +639,7 @@ const deleteWaybillWithTransaction = async (waybillId) => {
         const siteQuantities = asset.site_quantities ? JSON.parse(asset.site_quantities) : {};
         const currentSiteQty = siteQuantities[waybill.siteId] || 0;
         const newSiteQty = Math.max(0, currentSiteQty - item.quantity);
-        
+
         if (newSiteQty === 0) {
           delete siteQuantities[waybill.siteId];
         } else {
@@ -639,7 +691,7 @@ const deleteWaybillWithTransaction = async (waybillId) => {
 // Update waybill with transaction
 const updateWaybillWithTransaction = async (waybillId, updatedData) => {
   if (!db) throw new Error('Database not connected');
-  
+
   const trx = await db.transaction();
   try {
     const existingWaybill = await trx('waybills').where({ id: waybillId }).first();
@@ -761,7 +813,7 @@ const createReturnWaybill = async (data) => {
     for (const item of items) {
       const assetId = parseInt(item.assetId);
       const existing = assetUpdates.get(assetId) || { quantity: 0, damaged: 0, missing: 0 };
-      
+
       if (item.condition === 'good') {
         existing.quantity += item.quantity;
       } else if (item.condition === 'damaged') {
@@ -771,30 +823,30 @@ const createReturnWaybill = async (data) => {
         existing.missing += item.quantity;
         existing.quantity += item.quantity; // Still counts toward total reserved reduction
       }
-      
+
       assetUpdates.set(assetId, existing);
     }
 
     // Update asset quantities - reduce reserved and site quantities by total, track damaged/missing separately
     for (const [assetId, totals] of assetUpdates.entries()) {
       console.log(`Updating asset ${assetId}: total return=${totals.quantity}, damaged=${totals.damaged}, missing=${totals.missing}`);
-      
+
       const asset = await trx('assets').where({ id: assetId }).first();
       if (!asset) {
         throw new Error(`Asset with ID ${assetId} not found`);
       }
-      
+
       console.log('Asset before update:', asset);
-      
+
       const currentReserved = asset.reserved_quantity || 0;
       const currentDamaged = asset.damaged_count || 0;
       const currentMissing = asset.missing_count || 0;
-      
+
       // Reduce reserved by total quantity returned (good + damaged + missing)
       const newReserved = currentReserved - totals.quantity;
       const newDamaged = currentDamaged + totals.damaged;
       const newMissing = currentMissing + totals.missing;
-      
+
       // Reduce site quantities
       const siteQuantities = asset.site_quantities ? JSON.parse(asset.site_quantities) : {};
       const currentSiteQty = siteQuantities[data.siteId] || 0;
@@ -802,12 +854,12 @@ const createReturnWaybill = async (data) => {
       if (siteQuantities[data.siteId] === 0) {
         delete siteQuantities[data.siteId];
       }
-      
+
       const totalSiteQty = Object.values(siteQuantities).reduce((sum, qty) => sum + qty, 0);
       const newAvailable = asset.quantity - newReserved - newDamaged - newMissing - totalSiteQty;
-      
+
       console.log(`Asset ${assetId}: reserved ${currentReserved} -> ${newReserved}, site qty ${currentSiteQty} -> ${siteQuantities[data.siteId] || 0}, damaged ${currentDamaged} -> ${newDamaged}, missing ${currentMissing} -> ${newMissing}, available=${newAvailable}`);
-      
+
       await trx('assets')
         .where({ id: assetId })
         .update({
@@ -820,7 +872,7 @@ const createReturnWaybill = async (data) => {
 
       const assetAfterUpdate = await trx('assets').where({ id: assetId }).first();
       console.log('Asset after update:', assetAfterUpdate);
-      
+
       console.log(`Asset ${assetId} updated successfully`);
     }
 
@@ -951,84 +1003,84 @@ const getApiKeyFromKeyRef = async (keyRef) => {
 };
 
 export {
-    connect,
-    disconnect,
-    login,
-    createUser,
-    updateUser,
-    deleteUser,
-    getUsers,
-    getSites,
-    getSiteById,
-    createSite,
-    updateSite,
-    deleteSite,
-    getEmployees,
-    createEmployee,
-    updateEmployee,
-    deleteEmployee,
-    getVehicles,
-    createVehicle,
-    updateVehicle,
-    deleteVehicle,
-    getAssets,
-    createAsset,
-    addAsset,
-    updateAsset,
-    deleteAsset,
-    getWaybills,
-    createWaybill,
-    createReturnWaybill,
-    updateWaybill,
-    deleteWaybill,
-    getWaybillItems,
-    createWaybillItem,
-    updateWaybillItem,
-    deleteWaybillItem,
-    getQuickCheckouts,
-    createQuickCheckout,
-    updateQuickCheckout,
-    deleteQuickCheckout,
-    getReturnBills,
-    createReturnBill,
-    updateReturnBill,
-    deleteReturnBill,
-    getReturnItems,
-    createReturnItem,
-    updateReturnItem,
-    deleteReturnItem,
-    getEquipmentLogs,
-    createEquipmentLog,
-    updateEquipmentLog,
-    deleteEquipmentLog,
-    getConsumableLogs,
-    createConsumableLog,
-    updateConsumableLog,
-    deleteConsumableLog,
-    getCompanySettings,
-    createCompanySettings,
-    updateCompanySettings,
-    getSiteTransactions,
-    addSiteTransaction,
-    updateSiteTransaction,
-    deleteSiteTransaction,
-    getActivities,
-    createActivity,
-    clearActivities,
-    getMetricsSnapshots,
-    getTodayMetricsSnapshot,
-    createMetricsSnapshot,
-    createWaybillWithTransaction,
-    sendToSiteWithTransaction,
-    processReturnWithTransaction,
-    deleteWaybillWithTransaction,
-    updateWaybillWithTransaction,
-    getSavedApiKeys,
-    createSavedApiKey,
-    updateSavedApiKey,
-    setActiveApiKey,
-    deleteSavedApiKey,
-    getActiveApiKey,
+  connect,
+  disconnect,
+  login,
+  createUser,
+  updateUser,
+  deleteUser,
+  getUsers,
+  getSites,
+  getSiteById,
+  createSite,
+  updateSite,
+  deleteSite,
+  getEmployees,
+  createEmployee,
+  updateEmployee,
+  deleteEmployee,
+  getVehicles,
+  createVehicle,
+  updateVehicle,
+  deleteVehicle,
+  getAssets,
+  createAsset,
+  addAsset,
+  updateAsset,
+  deleteAsset,
+  getWaybills,
+  createWaybill,
+  createReturnWaybill,
+  updateWaybill,
+  deleteWaybill,
+  getWaybillItems,
+  createWaybillItem,
+  updateWaybillItem,
+  deleteWaybillItem,
+  getQuickCheckouts,
+  createQuickCheckout,
+  updateQuickCheckout,
+  deleteQuickCheckout,
+  getReturnBills,
+  createReturnBill,
+  updateReturnBill,
+  deleteReturnBill,
+  getReturnItems,
+  createReturnItem,
+  updateReturnItem,
+  deleteReturnItem,
+  getEquipmentLogs,
+  createEquipmentLog,
+  updateEquipmentLog,
+  deleteEquipmentLog,
+  getConsumableLogs,
+  createConsumableLog,
+  updateConsumableLog,
+  deleteConsumableLog,
+  getCompanySettings,
+  createCompanySettings,
+  updateCompanySettings,
+  getSiteTransactions,
+  addSiteTransaction,
+  updateSiteTransaction,
+  deleteSiteTransaction,
+  getActivities,
+  createActivity,
+  clearActivities,
+  getMetricsSnapshots,
+  getTodayMetricsSnapshot,
+  createMetricsSnapshot,
+  createWaybillWithTransaction,
+  sendToSiteWithTransaction,
+  processReturnWithTransaction,
+  deleteWaybillWithTransaction,
+  updateWaybillWithTransaction,
+  getSavedApiKeys,
+  createSavedApiKey,
+  updateSavedApiKey,
+  setActiveApiKey,
+  deleteSavedApiKey,
+  getActiveApiKey,
   migrateSavedKeysToKeytar,
   getApiKeyFromKeyRef,
 };
