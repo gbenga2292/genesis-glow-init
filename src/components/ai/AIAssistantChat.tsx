@@ -22,7 +22,7 @@ export const AIAssistantChat: React.FC = () => {
           const settings = await window.db.getCompanySettings();
           const remoteConfig = (settings as any)?.ai?.remote;
           const r = remoteConfig?.enabled;
-          const enabled = r !== false && r !== 0 && r !== '0' && r !== 'false';
+          const enabled = !!r && r !== 'false' && r !== '0';
           setIsAIEnabled(enabled);
         }
       } catch (error) {

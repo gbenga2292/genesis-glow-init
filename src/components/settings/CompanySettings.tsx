@@ -130,6 +130,21 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
   const [modelsLoading, setModelsLoading] = useState(false);
   const [googleModels, setGoogleModels] = useState<string[]>([]);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
+  // Initialize AI settings from props
+  useEffect(() => {
+    if (settings?.ai?.remote) {
+      const r = settings.ai.remote;
+      // Handle various truthy/falsy formats stored in DB
+      const isEnabled = !!r.enabled && r.enabled !== 'false' && r.enabled !== '0';
+      setAiEnabled(isEnabled);
+      setAiProvider(r.provider || 'openai');
+      setAiApiKey(r.apiKey || '');
+      setAiEndpoint(r.endpoint || '');
+      setAiModel(r.model || '');
+      setHasInitializedFromSettings(true);
+    }
+  }, [settings]);
+
   const [hasInitializedFromSettings, setHasInitializedFromSettings] = useState(false);
 
   // Function to fetch Google AI models

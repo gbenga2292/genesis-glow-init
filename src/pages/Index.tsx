@@ -2089,7 +2089,10 @@ const Index = () => {
   // Calculate AI enabled state (handle all boolean/string/number falsey variants)
   const aiConfig = (companySettings as any)?.ai?.remote;
   const aiEnabledVal = aiConfig?.enabled;
-  const isAIEnabled = aiEnabledVal !== false && aiEnabledVal !== 0 && aiEnabledVal !== '0' && aiEnabledVal !== 'false';
+
+  // Default to false (disabled) if undefined or null. Only enable if explicitly true/truthy.
+  // We exclude 'false' string and '0' string which might be truthy in JS but mean false here.
+  const isAIEnabled = !!aiEnabledVal && aiEnabledVal !== 'false' && aiEnabledVal !== '0';
 
   return (
     <AIAssistantProvider

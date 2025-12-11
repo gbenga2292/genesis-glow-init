@@ -69,7 +69,7 @@ const App = () => {
           const cs = await (window as any).db.getCompanySettings();
           const remote = cs?.ai?.remote;
           const r = remote?.enabled;
-          if (remote && r !== false && r !== 0 && r !== '0' && r !== 'false') {
+          if (remote && !!r && r !== 'false' && r !== '0') {
             // configure main process with remote config and test status
             try {
               await (window as any).llm?.configure({ remote }).catch(() => { });
