@@ -11,6 +11,7 @@ import { ShoppingCart, RotateCcw, User, Calendar, Trash2, FileText } from "lucid
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { QuickCheckoutReport } from "./QuickCheckoutReport";
+import { EmployeeAnalyticsDialog } from "./EmployeeAnalyticsDialog";
 
 interface QuickCheckoutFormProps {
   assets: Asset[];
@@ -45,18 +46,10 @@ export const QuickCheckoutForm = ({
     condition: 'good' as 'good' | 'damaged' | 'missing'
   });
 
-  const [filter, setFilter] = useState<'all' | 'outstanding' | 'returned' | 'used'>('outstanding');
-
   const { isAuthenticated, currentUser } = useAuth();
   const { toast } = useToast();
 
-  const filteredCheckouts = quickCheckouts.filter(checkout => {
-    if (filter === 'all') return true;
-    if (filter === 'outstanding') return checkout.status === 'outstanding' || checkout.status === 'lost' || checkout.status === 'damaged';
-    if (filter === 'returned') return checkout.status === 'return_completed';
-    if (filter === 'used') return checkout.status === 'used';
-    return true;
-  });
+  const filteredCheckouts = quickCheckouts; // No filter implementation requested
 
   // Calculate available quantity based on OUTSTANDING items only
   const outstandingCheckouts = quickCheckouts.filter(checkout => checkout.status === 'outstanding' || checkout.status === 'lost' || checkout.status === 'damaged');
@@ -157,8 +150,14 @@ export const QuickCheckoutForm = ({
           <p className="text-muted-foreground mt-2">
             Fast checkout for individual employees and short-term loans
           </p>
+          <p className="text-muted-foreground mt-2">
+            Fast checkout for individual employees and short-term loans
+          </p>
         </div>
-        <QuickCheckoutReport quickCheckouts={quickCheckouts} />
+        <div className="flex gap-2">
+          <EmployeeAnalyticsDialog employees={employees} quickCheckouts={quickCheckouts} />
+          <QuickCheckoutReport quickCheckouts={quickCheckouts} />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -269,29 +268,19 @@ export const QuickCheckoutForm = ({
         {/* Checkouts List with Filter */}
         <Card className="border-0 shadow-soft">
           <CardHeader>
-            <div className="flex justify-between items-center">
-              <CardTitle className="flex items-center gap-2">
-                <RotateCcw className="h-5 w-5" />
-                Checkouts ({filteredCheckouts.length})
-              </CardTitle>
-              <Select value={filter} onValueChange={(v: any) => setFilter(v)}>
-                <SelectTrigger className="w-[140px] h-8">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="outstanding">Outstanding</SelectItem>
-                  <SelectItem value="returned">Returned</SelectItem>
-                  <SelectItem value="used">Used/Consumed</SelectItem>
-                  <SelectItem value="all">All</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <CardTitle className="flex items-center gap-2">
+              <RotateCcw className="h-5 w-5" />
+              Checkouts ({filteredCheckouts.length})
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {filteredCheckouts.length === 0 ? (
               <div className="text-center py-8">
                 <ShoppingCart className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                <p className="text-muted-foreground">No checkouts found for filter: {filter}</p>
+                <div className="text-center py-8">
+                  <ShoppingCart className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-muted-foreground">No checkouts found</p>
+                </div>
               </div>
             ) : (
               <div className="space-y-4 max-h-96 overflow-y-auto">
@@ -438,6 +427,6 @@ export const QuickCheckoutForm = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </div >
   );
 };

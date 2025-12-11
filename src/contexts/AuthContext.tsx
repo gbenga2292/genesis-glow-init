@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { logger } from '@/lib/logger';
+import { logActivity } from '@/utils/activityLogger';
 
 // User type and role definitions remain the same
 export type UserRole = 'admin' | 'data_entry_supervisor' | 'regulatory' | 'manager' | 'staff';
@@ -59,6 +60,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setIsAuthenticated(true);
           localStorage.setItem('isAuthenticated', 'true');
           localStorage.setItem('currentUser', JSON.stringify(result.user));
+          await logActivity({
+            action: 'login',
+            entity: 'user',
+            entityId: result.user.id,
+            details: `User ${result.user.username} logged in`
+          });
           return { success: true };
         }
         // If database login fails, fall through to hardcoded admin check
@@ -79,6 +86,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsAuthenticated(true);
         localStorage.setItem('isAuthenticated', 'true');
         localStorage.setItem('currentUser', JSON.stringify(hardcodedAdmin));
+        await logActivity({
+          action: 'login',
+          entity: 'user',
+          entityId: 'admin',
+          details: 'Admin user logged in (hardcoded fallback)'
+        });
         return { success: true };
       }
 
@@ -96,6 +109,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Clear authentication state from localStorage
     localStorage.removeItem('isAuthenticated');
     localStorage.removeItem('currentUser');
+
+    if (currentUser) {
+      logActivity({
+        action: 'logout',
+        entity: 'user',
+        entityId: currentUser.id,
+        details: `User ${currentUser.username} logged out`
+      });
+    }
   };
 
   // Permission logic remains the same, as it's based on the role in currentUser state
@@ -167,6 +189,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: false, message: 'Database not available' };
       }
       const result = await window.db.createUser(userData);
+      if (result.success) {
+        await logActivity({
+          action: 'create_user',
+          entity: 'user',
+          details: `Created user ${userData.username} (${userData.role})`
+        });
+      }
       return result;
     } catch (error) {
       logger.error('Create user error', error);
@@ -180,6 +209,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: false, message: 'Database not available' };
       }
       const result = await window.db.updateUser(userId, userData);
+      if (result.success) {
+        await logActivity({
+          action: 'update_user',
+          entity: 'user',
+          entityId: userId,
+          details: `Updated user ${userData.username}`
+        });
+      }
       return result;
     } catch (error) {
       logger.error('Update user error', error);
@@ -193,6 +230,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: false, message: 'Database not available' };
       }
       const result = await window.db.deleteUser(userId);
+      if (result.success) {
+        await logActivity({
+          action: 'delete_user',
+          entity: 'user',
+          entityId: userId,
+          details: `Deleted user ${userId}`
+        });
+      }
       return result;
     } catch (error) {
       logger.error('Delete user error', error);

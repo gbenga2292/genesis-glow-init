@@ -37,6 +37,7 @@ import { useSiteInventory } from "@/hooks/useSiteInventory";
 import { SiteInventoryItem } from "@/types/inventory";
 import { AIAssistantProvider, useAIAssistant } from "@/contexts/AIAssistantContext";
 import { AIAssistantChat } from "@/components/ai/AIAssistantChat";
+import { logActivity } from "@/utils/activityLogger";
 
 const Index = () => {
   const { toast } = useToast();
@@ -329,6 +330,13 @@ const Index = () => {
       setAssets(prev => [...prev, savedAsset]);
       setActiveTab("assets");
 
+      await logActivity({
+        action: 'create',
+        entity: 'asset',
+        entityId: savedAsset.id,
+        details: `Created asset ${savedAsset.name}`
+      });
+
       toast({
         title: "Asset Added",
         description: `${newAsset.name} has been added successfully`
@@ -374,6 +382,13 @@ const Index = () => {
       );
       setEditingAsset(null);
 
+      await logActivity({
+        action: 'update',
+        entity: 'asset',
+        entityId: updatedAsset.id,
+        details: `Updated asset ${updatedAsset.name}`
+      });
+
       toast({
         title: "Asset Updated",
         description: `${assetWithUpdatedDate.name} has been updated successfully`
@@ -405,6 +420,13 @@ const Index = () => {
         // Then remove from local state
         setAssets(prev => prev.filter(asset => asset.id !== deletingAsset.id));
         setDeletingAsset(null);
+
+        await logActivity({
+          action: 'delete',
+          entity: 'asset',
+          entityId: deletingAsset.id,
+          details: `Deleted asset ${deletingAsset.name}`
+        });
 
         toast({
           title: "Asset Deleted",
@@ -502,6 +524,13 @@ const Index = () => {
       setShowWaybillDocument(newWaybill);
       setActiveTab("waybills");
 
+      await logActivity({
+        action: 'create',
+        entity: 'waybill',
+        entityId: newWaybill.id,
+        details: `Created waybill ${newWaybill.id} with ${newWaybill.items.length} items`
+      });
+
       toast({
         title: "Waybill Created",
         description: `Waybill ${newWaybill.id} created successfully`
@@ -543,6 +572,13 @@ const Index = () => {
           await window.db.deleteWaybill(waybill.id);
         }
         setWaybills(prev => prev.filter(wb => wb.id !== waybill.id));
+
+        await logActivity({
+          action: 'delete',
+          entity: 'waybill',
+          entityId: waybill.id,
+          details: `Deleted return waybill ${waybill.id}`
+        });
 
         toast({
           title: "Return Deleted",
@@ -613,6 +649,13 @@ const Index = () => {
 
           setWaybills(prev => prev.filter(wb => wb.id !== waybill.id));
         }
+
+        await logActivity({
+          action: 'delete',
+          entity: 'waybill',
+          entityId: waybill.id,
+          details: `Deleted waybill ${waybill.id}`
+        });
 
         toast({
           title: "Waybill Deleted",
@@ -687,6 +730,13 @@ const Index = () => {
         ...item,
         createdAt: new Date(item.createdAt)
       })));
+
+      await logActivity({
+        action: 'move',
+        entity: 'waybill',
+        entityId: waybill.id,
+        details: `Sent waybill ${waybill.id} to site`
+      });
 
       toast({
         title: "Waybill Sent to Site",
@@ -813,6 +863,13 @@ const Index = () => {
         setWaybills(prev => [...prev, createdWaybill]);
         setShowReturnWaybillDocument(createdWaybill);
         setActiveTab("returns");
+
+        await logActivity({
+          action: 'create',
+          entity: 'waybill',
+          entityId: createdWaybill.id,
+          details: `Created return waybill ${createdWaybill.id} from site ${newReturnWaybill.siteId}`
+        });
 
         toast({
           title: "Return Waybill Created",
@@ -991,6 +1048,13 @@ const Index = () => {
       if (window.db) {
         const result = await window.db.processReturnWithTransaction(returnData);
         if (result.success) {
+          await logActivity({
+            action: 'process_return',
+            entity: 'waybill',
+            entityId: returnData.waybillId,
+            details: `Processed return for waybill ${returnData.waybillId} (${returnData.items.length} items)`
+          });
+
           toast({
             title: "Return Processed",
             description: "Return has been successfully processed.",
@@ -1066,6 +1130,14 @@ const Index = () => {
       }));
 
       setQuickCheckouts(prev => [...prev, newCheckout]);
+
+      await logActivity({
+        action: 'checkout',
+        entity: 'asset',
+        entityId: checkoutData.assetId,
+        details: `Checked out ${checkoutData.quantity} ${checkoutData.assetName} to ${checkoutData.employee}`
+      });
+
       toast({
         title: "Checkout Successful",
         description: `${checkoutData.quantity} ${checkoutData.assetName} checked out to ${checkoutData.employee}`
@@ -1162,6 +1234,13 @@ const Index = () => {
         return asset;
       }));
 
+      await logActivity({
+        action: 'return',
+        entity: 'checkout',
+        entityId: checkoutId,
+        details: `Updated checkout status to ${status} for ${qtyToUpdate} items`
+      });
+
       toast({
         title: "Status Updated",
         description: `Item marked as ${status} (${qtyToUpdate})`
@@ -1177,7 +1256,7 @@ const Index = () => {
     handleUpdateCheckoutStatus(checkoutId, 'return_completed');
   };
 
-  const handlePartialReturn = (checkoutId: string, quantity: number, condition: 'good' | 'damaged' | 'missing') => {
+  const handlePartialReturn = async (checkoutId: string, quantity: number, condition: 'good' | 'damaged' | 'missing') => {
     const checkout = quickCheckouts.find(c => c.id === checkoutId);
     if (!checkout) return;
 
@@ -1234,6 +1313,13 @@ const Index = () => {
       return asset;
     }));
 
+    await logActivity({
+      action: 'return',
+      entity: 'checkout',
+      entityId: checkoutId,
+      details: `Partial return of ${quantity} items in ${condition} condition`
+    });
+
     toast({
       title: "Partial Return Processed",
       description: `${quantity} ${checkout.assetName} returned in ${condition} condition by ${checkout.employee}`
@@ -1261,6 +1347,13 @@ const Index = () => {
               toast({
                 title: "Equipment Log Added",
                 description: "Equipment log saved successfully"
+              });
+
+              await logActivity({
+                action: 'create',
+                entity: 'equipment_log',
+                entityId: log.id,
+                details: `Created equipment log for ${log.equipmentName}`
               });
             } catch (error) {
               logger.error('Failed to save equipment log', error);
@@ -1550,6 +1643,13 @@ const Index = () => {
                     createdAt: new Date(item.createdAt),
                     updatedAt: new Date(item.updatedAt)
                   })));
+
+                  await logActivity({
+                    action: 'create',
+                    entity: 'site',
+                    entityId: site.id,
+                    details: `Created site ${site.name}`
+                  });
                 } else {
                   setSites(prev => [...prev, site]);
                 }
@@ -1576,6 +1676,13 @@ const Index = () => {
                     createdAt: new Date(item.createdAt),
                     updatedAt: new Date(item.updatedAt)
                   })));
+
+                  await logActivity({
+                    action: 'update',
+                    entity: 'site',
+                    entityId: updatedSite.id,
+                    details: `Updated site ${updatedSite.name}`
+                  });
                 } else {
                   setSites(prev => prev.map(site => (site.id === updatedSite.id ? updatedSite : site)));
                 }
@@ -1602,6 +1709,13 @@ const Index = () => {
                     createdAt: new Date(item.createdAt),
                     updatedAt: new Date(item.updatedAt)
                   })));
+
+                  await logActivity({
+                    action: 'delete',
+                    entity: 'site',
+                    entityId: siteId,
+                    details: `Deleted site ${siteId}`
+                  });
                 } else {
                   setSites(prev => prev.filter(site => site.id !== siteId));
                 }
@@ -1956,7 +2070,7 @@ const Index = () => {
     }
   };
 
-  const handleResetAllData = () => {
+  const handleResetAllData = async () => {
     // Clear all states
     setAssets([]);
     setWaybills([]);
@@ -1966,6 +2080,12 @@ const Index = () => {
     setEmployees([]);
     setVehicles([]);
     setCompanySettings({} as CompanySettingsType);
+
+    await logActivity({
+      action: 'reset',
+      entity: 'system',
+      details: 'Evaluated Reset All Data'
+    });
   };
 
   // Handle AI assistant actions

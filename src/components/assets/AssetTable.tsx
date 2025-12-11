@@ -41,6 +41,7 @@ import {
   BarChart,
   History
 } from "lucide-react";
+import { logActivity } from "@/utils/activityLogger";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { RestockDialog } from "./RestockDialog";
@@ -84,8 +85,8 @@ export const AssetTable = ({ assets, onEdit, onDelete, onUpdateAsset, onViewAnal
       if (asset.siteId) return false;
 
       const matchesSearch = asset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           asset.location?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           asset.service?.toLowerCase().includes(searchTerm.toLowerCase());
+        asset.location?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        asset.service?.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesCategory = filterCategory === 'all' || asset.category === filterCategory;
       const matchesType = filterType === 'all' || asset.type === filterType;
@@ -312,160 +313,160 @@ export const AssetTable = ({ assets, onEdit, onDelete, onUpdateAsset, onViewAnal
                 <TableHead className="w-16">Actions</TableHead>
               </TableRow>
             </TableHeader>
-          <TableBody>
-            {filteredAndSortedAssets.map((asset) => (
-              <TableRow key={asset.id} className="hover:bg-muted/30 transition-colors">
-                <TableCell className="font-medium">
-                  {asset.name}
-                </TableCell>
-
-                <TableCell>
-                  <span className="font-semibold text-primary">{asset.quantity}</span>
-                </TableCell>
-
-                {!isMobile && (
-                  <TableCell>
-                    {asset.reservedQuantity || 0}
+            <TableBody>
+              {filteredAndSortedAssets.map((asset) => (
+                <TableRow key={asset.id} className="hover:bg-muted/30 transition-colors">
+                  <TableCell className="font-medium">
+                    {asset.name}
                   </TableCell>
-                )}
 
-                {!isMobile && (
                   <TableCell>
-                    {asset.availableQuantity || 0}
+                    <span className="font-semibold text-primary">{asset.quantity}</span>
                   </TableCell>
-                )}
 
-                {!isMobile && (
+                  {!isMobile && (
+                    <TableCell>
+                      {asset.reservedQuantity || 0}
+                    </TableCell>
+                  )}
+
+                  {!isMobile && (
+                    <TableCell>
+                      {asset.availableQuantity || 0}
+                    </TableCell>
+                  )}
+
+                  {!isMobile && (
+                    <TableCell>
+                      {asset.missingCount || 0}
+                    </TableCell>
+                  )}
+
+                  {!isMobile && (
+                    <TableCell>
+                      {asset.damagedCount || 0}
+                    </TableCell>
+                  )}
+
+                  {!isMobile && (
+                    <TableCell>
+                      <Badge variant="outline">{asset.category}</Badge>
+                    </TableCell>
+                  )}
+
+                  {!isMobile && (
+                    <TableCell>
+                      <Badge variant="secondary">{asset.type}</Badge>
+                    </TableCell>
+                  )}
+
                   <TableCell>
-                    {asset.missingCount || 0}
+                    {asset.location || '-'}
                   </TableCell>
-                )}
 
-                {!isMobile && (
+                  <TableCell>{getStockBadge(asset.quantity, asset.lowStockLevel, asset.criticalStockLevel)}</TableCell>
+
                   <TableCell>
-                    {asset.damagedCount || 0}
-                  </TableCell>
-                )}
-
-                {!isMobile && (
-                  <TableCell>
-                    <Badge variant="outline">{asset.category}</Badge>
-                  </TableCell>
-                )}
-
-                {!isMobile && (
-                  <TableCell>
-                    <Badge variant="secondary">{asset.type}</Badge>
-                  </TableCell>
-                )}
-
-                <TableCell>
-                  {asset.location || '-'}
-                </TableCell>
-
-                <TableCell>{getStockBadge(asset.quantity, asset.lowStockLevel, asset.criticalStockLevel)}</TableCell>
-
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {hasPermission('write_assets') && (
-                        <DropdownMenuItem onClick={() => {
-                          if (!isAuthenticated) {
-                            toast({
-                              title: "Login Required",
-                              description: "Please log in to edit assets.",
-                              variant: "destructive",
-                            });
-                            return;
-                          }
-                          onEdit(asset);
-                        }}>
-                          <Edit className="h-4 w-4 mr-2" />
-                          Edit Form
-                        </DropdownMenuItem>
-                      )}
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                            <FileText className="h-4 w-4 mr-2" />
-                            Description
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {hasPermission('write_assets') && (
+                          <DropdownMenuItem onClick={() => {
+                            if (!isAuthenticated) {
+                              toast({
+                                title: "Login Required",
+                                description: "Please log in to edit assets.",
+                                variant: "destructive",
+                              });
+                              return;
+                            }
+                            onEdit(asset);
+                          }}>
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit Form
                           </DropdownMenuItem>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>{asset.name} - Description</DialogTitle>
-                          </DialogHeader>
-                          <div className="mt-4">
-                            <p className="text-sm text-muted-foreground">
-                              {asset.description || 'No description available for this asset.'}
-                            </p>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-                      <DropdownMenuItem
-                        onClick={() => {
-                          if (!isAuthenticated) {
-                            toast({
-                              title: "Login Required",
-                              description: "Please log in to view analytics.",
-                              variant: "destructive",
-                            });
-                            return;
-                          }
-                          onViewAnalytics?.(asset);
-                        }}
-                      >
-                        <BarChart className="h-4 w-4 mr-2" />
-                        Analytics
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => {
-                          if (!isAuthenticated) {
-                            toast({
-                              title: "Login Required",
-                              description: "Please log in to view restock history.",
-                              variant: "destructive",
-                            });
-                            return;
-                          }
-                          setSelectedAssetForHistory(asset);
-                          setShowRestockHistoryDialog(true);
-                        }}
-                      >
-                        <History className="h-4 w-4 mr-2" />
-                        Restock History
-                      </DropdownMenuItem>
-                      {hasPermission('delete_assets') && (
+                        )}
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                              <FileText className="h-4 w-4 mr-2" />
+                              Description
+                            </DropdownMenuItem>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>{asset.name} - Description</DialogTitle>
+                            </DialogHeader>
+                            <div className="mt-4">
+                              <p className="text-sm text-muted-foreground">
+                                {asset.description || 'No description available for this asset.'}
+                              </p>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
                         <DropdownMenuItem
                           onClick={() => {
                             if (!isAuthenticated) {
                               toast({
                                 title: "Login Required",
-                                description: "Please log in to delete assets.",
+                                description: "Please log in to view analytics.",
                                 variant: "destructive",
                               });
                               return;
                             }
-                            onDelete(asset);
+                            onViewAnalytics?.(asset);
                           }}
-                          className="text-destructive focus:text-destructive"
                         >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
+                          <BarChart className="h-4 w-4 mr-2" />
+                          Analytics
                         </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-         </Table>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            if (!isAuthenticated) {
+                              toast({
+                                title: "Login Required",
+                                description: "Please log in to view restock history.",
+                                variant: "destructive",
+                              });
+                              return;
+                            }
+                            setSelectedAssetForHistory(asset);
+                            setShowRestockHistoryDialog(true);
+                          }}
+                        >
+                          <History className="h-4 w-4 mr-2" />
+                          Restock History
+                        </DropdownMenuItem>
+                        {hasPermission('delete_assets') && (
+                          <DropdownMenuItem
+                            onClick={() => {
+                              if (!isAuthenticated) {
+                                toast({
+                                  title: "Login Required",
+                                  description: "Please log in to delete assets.",
+                                  variant: "destructive",
+                                });
+                                return;
+                              }
+                              onDelete(asset);
+                            }}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
 
         {/* Empty State */}
@@ -497,12 +498,12 @@ export const AssetTable = ({ assets, onEdit, onDelete, onUpdateAsset, onViewAnal
                 quantity: asset.quantity + item.quantity,
                 availableQuantity: (asset.availableQuantity || 0) + item.quantity,
               };
-              
+
               // Update in database
               if (window.db) {
                 await window.db.updateAsset(asset.id, updatedAsset);
               }
-              
+
               // Update in local state
               onUpdateAsset(updatedAsset);
             }
@@ -533,6 +534,13 @@ export const AssetTable = ({ assets, onEdit, onDelete, onUpdateAsset, onViewAnal
               } else if (window.db) {
                 window.db.createEquipmentLog(restockLog);
               }
+
+              logActivity({
+                action: 'restock',
+                entity: 'asset',
+                entityId: item.assetId,
+                details: `Restocked ${item.quantity} units of ${asset.name}`
+              });
             }
           });
 
