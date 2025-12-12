@@ -59,7 +59,7 @@ export const generatePDFReport = async (config: ReportConfig): Promise<void> => 
     service: asset.service || '-',
     status: asset.status,
     condition: asset.condition || '-',
-    cost: asset.cost ? `$${asset.cost.toFixed(2)}` : '-'
+    cost: asset.cost ? `NGN ${asset.cost.toFixed(2)}` : '-'
   }));
 
   await generateUnifiedReport({
@@ -84,7 +84,7 @@ export const generatePDFReport = async (config: ReportConfig): Promise<void> => 
     data: reportData,
     summaryStats: [
       { label: 'Total Assets', value: totalAssets },
-      { label: 'Total Value', value: `$${totalValue.toFixed(2)}` },
+      { label: 'Total Value', value: `NGN ${totalValue.toFixed(2)}` },
       { label: 'Active Assets', value: activeAssets },
       { label: 'Damaged Assets', value: damagedAssets },
       { label: 'Missing Assets', value: missingAssets },

@@ -17,9 +17,9 @@ const defaultCompanySettings: CompanySettings = {
   logo: "/logo.png",
   address: "7 Musiliu Smith St, formerly Panti Street, Adekunle, Lagos 101212, Lagos",
   phone: "+2349030002182",
-  email: "",
+  email: "info@dewaterconstruct.com",
   website: "https://dewaterconstruct.com/",
-  currency: "USD",
+  currency: "NGN",
   dateFormat: "MM/dd/yyyy",
   theme: "light",
   notifications: {
@@ -34,8 +34,13 @@ export const InventoryReport = ({ assets, companySettings }: InventoryReportProp
   const [selectedReport, setSelectedReport] = useState("all");
   const [previewData, setPreviewData] = useState<{ assets: Asset[]; title: string } | null>(null);
 
-  // Use provided companySettings or default to company information
-  const effectiveCompanySettings = companySettings || defaultCompanySettings;
+  // Merge provided companySettings with defaults, only using non-empty values from database
+  const effectiveCompanySettings: CompanySettings = {
+    ...defaultCompanySettings,
+    ...(companySettings ? Object.fromEntries(
+      Object.entries(companySettings).filter(([_, v]) => v !== undefined && v !== null && v !== '')
+    ) : {})
+  };
 
   const generateReport = async (filteredAssets: Asset[], title: string) => {
     setLoading(true);
@@ -55,8 +60,7 @@ export const InventoryReport = ({ assets, companySettings }: InventoryReportProp
       unit: asset.unitOfMeasurement,
       category: asset.category,
       type: asset.type,
-      location: asset.location || '-',
-      description: asset.description || '-'
+      location: asset.location || '-'
     }));
 
     await generateUnifiedReport({
@@ -64,21 +68,19 @@ export const InventoryReport = ({ assets, companySettings }: InventoryReportProp
       subtitle: title,
       reportType: 'INVENTORY',
       companySettings: effectiveCompanySettings,
-      orientation: 'landscape',
       columns: [
-        { header: 'Name', dataKey: 'name', width: 40 },
-        { header: 'Quantity', dataKey: 'quantity', width: 20 },
-        { header: 'Unit', dataKey: 'unit', width: 20 },
-        { header: 'Category', dataKey: 'category', width: 25 },
-        { header: 'Type', dataKey: 'type', width: 25 },
-        { header: 'Location', dataKey: 'location', width: 30 },
-        { header: 'Description', dataKey: 'description', width: 50 }
+        { header: 'Name', dataKey: 'name', width: 45 },
+        { header: 'Qty', dataKey: 'quantity', width: 18 },
+        { header: 'Unit', dataKey: 'unit', width: 18 },
+        { header: 'Category', dataKey: 'category', width: 30 },
+        { header: 'Type', dataKey: 'type', width: 30 },
+        { header: 'Location', dataKey: 'location', width: 35 }
       ],
       data: reportData,
       summaryStats: [
         { label: 'Total Assets', value: totalAssets },
         { label: 'Total Quantity', value: totalQuantity },
-        { label: 'Total Value', value: `$${totalValue.toFixed(2)}` },
+        { label: 'Total Value', value: `NGN ${totalValue.toFixed(2)}` },
         { label: 'Active Assets', value: activeAssets },
         { label: 'Equipment Items', value: equipmentCount },
         { label: 'Consumables', value: consumablesCount }

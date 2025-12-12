@@ -716,14 +716,23 @@ const Index = () => {
 
       // Reload waybills from database
       const loadedWaybills = await window.db.getWaybills();
-      setWaybills(loadedWaybills.map((item: any) => ({
+      const processedWaybills = loadedWaybills.map((item: any) => ({
         ...item,
         issueDate: new Date(item.issueDate),
         expectedReturnDate: item.expectedReturnDate ? new Date(item.expectedReturnDate) : undefined,
         sentToSiteDate: item.sentToSiteDate ? new Date(item.sentToSiteDate) : undefined,
         createdAt: new Date(item.createdAt),
         updatedAt: new Date(item.updatedAt)
-      })));
+      }));
+      setWaybills(processedWaybills);
+
+      // Update the displayed waybill document if it's currently showing this waybill
+      if (showWaybillDocument && showWaybillDocument.id === waybill.id) {
+        const updatedWaybill = processedWaybills.find((w: Waybill) => w.id === waybill.id);
+        if (updatedWaybill) {
+          setShowWaybillDocument(updatedWaybill);
+        }
+      }
 
       // Reload site transactions from database
       const loadedTransactions = await window.db.getSiteTransactions();

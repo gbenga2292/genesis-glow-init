@@ -58,7 +58,30 @@ interface SitesPageProps {
   aiPrefillData?: any;
 }
 
+const defaultCompanySettings: CompanySettings = {
+  companyName: "Dewatering Construction Etc Limited",
+  logo: "/logo.png",
+  address: "7 Musiliu Smith St, formerly Panti Street, Adekunle, Lagos 101212, Lagos",
+  phone: "+2349030002182",
+  email: "info@dewaterconstruct.com",
+  website: "https://dewaterconstruct.com/",
+  currency: "NGN",
+  dateFormat: "MM/dd/yyyy",
+  theme: "light",
+  notifications: {
+    email: true,
+    push: true,
+  },
+};
+
 export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transactions, equipmentLogs, consumableLogs, siteInventory, getSiteInventory, companySettings, onAddSite, onUpdateSite, onDeleteSite, onUpdateAsset, onCreateWaybill, onCreateReturnWaybill, onProcessReturn, onAddEquipmentLog, onUpdateEquipmentLog, onAddConsumableLog, onUpdateConsumableLog, aiPrefillData }: SitesPageProps) => {
+  // Merge provided companySettings with defaults, only using non-empty values from database
+  const effectiveCompanySettings: CompanySettings = {
+    ...defaultCompanySettings,
+    ...(companySettings ? Object.fromEntries(
+      Object.entries(companySettings).filter(([_, v]) => v !== undefined && v !== null && v !== '')
+    ) : {})
+  };
   const [showForm, setShowForm] = useState(false);
   const [editingSite, setEditingSite] = useState<Site | null>(null);
   const [selectedSite, setSelectedSite] = useState<Site | null>(null);
@@ -215,7 +238,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
   };
 
   const handleGenerateTransactionsReport = async () => {
-    if (selectedSiteForReport && companySettings) {
+    if (selectedSiteForReport && effectiveCompanySettings) {
       // Get and sort transactions
       const siteTransactions = transactions
         .filter(t => t.siteId === selectedSiteForReport.id)
@@ -247,7 +270,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
         title: 'Site Transactions Report',
         subtitle: `${selectedSiteForReport.name} - Transaction History`,
         reportType: 'SITE TRANSACTIONS',
-        companySettings,
+        companySettings: effectiveCompanySettings,
         orientation: 'landscape',
         columns: [
           { header: 'Date', dataKey: 'createdAt', width: 35 },
@@ -284,7 +307,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
   };
 
   const generateReport = async (assetsToReport: Asset[], title: string) => {
-    if (!companySettings) return;
+    if (!effectiveCompanySettings) return;
 
     // Calculate summary statistics
     const totalAssets = assetsToReport.length;
@@ -311,7 +334,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
       title: 'Site Materials Report',
       subtitle: title,
       reportType: 'MATERIALS ON SITE',
-      companySettings,
+      companySettings: effectiveCompanySettings,
       orientation: 'landscape',
       columns: [
         { header: 'Name', dataKey: 'name', width: 35 },
@@ -328,7 +351,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
       summaryStats: [
         { label: 'Total Assets', value: totalAssets },
         { label: 'Total Quantity', value: totalQuantity },
-        { label: 'Total Value', value: `$${totalValue.toFixed(2)}` },
+        { label: 'Total Value', value: `NGN ${totalValue.toFixed(2)}` },
         { label: 'Equipment Items', value: equipmentCount },
         { label: 'Consumables', value: consumablesCount },
         { label: 'Tools', value: toolsCount }
@@ -337,7 +360,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
   };
 
   const generateWaybillPDF = async (waybill: Waybill) => {
-    if (!companySettings) return;
+    if (!effectiveCompanySettings) return;
 
     const site = sites.find(s => s.id === waybill.siteId);
     const siteName = site?.name || 'Unknown Site';
@@ -360,7 +383,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
       title: waybill.type === 'return' ? 'Return Waybill' : 'Waybill',
       subtitle: `Waybill #${waybill.id} | Driver: ${waybill.driverName} | Vehicle: ${waybill.vehicle}`,
       reportType: `${waybill.type === 'return' ? 'RETURN' : 'OUTBOUND'} | Site: ${siteName}`,
-      companySettings,
+      companySettings: effectiveCompanySettings,
       orientation: 'landscape',
       columns: [
         { header: 'Asset Name', dataKey: 'assetName', width: 60 },

@@ -77,7 +77,7 @@ export const WaybillDocument = ({ waybill, sites, companySettings, onClose }: Wa
                 <div className="flex items-center gap-2 mt-1">
                   {getStatusBadge(waybill.status)}
                   <span className="text-sm text-muted-foreground">
-                    Created: {new Date(waybill.createdAt).toLocaleDateString()}
+                    Created: {new Date(waybill.createdAt).toLocaleDateString('en-GB')}
                   </span>
                   {waybill.siteId && (
                     <div className="flex items-center gap-1 ml-4">
@@ -112,8 +112,13 @@ export const WaybillDocument = ({ waybill, sites, companySettings, onClose }: Wa
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <div>
-                    <p className="text-sm text-muted-foreground">Date</p>
-                    <p className="font-medium">{new Date(waybill.sentToSiteDate || waybill.issueDate).toLocaleDateString()}</p>
+                    <p className="text-sm text-muted-foreground">Sent to Site Date</p>
+                    <p className="font-medium">
+                      {waybill.sentToSiteDate
+                        ? new Date(waybill.sentToSiteDate).toLocaleDateString('en-GB')
+                        : <span className="text-muted-foreground italic">Not sent yet</span>
+                      }
+                    </p>
                   </div>
                 </div>
 
@@ -122,7 +127,7 @@ export const WaybillDocument = ({ waybill, sites, companySettings, onClose }: Wa
                     <Calendar className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <p className="text-sm text-muted-foreground">Expected Return</p>
-                      <p className="font-medium">{new Date(waybill.expectedReturnDate).toLocaleDateString()}</p>
+                      <p className="font-medium">{new Date(waybill.expectedReturnDate).toLocaleDateString('en-GB')}</p>
                     </div>
                   </div>
                 )}

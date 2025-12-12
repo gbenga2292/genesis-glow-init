@@ -289,6 +289,12 @@ export function transformWaybillFromDB(dbWaybill) {
     siteId: dbWaybill.siteId ? String(dbWaybill.siteId) : undefined,
     returnToSiteId: dbWaybill.returnToSiteId ? String(dbWaybill.returnToSiteId) : undefined,
     items: dbWaybill.items ? JSON.parse(dbWaybill.items) : [],
+    // Convert snake_case date fields to camelCase
+    issueDate: dbWaybill.issue_date || dbWaybill.issueDate,
+    expectedReturnDate: dbWaybill.expected_return_date || dbWaybill.expectedReturnDate,
+    sentToSiteDate: dbWaybill.sent_to_site_date || dbWaybill.sentToSiteDate,
+    createdAt: dbWaybill.created_at || dbWaybill.createdAt,
+    updatedAt: dbWaybill.updated_at || dbWaybill.updatedAt,
   };
 }
 

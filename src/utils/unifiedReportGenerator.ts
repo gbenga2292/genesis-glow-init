@@ -40,7 +40,12 @@ const loadImage = (src: string): Promise<HTMLImageElement> => {
     const img = new Image();
     img.onload = () => resolve(img);
     img.onerror = reject;
-    img.src = src;
+    // Convert relative paths to absolute URLs
+    if (src.startsWith('/') && !src.startsWith('//')) {
+      img.src = window.location.origin + src;
+    } else {
+      img.src = src;
+    }
   });
 };
 
@@ -57,7 +62,7 @@ export const generateUnifiedReport = async (config: ReportConfig): Promise<void>
     columns,
     data,
     summaryStats,
-    orientation = 'landscape',
+    orientation = 'portrait',
     headerColor = [41, 128, 185] // Professional blue
   } = config;
 
@@ -96,64 +101,80 @@ export const generateUnifiedReport = async (config: ReportConfig): Promise<void>
     }
   }
 
+  /* 
+    Brand Standard: 
+    - Font: Helvetica (Standard Professional)
+    - Header: Bold, 22pt (Company Name)
+    - Metadata: Normal, 10pt/9pt
+    - Separator Line: Light Grey
+  */
+
   // Add company information
   doc.setFontSize(22);
   doc.setFont('helvetica', 'bold');
-  // Align company name with top of logo (approx y=14)
-  doc.text(companySettings.companyName || 'Asset Management System', 60, 14);
+
+  const companyName = companySettings.companyName || 'Asset Management System';
+  const companyNameWidth = doc.getTextWidth(companyName);
+  // If logo exists, align to right of logo (60), else left align (20)
+  const nameX = companySettings.logo ? 60 : 20;
+
+  doc.text(companyName, nameX, 15);
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  let headerY = 20;
+  doc.setTextColor(50, 50, 50); // Dark grey for contact info
+
+  let headerY = 22;
   const lineHeight = 5;
 
   if (companySettings.address) {
-    doc.text(companySettings.address, 60, headerY);
+    doc.text(companySettings.address, nameX, headerY);
     headerY += lineHeight;
   }
   if (companySettings.phone) {
-    doc.text(`Phone: ${companySettings.phone}`, 60, headerY);
+    doc.text(`Phone: ${companySettings.phone}`, nameX, headerY);
     headerY += lineHeight;
   }
   if (companySettings.email) {
-    doc.text(`Email: ${companySettings.email}`, 60, headerY);
+    doc.text(`Email: ${companySettings.email}`, nameX, headerY);
   }
 
   // Draw a professional separator line
   const pageWidth = doc.internal.pageSize.getWidth();
   doc.setDrawColor(200, 200, 200);
   doc.setLineWidth(0.5);
-  doc.line(20, 40, pageWidth - 20, 40);
+  doc.line(20, 42, pageWidth - 20, 42);
 
   // Add report title and metadata - Compact Layout
   doc.setFontSize(18);
   doc.setFont('helvetica', 'bold');
-  doc.text(title, 20, 50);
+  doc.setTextColor(0, 0, 0); // Black for title
+  doc.text(title, 20, 52);
 
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 100, 100);
 
-  // Combine Generated on and Report Type on one line or close together
+  // Combine Generated on and Report Type
   const dateStr = `Generated on: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`;
-  doc.text(dateStr, 20, 56);
+  doc.text(dateStr, 20, 58);
 
   if (reportType) {
-    doc.text(`Report Type: ${reportType}`, 20, 61);
+    doc.text(`Report Type: ${reportType.toUpperCase()}`, 20, 63);
   }
 
-  // Subtitle
+  // Subtitle (if any)
   let tableStartY = 75;
   if (subtitle) {
     doc.setFontSize(11);
     doc.setFont('helvetica', 'italic');
-    doc.setTextColor(0, 0, 0); // Reset color
-    doc.text(subtitle, 20, 68);
+    doc.setTextColor(0, 0, 0);
+    doc.text(subtitle, 20, 70);
   } else {
     tableStartY = 68;
   }
 
-  doc.setTextColor(0, 0, 0); // Ensure black for table
+  doc.setTextColor(0, 0, 0); // Ensure black for table content
 
   // Prepare table configuration
   const tableColumns = columns.map(col => col.header);
@@ -161,7 +182,7 @@ export const generateUnifiedReport = async (config: ReportConfig): Promise<void>
     columns.map(col => {
       const value = row[col.dataKey];
       if (value === null || value === undefined) return '-';
-      if (typeof value === 'number') return value.toFixed(2);
+      if (typeof value === 'number') return value.toString();
       if (value instanceof Date) return value.toLocaleDateString();
       return String(value);
     })

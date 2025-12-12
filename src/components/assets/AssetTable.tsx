@@ -548,7 +548,7 @@ export const AssetTable = ({ assets, onEdit, onDelete, onUpdateAsset, onViewAnal
           const totalCost = restockItems.reduce((sum, item) => sum + item.totalCost, 0);
           toast({
             title: "Restock Successful",
-            description: `Added ${totalQuantity} units across ${restockItems.length} asset(s) for $${totalCost.toFixed(2)}.`,
+            description: `Added ${totalQuantity} units across ${restockItems.length} asset(s) for NGN ${totalCost.toFixed(2)}.`,
           });
         }}
       />

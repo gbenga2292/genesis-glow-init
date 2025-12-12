@@ -15,9 +15,9 @@ const defaultCompanySettings: CompanySettings = {
   logo: "/logo.png",
   address: "7 Musiliu Smith St, formerly Panti Street, Adekunle, Lagos 101212, Lagos",
   phone: "+2349030002182",
-  email: "",
+  email: "info@dewaterconstruct.com",
   website: "https://dewaterconstruct.com/",
-  currency: "USD",
+  currency: "NGN",
   dateFormat: "MM/dd/yyyy",
   theme: "light",
   notifications: {
@@ -32,7 +32,12 @@ const loadImage = (src: string): Promise<HTMLImageElement> => {
     const img = new Image();
     img.onload = () => resolve(img);
     img.onerror = reject;
-    img.src = src;
+    // Convert relative paths to absolute URLs
+    if (src.startsWith('/') && !src.startsWith('//')) {
+      img.src = window.location.origin + src;
+    } else {
+      img.src = src;
+    }
   });
 };
 
@@ -48,8 +53,13 @@ export const generateProfessionalPDF = async ({ waybill, companySettings, sites,
   const fromLocation = 'DCEL Warehouse';
   const toLocation = site?.name || 'Client Site';
 
-  // Use provided companySettings or default to company information
-  const effectiveCompanySettings = companySettings || defaultCompanySettings;
+  // Merge provided companySettings with defaults, only using non-empty values
+  const effectiveCompanySettings: CompanySettings = {
+    ...defaultCompanySettings,
+    ...(companySettings ? Object.fromEntries(
+      Object.entries(companySettings).filter(([_, v]) => v !== undefined && v !== null && v !== '')
+    ) : {})
+  };
 
   // Function to render header (logo, title, waybill no/date/driver/vehicle left-aligned)
   const renderHeader = async () => {
@@ -122,11 +132,18 @@ export const generateProfessionalPDF = async ({ waybill, companySettings, sites,
       const v = n % 100;
       return n + (s[(v - 20) % 10] || s[v] || s[0]);
     };
-    const effectiveDate = waybill.sentToSiteDate || waybill.issueDate;
+
+    // Ensure we have a proper Date object
+    const sentDate = waybill.sentToSiteDate ? new Date(waybill.sentToSiteDate) : null;
+    const issueDate = new Date(waybill.issueDate);
+    const effectiveDate = sentDate || issueDate;
+
+    // Format as ordinal (11th December 2025)
     const day = effectiveDate.getDate();
     const monthYear = effectiveDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
     const dateText = `${getOrdinal(day)} ${monthYear}`;
-    pdf.text(`Date: ${dateText}`, 20, headerY);
+    const dateLabel = sentDate ? 'Sent to Site Date' : 'Issue Date';
+    pdf.text(`${dateLabel}: ${dateText}`, 20, headerY);
     headerY += 8;
 
     // Driver Name (left-aligned, bold)

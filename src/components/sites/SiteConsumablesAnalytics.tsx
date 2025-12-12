@@ -26,7 +26,7 @@ export const SiteConsumablesAnalytics = ({
   // Filter consumables at this site
   const siteConsumables = assets.filter(asset =>
     asset.type === 'consumable' &&
-    asset.siteQuantities && 
+    asset.siteQuantities &&
     asset.siteQuantities[site.id] > 0
   );
 
@@ -42,7 +42,7 @@ export const SiteConsumablesAnalytics = ({
 
     return days.map(day => {
       const dayStr = format(day, 'MMM dd');
-      const dayLogs = siteLogs.filter(log => 
+      const dayLogs = siteLogs.filter(log =>
         format(new Date(log.date), 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd')
       );
       const totalUsed = dayLogs.reduce((sum, log) => sum + log.quantityUsed, 0);
@@ -56,7 +56,7 @@ export const SiteConsumablesAnalytics = ({
       const logs = siteLogs.filter(log => log.consumableId === consumable.id);
       const totalUsed = logs.reduce((sum, log) => sum + log.quantityUsed, 0);
       const currentQty = consumable.siteQuantities![site.id];
-      
+
       return {
         name: consumable.name,
         used: totalUsed,
@@ -101,7 +101,7 @@ export const SiteConsumablesAnalytics = ({
       return sum + (log.quantityUsed * unitCost);
     }, 0);
 
-    const last7Days = siteLogs.filter(log => 
+    const last7Days = siteLogs.filter(log =>
       new Date(log.date) >= subDays(new Date(), 7)
     ).reduce((sum, log) => {
       const consumable = assets.find(a => a.id === log.consumableId);
@@ -148,16 +148,16 @@ export const SiteConsumablesAnalytics = ({
         type: 'info',
         icon: DollarSign,
         title: 'Cost Projection',
-        description: `Based on last 7 days usage, projected monthly consumables cost: $${projectedMonthlyCost.toFixed(2)}`,
+        description: `Based on last 7 days usage, projected monthly consumables cost: NGN ${projectedMonthlyCost.toFixed(2)}`,
         color: 'text-blue-600'
       });
     }
 
     // Usage frequency
-    const recentUsage = siteLogs.filter(log => 
+    const recentUsage = siteLogs.filter(log =>
       new Date(log.date) >= subDays(new Date(), 7)
     ).length;
-    
+
     if (recentUsage > 0) {
       insights.push({
         type: 'info',
@@ -324,7 +324,7 @@ export const SiteConsumablesAnalytics = ({
                 <div className="space-y-4">
                   {topConsumables.slice(0, 5).map((consumable) => {
                     const logs = siteLogs.filter(log => log.consumableName === consumable.name);
-                    const last7Days = logs.filter(log => 
+                    const last7Days = logs.filter(log =>
                       new Date(log.date) >= subDays(new Date(), 7)
                     ).length;
                     const previous7Days = logs.filter(log => {
@@ -333,7 +333,7 @@ export const SiteConsumablesAnalytics = ({
                     }).length;
 
                     const trend = last7Days > previous7Days ? 'up' : 'down';
-                    const change = previous7Days > 0 
+                    const change = previous7Days > 0
                       ? Math.abs(((last7Days - previous7Days) / previous7Days) * 100).toFixed(0)
                       : 0;
 

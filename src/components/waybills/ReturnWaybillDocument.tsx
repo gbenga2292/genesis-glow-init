@@ -75,11 +75,11 @@ export const ReturnWaybillDocument = ({ waybill, sites, companySettings, onClose
                 <div className="flex items-center gap-2 mt-1">
                   {getStatusBadge(waybill.status)}
                   <span className="text-sm text-muted-foreground">
-                    Created: {new Date(waybill.createdAt).toLocaleDateString()}
+                    Created: {new Date(waybill.createdAt).toLocaleDateString('en-GB')}
                   </span>
                   {waybill.status === 'return_completed' && (
                     <span className="text-sm text-muted-foreground ml-4">
-                      Actual Return: {new Date(waybill.updatedAt).toLocaleDateString()}
+                      Actual Return: {new Date(waybill.updatedAt).toLocaleDateString('en-GB')}
                     </span>
                   )}
                   {waybill.siteId && (
@@ -116,7 +116,7 @@ export const ReturnWaybillDocument = ({ waybill, sites, companySettings, onClose
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <div>
                     <p className="text-sm text-muted-foreground">Issue Date</p>
-                    <p className="font-medium">{new Date(waybill.issueDate).toLocaleDateString()}</p>
+                    <p className="font-medium">{new Date(waybill.issueDate).toLocaleDateString('en-GB')}</p>
                   </div>
                 </div>
 
@@ -125,7 +125,7 @@ export const ReturnWaybillDocument = ({ waybill, sites, companySettings, onClose
                     <Calendar className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <p className="text-sm text-muted-foreground">Expected Return</p>
-                      <p className="font-medium">{new Date(waybill.expectedReturnDate).toLocaleDateString()}</p>
+                      <p className="font-medium">{new Date(waybill.expectedReturnDate).toLocaleDateString('en-GB')}</p>
                     </div>
                   </div>
                 )}
