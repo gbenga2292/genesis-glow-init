@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { CompanySettings as CompanySettingsType, Employee, Asset, Waybill, QuickCheckout, Site, SiteTransaction, Activity, Vehicle } from "@/types/asset";
-import { Settings, Upload, Save, Building, Phone, Globe, Trash2, Download, UploadCloud, Loader2, Sun, FileText, Activity as ActivityIcon, Users, UserPlus, Edit, UserMinus, Car, Database, Bot, BarChart3 } from "lucide-react";
+import { Settings, Upload, Save, Building, Phone, Globe, Trash2, Download, UploadCloud, Loader2, Sun, FileText, Activity as ActivityIcon, Users, UserPlus, Edit, UserMinus, Car, Database, Bot, BarChart3, FileJson, ChevronDown, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "next-themes";
 import { Switch } from "@/components/ui/switch";
@@ -113,11 +113,25 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     'users', 'assets', 'waybills', 'quickCheckouts', 'sites', 'siteTransactions', 'employees', 'vehicles', 'companySettings', 'equipmentLogs', 'consumableLogs', 'activities'
   ]));
 
+  // Backup type: Set to allow multiple selection
+  const [backupTypes, setBackupTypes] = useState<Set<'json' | 'database'>>(new Set(['json', 'database']));
+
   const [selectedResetItems, setSelectedResetItems] = useState(new Set([
     'assets', 'waybills', 'quickCheckouts', 'sites', 'siteTransactions', 'employees', 'vehicles', 'companySettings', 'equipmentLogs', 'activities', 'activeTab'
   ]));
 
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+
+  // Backup Scheduler state
+  const [backupSchedulerStatus, setBackupSchedulerStatus] = useState<any>(null);
+  const [backupsList, setBackupsList] = useState<any>(null);
+  const [autoBackupEnabled, setAutoBackupEnabled] = useState(true);
+  const [backupRetentionDays, setBackupRetentionDays] = useState(30);
+  const [nasAccessible, setNasAccessible] = useState<boolean | null>(null);
+  const [isNasJsonOpen, setIsNasJsonOpen] = useState(true);
+  const [isNasDbOpen, setIsNasDbOpen] = useState(true);
+  const [isBackupInProgress, setIsBackupInProgress] = useState(false);
+  const [lastBackupTime, setLastBackupTime] = useState<number>(0);
 
   // AI (remote) settings - simplified: enable remote AI via API key
   const [aiEnabled, setAiEnabled] = useState<boolean>(false);
@@ -302,6 +316,29 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       }
     }
   }, [aiProvider, aiEndpoint]);
+
+  // Load backup scheduler status
+  useEffect(() => {
+    const loadBackupSchedulerStatus = async () => {
+      if (window.backupScheduler) {
+        try {
+          const status = await window.backupScheduler.getStatus();
+          setBackupSchedulerStatus(status);
+          setAutoBackupEnabled(status.enabled);
+          setBackupRetentionDays(status.maxBackups);
+          setNasAccessible(status.nasAccessible);
+
+          // Load backups list
+          const backups = await window.backupScheduler.listBackups();
+          setBackupsList(backups);
+        } catch (err) {
+          console.error('Failed to load backup scheduler status:', err);
+        }
+      }
+    };
+
+    loadBackupSchedulerStatus();
+  }, []);
 
   // Set default model for providers if not set (only on first mount, before settings load)
   useEffect(() => {
@@ -1108,121 +1145,85 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
   const handleBackup = async (selectedItems: Set<string>) => {
     setIsLoading(true);
     setError(null);
+
     try {
-      // Collect selected current app state
-      const backupData: any = {};
+      // Use the unified backup scheduler to save to NAS automatically
+      if (window.backupScheduler) {
 
-      if (selectedItems.has('users')) {
-        backupData.users = users.map(user => ({
-          id: user.id,
-          name: user.name,
-          username: user.username,
-          role: user.role
-        }));
+        // Map frontend CamelCase IDs to backend snake_case IDs
+        const idMapping: { [key: string]: string } = {
+          quickCheckouts: 'quick_checkouts',
+          siteTransactions: 'site_transactions',
+          equipmentLogs: 'equipment_logs',
+          consumableLogs: 'consumable_logs',
+          companySettings: 'company_settings'
+        };
+
+        const mappedSections = backupTypes.has('json')
+          ? Array.from(selectedItems).map(id => idMapping[id] || id)
+          : null;
+
+        // Prepare options for customs backup
+        const options = {
+          backupTypes: Array.from(backupTypes),
+          sections: mappedSections
+        };
+
+        console.log('🔄 Creating backup via scheduler:', options);
+
+        // Trigger backup on backend (saves directly to NAS)
+        const result = await window.backupScheduler.triggerManual(options);
+
+        // Refresh backups list in the scheduler section
+        const backups = await window.backupScheduler.listBackups();
+        setBackupsList(backups);
+
+        // Refresh status
+        const status = await window.backupScheduler.getStatus();
+        setBackupSchedulerStatus(status);
+        setNasAccessible(status.nasAccessible);
+
+        // Check results
+        const jsonSuccess = result.json?.success || false;
+        const dbSuccess = result.database?.success || false;
+
+        if (jsonSuccess && dbSuccess) {
+          toast({
+            title: "Backup Complete",
+            description: result.nasAccessible
+              ? "Backups saved to NAS successfully"
+              : "Backup failed - NAS not accessible"
+          });
+        } else if (jsonSuccess || dbSuccess) {
+          const successType = jsonSuccess ? "JSON" : "Database";
+          toast({
+            title: "Partial Backup Complete",
+            description: `${successType} backup created successfully. ${jsonSuccess ? 'Database' : 'JSON'} backup failed.`,
+            variant: result.nasAccessible ? "default" : "destructive"
+          });
+        } else {
+          toast({
+            title: "Backup Failed",
+            description: result.nasAccessible ? "Backups failed. Check console for details." : "NAS not accessible - backup failed",
+            variant: "destructive"
+          });
+        }
+
+        // Close dialog on success
+        if (jsonSuccess || dbSuccess) {
+          setIsBackupDialogOpen(false);
+        }
+
+      } else {
+        toast({
+          title: "Backup Not Available",
+          description: "Backup scheduler not initialized",
+          variant: "destructive"
+        });
       }
-
-      if (selectedItems.has('assets')) {
-        backupData.assets = assets.map(asset => ({
-          ...asset,
-          createdAt: asset.createdAt.toISOString(),
-          updatedAt: asset.updatedAt.toISOString()
-        }));
-      }
-
-      if (selectedItems.has('waybills')) {
-        backupData.waybills = waybills.map(waybill => ({
-          ...waybill,
-          issueDate: waybill.issueDate.toISOString(),
-          expectedReturnDate: waybill.expectedReturnDate?.toISOString(),
-          createdAt: waybill.createdAt.toISOString(),
-          updatedAt: waybill.updatedAt.toISOString()
-        }));
-      }
-
-      if (selectedItems.has('quickCheckouts')) {
-        backupData.quick_checkouts = quickCheckouts.map(checkout => ({
-          ...checkout,
-          checkoutDate: checkout.checkoutDate.toISOString()
-        }));
-      }
-
-      if (selectedItems.has('sites')) {
-        backupData.sites = sites.map(site => ({
-          ...site,
-          createdAt: site.createdAt.toISOString(),
-          updatedAt: site.updatedAt.toISOString()
-        }));
-      }
-
-      if (selectedItems.has('siteTransactions')) {
-        backupData.site_transactions = siteTransactions.map(transaction => ({
-          ...transaction,
-          createdAt: transaction.createdAt.toISOString()
-        }));
-      }
-
-      if (selectedItems.has('employees')) {
-        backupData.employees = employees.map(emp => ({
-          ...emp,
-          createdAt: emp.createdAt.toISOString(),
-          updatedAt: emp.updatedAt.toISOString()
-        }));
-      }
-
-      if (selectedItems.has('vehicles')) {
-        backupData.vehicles = vehicles;
-      }
-
-      if (selectedItems.has('equipmentLogs')) {
-        backupData.equipment_logs = equipmentLogs.map((log: any) => ({
-          ...log,
-          createdAt: log.createdAt instanceof Date ? log.createdAt.toISOString() : log.createdAt,
-          updatedAt: log.updatedAt instanceof Date ? log.updatedAt.toISOString() : log.updatedAt
-        }));
-      }
-
-      if (selectedItems.has('consumableLogs')) {
-        backupData.consumable_logs = consumableLogs.map((log: any) => ({
-          ...log,
-          createdAt: log.createdAt instanceof Date ? log.createdAt.toISOString() : log.createdAt,
-          updatedAt: log.updatedAt instanceof Date ? log.updatedAt.toISOString() : log.updatedAt
-        }));
-      }
-
-      if (selectedItems.has('activities')) {
-        backupData.activities = activitiesFromProps.map((activity: any) => ({
-          ...activity,
-          createdAt: activity.createdAt instanceof Date ? activity.createdAt.toISOString() : activity.createdAt
-        }));
-      }
-
-      if (selectedItems.has('companySettings')) {
-        backupData.company_settings = [{
-          ...settings,
-          logo: settings.logo // Keep as is, assuming string or null
-        }];
-      }
-
-      const now = new Date();
-      const timestamp = now.toISOString().slice(0, 19).replace(/:/g, '-'); // YYYY-MM-DDTHH-MM-SS format
-      const filename = `inventory-backup-${timestamp}.json`;
-
-      const backupBlob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
-      saveAs(backupBlob, filename);
-      toast({
-        title: "Backup Created",
-        description: `Selected data has been backed up to ${filename}.`
-      });
-
-      // Log backup activity
-      logActivity({
-        userId: 'current_user', // TODO: Get from AuthContext
-        action: 'backup',
-        entity: 'activities',
-        details: `Backed up ${Array.from(selectedItems).join(', ')}`
-      });
     } catch (err) {
-      setError("Failed to create backup. Please try again.");
+      console.error('Backup error:', err);
+      setError("Failed to create backup. Please check NAS connection.");
       toast({
         title: "Backup Failed",
         description: "An error occurred while creating backup.",
@@ -1230,6 +1231,161 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+
+
+  // Helper function to calculate checksum
+  const calculateChecksum = async (data: string): Promise<string> => {
+    const encoder = new TextEncoder();
+    const dataBuffer = encoder.encode(data);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  };
+
+  // Backup Scheduler Handlers
+  const handleAutoBackupToggle = async (enabled: boolean) => {
+    if (window.backupScheduler) {
+      try {
+        await window.backupScheduler.setEnabled(enabled);
+        setAutoBackupEnabled(enabled);
+        toast({
+          title: enabled ? "Auto-Backup Enabled" : "Auto-Backup Disabled",
+          description: enabled ? "Backups will run daily at 5pm" : "Automatic backups have been disabled"
+        });
+      } catch (err) {
+        toast({
+          title: "Error",
+          description: "Failed to update auto-backup setting",
+          variant: "destructive"
+        });
+      }
+    }
+  };
+
+  const handleRetentionChange = async (days: number) => {
+    if (window.backupScheduler) {
+      try {
+        await window.backupScheduler.setRetention(days);
+        setBackupRetentionDays(days);
+        toast({
+          title: "Retention Updated",
+          description: `Backups will be kept for ${days} days`
+        });
+      } catch (err) {
+        toast({
+          title: "Error",
+          description: "Failed to update retention period",
+          variant: "destructive"
+        });
+      }
+    }
+  };
+
+  const handleManualBackupTrigger = async () => {
+    if (window.backupScheduler) {
+      // Check if backup is already in progress
+      if (isBackupInProgress) {
+        toast({
+          title: "Backup In Progress",
+          description: "Please wait for the current backup to complete",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Check cooldown period (minimum 10 seconds between backups)
+      const now = Date.now();
+      const cooldownPeriod = 10000; // 10 seconds
+      const timeSinceLastBackup = now - lastBackupTime;
+
+      if (lastBackupTime > 0 && timeSinceLastBackup < cooldownPeriod) {
+        const remainingSeconds = Math.ceil((cooldownPeriod - timeSinceLastBackup) / 1000);
+        toast({
+          title: "Please Wait",
+          description: `Please wait ${remainingSeconds} seconds before creating another backup`,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      setIsBackupInProgress(true);
+      setIsLoading(true);
+
+      try {
+        console.log('🔄 Manual backup triggered from UI');
+        const result = await window.backupScheduler.triggerManual();
+
+        // Update last backup time
+        setLastBackupTime(Date.now());
+
+        // Refresh backups list
+        const backups = await window.backupScheduler.listBackups();
+        setBackupsList(backups);
+
+        // Refresh status
+        const status = await window.backupScheduler.getStatus();
+        setBackupSchedulerStatus(status);
+        setNasAccessible(status.nasAccessible);
+
+        // Check if both backups succeeded
+        const jsonSuccess = result.json?.success || false;
+        const dbSuccess = result.database?.success || false;
+
+        if (jsonSuccess && dbSuccess) {
+          toast({
+            title: "Backup Complete",
+            description: result.nasAccessible
+              ? "Both JSON and Database backups saved to NAS successfully"
+              : "Backup failed - NAS not accessible"
+          });
+        } else if (jsonSuccess || dbSuccess) {
+          const successType = jsonSuccess ? "JSON" : "Database";
+          toast({
+            title: "Partial Backup Complete",
+            description: `${successType} backup created successfully. ${jsonSuccess ? 'Database' : 'JSON'} backup failed.`,
+            variant: result.nasAccessible ? "default" : "destructive"
+          });
+        } else {
+          toast({
+            title: "Backup Failed",
+            description: result.nasAccessible ? "Both backups failed. Check console for details." : "NAS not accessible - backup failed",
+            variant: "destructive"
+          });
+        }
+      } catch (err) {
+        console.error('Manual backup error:', err);
+        toast({
+          title: "Backup Failed",
+          description: "An error occurred while creating backup",
+          variant: "destructive"
+        });
+      } finally {
+        setIsBackupInProgress(false);
+        setIsLoading(false);
+      }
+    }
+  };
+
+  const handleCheckNAS = async () => {
+    if (window.backupScheduler) {
+      try {
+        const result = await window.backupScheduler.checkNAS();
+        setNasAccessible(result.accessible);
+        toast({
+          title: result.accessible ? "NAS Accessible" : "NAS Not Accessible",
+          description: result.message,
+          variant: result.accessible ? "default" : "destructive"
+        });
+      } catch (err) {
+        toast({
+          title: "Error",
+          description: "Failed to check NAS accessibility",
+          variant: "destructive"
+        });
+      }
     }
   };
 
@@ -1243,7 +1399,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
   };
 
   const handleRestore = async () => {
-    if (!restoreFile || !loadedBackupData) return;
+    if (!loadedBackupData) return;
     setIsLoading(true);
     setError(null);
     setIsRestoreComplete(false);
@@ -1257,6 +1413,40 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       // Prepare live progress tracking
       setIsRestoringLive(true);
       const progressState: any = { phase: 'Parsing backup', total: 0, done: 0, message: '', errors: [] };
+
+      // Handle Full Database Binary Restore
+      if ((backupData as any).type === 'full_db') {
+        if (!hasDB || !window.db.restoreDatabaseBackup || !window.db.getDatabaseInfo) {
+          throw new Error("Database restore service not available");
+        }
+
+        setRestoreProgress({ ...progressState, phase: 'Restoring Database File', message: 'Replacing current database...' });
+
+        const sourcePath = (backupData as any).path;
+        // Get current DB path target
+        const dbInfo = await window.db.getDatabaseInfo();
+        const targetPath = dbInfo.localDbPath || dbInfo.dbPath;
+
+        if (!targetPath) throw new Error("Could not determine target database location");
+
+        // Perform restore
+        const result = await window.db.restoreDatabaseBackup(sourcePath, targetPath);
+
+        if (result.success) {
+          setRestoreProgress({ ...progressState, done: 1, total: 1, phase: 'Complete', message: 'Database restored successfully' });
+          setIsRestoreComplete(true);
+          toast({
+            title: "Restore Successful",
+            description: "The application database has been replaced. Please restart the app.",
+            variant: "default"
+          });
+          // Optional: Reload window? 
+          // window.location.reload(); 
+        } else {
+          throw new Error(result.error || "Database restore failed");
+        }
+        return; // Exit here for DB restore
+      }
 
       // Estimate total steps for a finer progress indicator (count only selected sections)
       try {
@@ -1277,16 +1467,37 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       }
       setRestoreProgress(progressState);
 
+      // Pre-Restore Cleanup
+      if (hasDB) {
+        const clearTableSafe = async (table: string) => {
+          if ((window.db as any).clearTable) {
+            try { await (window.db as any).clearTable(table); }
+            catch (e) { logger.warn(`Failed to clear table ${table}`, e); }
+          }
+        };
+
+        setRestoreProgress((p: any) => ({ ...p, phase: 'Preparation', message: 'Cleaning database...' }));
+
+        // Clear tables in reverse dependency order
+        if (restoreSelectedSections.has('site_transactions')) await clearTableSafe('site_transactions');
+        if (restoreSelectedSections.has('quick_checkouts')) await clearTableSafe('quick_checkouts');
+        if (restoreSelectedSections.has('waybills')) await clearTableSafe('waybills');
+        if (restoreSelectedSections.has('equipment_logs')) await clearTableSafe('equipment_logs');
+        if (restoreSelectedSections.has('consumable_logs')) await clearTableSafe('consumable_logs');
+        if (restoreSelectedSections.has('activities')) await clearTableSafe('activity_log');
+        if (restoreSelectedSections.has('assets')) await clearTableSafe('assets');
+        if (restoreSelectedSections.has('vehicles')) await clearTableSafe('vehicles');
+        if (restoreSelectedSections.has('employees')) await clearTableSafe('employees');
+        if (restoreSelectedSections.has('sites')) await clearTableSafe('sites');
+      }
+
       // Restore users
       if (restoreSelectedSections.has('users') && backupData.users && backupData.users.length > 0) {
         setRestoreProgress((p: any) => ({ ...p, phase: 'Restoring users', message: 'Creating user accounts...' }));
-
         if (hasDB) {
           let idx = 0;
           for (const user of backupData.users) {
             try {
-              // Users in backup don't have passwords, so skip creation via DB
-              // Instead, we'll just log that user accounts need manual setup
               logger.info(`User ${user.username} in backup - manual password setup may be needed`);
             } catch (err) {
               logger.warn(`Could not restore user ${user.username}`, err);
@@ -1298,22 +1509,101 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         }
       }
 
+      // Restore sites
+      if (restoreSelectedSections.has('sites') && backupData.sites) {
+        const sites = backupData.sites.map((site: any) => ({
+          ...site,
+          createdAt: new Date(site.createdAt),
+          updatedAt: new Date(site.updatedAt)
+        }));
+
+        if (hasDB) {
+          for (const site of sites) {
+            try {
+              const existingSites = await window.db.getSites();
+              const exists = existingSites.some((s: any) => s.id === site.id);
+              if (exists) {
+                await window.db.updateSite(site.id, site);
+              } else {
+                await window.db.createSite(site);
+              }
+            } catch (err) {
+              logger.warn(`Could not restore site ${site.id}`, err);
+            }
+          }
+        }
+
+        onSitesChange(sites);
+        setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring sites' }));
+      }
+
+      // Restore employees
+      if (restoreSelectedSections.has('employees') && backupData.employees) {
+        const employees = backupData.employees.map((emp: any) => ({
+          ...emp,
+          createdAt: new Date(emp.createdAt),
+          updatedAt: new Date(emp.updatedAt)
+        }));
+
+        if (hasDB) {
+          for (const emp of employees) {
+            try {
+              const existingEmployees = await window.db.getEmployees();
+              const exists = existingEmployees.some((e: any) => e.id === emp.id);
+              if (exists) {
+                await window.db.updateEmployee(emp.id, emp);
+              } else {
+                await window.db.createEmployee(emp);
+              }
+            } catch (err) {
+              logger.warn(`Could not restore employee ${emp.id}`, err);
+            }
+          }
+        }
+
+        onEmployeesChange(employees);
+        setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring employees' }));
+      }
+
+      // Restore vehicles
+      if (restoreSelectedSections.has('vehicles') && backupData.vehicles) {
+        const vehicles = backupData.vehicles || [];
+
+        if (hasDB) {
+          for (const vehicle of vehicles) {
+            try {
+              const existingVehicles = await window.db.getVehicles();
+              const exists = existingVehicles.some((v: any) => v.id === vehicle.id);
+              if (exists) {
+                await window.db.updateVehicle(vehicle.id, vehicle);
+              } else {
+                await window.db.createVehicle(vehicle);
+              }
+            } catch (err) {
+              logger.warn(`Could not restore vehicle ${vehicle.id}`, err);
+            }
+          }
+        }
+
+        onVehiclesChange(vehicles);
+        setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring vehicles' }));
+      }
+
       // Restore assets
       if (restoreSelectedSections.has('assets') && backupData.assets) {
         const assets = backupData.assets.map((asset: any) => ({
           ...asset,
+          unitOfMeasurement: asset.unitOfMeasurement || 'units',
           createdAt: new Date(asset.createdAt),
           updatedAt: new Date(asset.updatedAt)
         }));
 
-        // Save to database if available
         if (hasDB) {
           setRestoreProgress((p: any) => ({ ...p, phase: 'Restoring assets', message: 'Saving assets to database...' }));
           for (const asset of assets) {
             try {
               const existingAssets = await window.db.getAssets();
               const exists = existingAssets.some((a: any) => a.id === asset.id);
-
               if (exists) {
                 await window.db.updateAsset(asset.id, asset);
               } else {
@@ -1324,30 +1614,32 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
               progressState.errors.push({ section: 'assets', id: asset.id, error: String(err) });
             }
           }
-          // mark one step done for assets
           setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1 }));
         }
 
         onAssetsChange(assets);
-
-        // Trigger AssetsContext to refresh from database
         window.dispatchEvent(new CustomEvent('refreshAssets', { detail: assets }));
       }
 
       // Restore waybills
       if (restoreSelectedSections.has('waybills') && backupData.waybills) {
-        const waybills = backupData.waybills.map((waybill: any) => ({
-          ...waybill,
-          issueDate: new Date(waybill.issueDate),
-          expectedReturnDate: waybill.expectedReturnDate ? new Date(waybill.expectedReturnDate) : undefined,
-          createdAt: new Date(waybill.createdAt),
-          updatedAt: new Date(waybill.updatedAt)
-        }));
+        const waybills = backupData.waybills.map((waybill: any) => {
+          let items = waybill.items;
+          if (typeof items === 'string') {
+            try { items = JSON.parse(items); } catch { items = []; }
+          }
+          return {
+            ...waybill,
+            items: Array.isArray(items) ? items : [],
+            issueDate: new Date(waybill.issueDate),
+            expectedReturnDate: waybill.expectedReturnDate ? new Date(waybill.expectedReturnDate) : undefined,
+            createdAt: new Date(waybill.createdAt),
+            updatedAt: new Date(waybill.updatedAt)
+          };
+        });
 
-        // Save to database if available
         const waybillPersistErrors: Array<{ id?: string; error: any }> = [];
         if (hasDB) {
-          // process waybills one-by-one and report progress
           setRestoreProgress((p: any) => ({ ...p, phase: 'Restoring waybills', message: `0/${waybills.length} waybills restored` }));
           let idx = 0;
           for (const waybill of waybills) {
@@ -1364,11 +1656,8 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         }
 
         onWaybillsChange(waybills);
-
-        // Trigger WaybillsContext to refresh from database
         window.dispatchEvent(new Event('refreshWaybills'));
 
-        // Ensure changes are persisted to master DB and reload persisted waybills
         if (hasDB && (window as any).electronAPI?.manualSync) {
           try {
             const syncRes = await (window as any).electronAPI.manualSync();
@@ -1383,7 +1672,6 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
             const persistedWaybills = await window.db.getWaybills();
             if (persistedWaybills && typeof onWaybillsChange === 'function') {
               onWaybillsChange(persistedWaybills);
-              // Broadcast another refresh event so other contexts update
               window.dispatchEvent(new Event('refreshWaybills'));
             }
           } catch (err) {
@@ -1392,12 +1680,8 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         }
 
         if (waybillPersistErrors.length > 0) {
-          // Log full error objects to console for easier debugging in packaged app
           console.error('Waybill restore errors (details):', waybillPersistErrors);
-
-          // Also log via app logger
           logger.warn('Waybill restore errors', { data: waybillPersistErrors.map(e => ({ id: e.id, message: e.error?.message || e.error || String(e) })) });
-
           const firstMsg = waybillPersistErrors[0].error?.message || waybillPersistErrors[0].error || 'Unknown error';
           toast({
             title: 'Restore Partial Failure',
@@ -1409,13 +1693,17 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
       // Restore quick checkouts
       if (restoreSelectedSections.has('quick_checkouts') && backupData.quick_checkouts) {
-        const checkouts = backupData.quick_checkouts.map((checkout: any) => ({
-          ...checkout,
-          checkoutDate: new Date(checkout.checkoutDate),
-          expectedReturnDays: checkout.expectedReturnDays
-        }));
+        const checkouts = backupData.quick_checkouts.map((checkout: any) => {
+          let date = new Date(checkout.checkoutDate);
+          if (isNaN(date.getTime())) date = new Date(); // Fallback to now if invalid
+          return {
+            ...checkout,
+            assetId: checkout.assetId || checkout.asset_id, // Ensure assetId is present
+            checkoutDate: date,
+            expectedReturnDays: checkout.expectedReturnDays
+          };
+        });
 
-        // Save to database if available
         if (hasDB) {
           for (const checkout of checkouts) {
             try {
@@ -1427,49 +1715,35 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         }
 
         onQuickCheckoutsChange(checkouts);
-        // progress: quick checkouts done
         setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring quick checkouts' }));
-      }
-
-      // Restore sites
-      if (restoreSelectedSections.has('sites') && backupData.sites) {
-        const sites = backupData.sites.map((site: any) => ({
-          ...site,
-          createdAt: new Date(site.createdAt),
-          updatedAt: new Date(site.updatedAt)
-        }));
-
-        // Save to database if available
-        if (hasDB) {
-          for (const site of sites) {
-            try {
-              const existingSites = await window.db.getSites();
-              const exists = existingSites.some((s: any) => s.id === site.id);
-
-              if (exists) {
-                await window.db.updateSite(site.id, site);
-              } else {
-                await window.db.createSite(site);
-              }
-            } catch (err) {
-              logger.warn(`Could not restore site ${site.id}`, err);
-            }
-          }
-        }
-
-        onSitesChange(sites);
-        // progress: sites done
-        setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring sites' }));
       }
 
       // Restore site transactions
       if (restoreSelectedSections.has('site_transactions') && backupData.site_transactions) {
-        const transactions = backupData.site_transactions.map((transaction: any) => ({
-          ...transaction,
-          createdAt: new Date(transaction.createdAt)
-        }));
+        const transactions = backupData.site_transactions.map((transaction: any) => {
+          let dateStr = transaction.created_at || transaction.createdAt;
+          if (!dateStr || String(dateStr).startsWith('0NaN')) {
+            dateStr = new Date().toISOString();
+          }
 
-        // Save to database if available
+          // Generic DB insert bypasses transform, so we must map to snake_case manually
+          return {
+            id: transaction.id,
+            site_id: transaction.siteId || transaction.site_id,
+            asset_id: transaction.assetId || transaction.asset_id,
+            asset_name: transaction.assetName || transaction.asset_name,
+            quantity: transaction.quantity,
+            type: transaction.type,
+            transaction_type: transaction.transactionType || transaction.transaction_type,
+            reference_id: transaction.referenceId || transaction.reference_id,
+            reference_type: transaction.referenceType || transaction.reference_type,
+            condition: transaction.condition,
+            notes: transaction.notes,
+            created_by: transaction.createdBy || transaction.created_by,
+            created_at: dateStr
+          };
+        });
+
         if (hasDB) {
           for (const transaction of transactions) {
             try {
@@ -1481,67 +1755,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         }
 
         onSiteTransactionsChange(transactions);
-        // progress: site transactions done
         setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring site transactions' }));
-      }
-
-      // Restore employees
-      if (restoreSelectedSections.has('employees') && backupData.employees) {
-        const employees = backupData.employees.map((emp: any) => ({
-          ...emp,
-          createdAt: new Date(emp.createdAt),
-          updatedAt: new Date(emp.updatedAt)
-        }));
-
-        // Save to database if available
-        if (hasDB) {
-          for (const emp of employees) {
-            try {
-              const existingEmployees = await window.db.getEmployees();
-              const exists = existingEmployees.some((e: any) => e.id === emp.id);
-
-              if (exists) {
-                await window.db.updateEmployee(emp.id, emp);
-              } else {
-                await window.db.createEmployee(emp);
-              }
-            } catch (err) {
-              logger.warn(`Could not restore employee ${emp.id}`, err);
-            }
-          }
-        }
-
-        onEmployeesChange(employees);
-        // progress: employees done
-        setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring employees' }));
-      }
-
-      // Restore vehicles
-      if (restoreSelectedSections.has('vehicles') && backupData.vehicles) {
-        const vehicles = backupData.vehicles || [];
-
-        // Save to database if available
-        if (hasDB) {
-          for (const vehicle of vehicles) {
-            try {
-              // Try to update existing vehicle first, then create if it doesn't exist
-              const existingVehicles = await window.db.getVehicles();
-              const exists = existingVehicles.some((v: any) => v.id === vehicle.id);
-
-              if (exists) {
-                await window.db.updateVehicle(vehicle.id, vehicle);
-              } else {
-                await window.db.createVehicle(vehicle);
-              }
-            } catch (err) {
-              logger.warn(`Could not restore vehicle ${vehicle.id}`, err);
-            }
-          }
-        }
-
-        onVehiclesChange(vehicles);
-        // progress: vehicles done
-        setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring vehicles' }));
       }
 
       // Restore equipment logs
@@ -1552,7 +1766,6 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           updatedAt: log.updatedAt ? new Date(log.updatedAt) : undefined
         }));
 
-        // Save to database if available
         if (hasDB) {
           for (const log of logs) {
             try {
@@ -1564,7 +1777,6 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         }
 
         onEquipmentLogsChange(logs);
-        // progress: equipment logs done
         setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring equipment logs' }));
       }
 
@@ -1576,7 +1788,6 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           updatedAt: log.updatedAt ? new Date(log.updatedAt) : undefined
         }));
 
-        // Save to database if available
         if (hasDB) {
           for (const log of logs) {
             try {
@@ -1588,7 +1799,6 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         }
 
         onConsumableLogsChange(logs);
-        // progress: consumable logs done
         setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring consumable logs' }));
       }
 
@@ -1599,7 +1809,6 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           createdAt: new Date(activity.createdAt)
         }));
 
-        // Save to database if available
         if (hasDB) {
           for (const activity of activities) {
             try {
@@ -1611,7 +1820,6 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         }
 
         onActivitiesChange(activities);
-        // progress: activities done
         setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring activities' }));
       }
 
@@ -1620,15 +1828,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         try {
           const restoredSettings = { ...defaultSettings, ...backupData.company_settings[0] };
 
-          // Validate that required fields exist
           if (!restoredSettings.companyName) {
             restoredSettings.companyName = defaultSettings.companyName || 'Company';
           }
 
-          // Save to database if available
           if (hasDB) {
             try {
-              // updateCompanySettings takes (id, data) - use null for id to create or auto-update
               await window.db.updateCompanySettings(null, restoredSettings);
             } catch (err) {
               logger.warn('Could not restore company settings to database', err);
@@ -1638,7 +1843,6 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           setFormData(restoredSettings);
           setLogoPreview(restoredSettings.logo || null);
           onSave(restoredSettings);
-          // progress: company settings done
           setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, phase: 'Restoring company settings' }));
         } catch (err) {
           logger.warn('Error processing company settings from backup', err);
@@ -1706,8 +1910,103 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     }
   };
 
+  const handleRestoreFromNAS = async (filePath: string) => {
+    setIsLoading(true);
+    try {
+      // Handle Database Backup (.db / .sqlite)
+      if (filePath.endsWith('.db') || filePath.endsWith('.sqlite')) {
+        const fileName = filePath.split(/[\\/]/).pop() || 'database.db';
+        setLoadedBackupData({ type: 'full_db', path: filePath, name: fileName } as any);
+        const sections = ['full_database']; // Special section indicating full binary restore
+        setAvailableSections(sections);
+        setRestoreSelectedSections(new Set(sections));
+        setShowRestoreSectionSelector(true);
+        setIsRestoreOpen(true);
+        setIsLoading(false);
+        return;
+      }
+
+      if (window.backupScheduler && window.backupScheduler.readBackupFile) {
+        const result = await window.backupScheduler.readBackupFile(filePath);
+
+        if (result.success && result.data) {
+          let backupData = result.data;
+
+          // Handle wrapped data structure (metadata + data)
+          if (backupData.data && !backupData.users && !backupData.assets) {
+            backupData = backupData.data;
+          }
+
+          setLoadedBackupData(backupData);
+
+          // Detect available sections
+          const sections: string[] = [];
+          if (backupData.users) sections.push('users');
+          if (backupData.assets) sections.push('assets');
+          if (backupData.waybills) sections.push('waybills');
+          if (backupData.quick_checkouts) sections.push('quick_checkouts');
+          if (backupData.sites) sections.push('sites');
+          if (backupData.site_transactions) sections.push('site_transactions');
+          if (backupData.employees) sections.push('employees');
+          if (backupData.vehicles) sections.push('vehicles');
+          if (backupData.equipment_logs) sections.push('equipment_logs');
+          if (backupData.consumable_logs) sections.push('consumable_logs');
+          if (backupData.activities) sections.push('activities');
+          if (backupData.company_settings) sections.push('company_settings');
+
+          setAvailableSections(sections);
+          setRestoreSelectedSections(new Set(sections));
+
+          // Open restore dialog and show section selector
+          setIsRestoreOpen(true);
+          setShowRestoreSectionSelector(true);
+
+          toast({
+            title: "Backup Loaded",
+            description: "Please select sections to restore."
+          });
+        } else {
+          throw new Error(result.error || "Failed to read backup file");
+        }
+      } else {
+        throw new Error("Backup service not available");
+      }
+    } catch (err: any) {
+      console.error('Error loading NAS backup:', err);
+      toast({
+        title: "Load Failed",
+        description: err.message || "Could not load backup file from NAS.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
+
+    // Support .db / .sqlite files for full database restore
+    if (file && (file.name.endsWith('.db') || file.name.endsWith('.sqlite'))) {
+      setRestoreFile(file);
+      // Special marker for DB restore - verify path exists (Electron specific)
+      const path = (file as any).path;
+      if (path) {
+        setLoadedBackupData({ type: 'full_db', path: path, name: file.name } as any);
+        const sections = ['full_database']; // Special section indicating full binary restore
+        setAvailableSections(sections);
+        setRestoreSelectedSections(new Set(sections));
+        setShowRestoreSectionSelector(true);
+      } else {
+        toast({
+          title: "File Path Error",
+          description: "Cannot determine file path. Full DB restore requires local file access.",
+          variant: "destructive"
+        });
+      }
+      return;
+    }
+
     if (file && file.name.endsWith('.json')) {
       setRestoreFile(file);
       // Automatically load and parse the backup file to show available sections
@@ -2045,8 +2344,8 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {users.map(user => (
-                              <TableRow key={user.id}>
+                            {users.map((user, idx) => (
+                              <TableRow key={user.id || user.username || idx}>
                                 {editingUserId === user.id ? (
                                   <>
                                     <TableCell>
@@ -2897,44 +3196,111 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                   </DialogTrigger>
                   <DialogContent className="max-w-md">
                     <DialogHeader>
-                      <DialogTitle>Select Backup Items</DialogTitle>
+                      <DialogTitle>Create Backup</DialogTitle>
                       <DialogDescription>
-                        Choose which data types to include in the backup. All are selected by default.
+                        Select which data to backup. Backups will be saved to NAS automatically.
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
-                      {backupOptions.map((option) => (
-                        <div key={option.id} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={option.id}
-                            checked={selectedBackupItems.has(option.id)}
-                            onCheckedChange={(checked) => {
-                              const newSet = new Set(selectedBackupItems);
-                              if (checked) {
-                                newSet.add(option.id);
-                              } else {
-                                newSet.delete(option.id);
-                              }
-                              setSelectedBackupItems(newSet);
-                            }}
-                          />
-                          <Label htmlFor={option.id} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                            {option.label}
-                          </Label>
+                      {/* Backup Type Selector */}
+                      <div className="space-y-2">
+                        <Label className="text-sm font-semibold">Backup Type (Select One or Both)</Label>
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id="backup-json"
+                              checked={backupTypes.has('json')}
+                              onCheckedChange={(checked) => {
+                                const newTypes = new Set(backupTypes);
+                                if (checked) {
+                                  newTypes.add('json');
+                                } else {
+                                  newTypes.delete('json');
+                                }
+                                setBackupTypes(newTypes);
+                              }}
+                            />
+                            <Label htmlFor="backup-json" className="flex items-center gap-2 cursor-pointer">
+                              <FileJson className="h-4 w-4" />
+                              <span>JSON Backup</span>
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id="backup-database"
+                              checked={backupTypes.has('database')}
+                              onCheckedChange={(checked) => {
+                                const newTypes = new Set(backupTypes);
+                                if (checked) {
+                                  newTypes.add('database');
+                                } else {
+                                  newTypes.delete('database');
+                                }
+                                setBackupTypes(newTypes);
+                              }}
+                            />
+                            <Label htmlFor="backup-database" className="flex items-center gap-2 cursor-pointer">
+                              <Database className="h-4 w-4" />
+                              <span>Database Backup</span>
+                            </Label>
+                          </div>
                         </div>
-                      ))}
+                        <p className="text-xs text-muted-foreground">
+                          {backupTypes.has('json') && backupTypes.has('database')
+                            ? '📦 Both backups will be saved to NAS'
+                            : backupTypes.has('json')
+                              ? '📄 JSON backup will be saved to NAS'
+                              : backupTypes.has('database')
+                                ? '💾 Database backup will be saved to NAS'
+                                : '⚠️ Please select at least one backup type'}
+                        </p>
+                      </div>
+
+                      {/* Section Selector (only for JSON backup) */}
+                      {backupTypes.has('json') && (
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Select Data Sections</Label>
+                          <div className="max-h-60 overflow-y-auto space-y-2 border rounded-md p-3">
+                            {backupOptions.map((option) => (
+                              <div key={option.id} className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={option.id}
+                                  checked={selectedBackupItems.has(option.id)}
+                                  onCheckedChange={(checked) => {
+                                    const newSet = new Set(selectedBackupItems);
+                                    if (checked) {
+                                      newSet.add(option.id);
+                                    } else {
+                                      newSet.delete(option.id);
+                                    }
+                                    setSelectedBackupItems(newSet);
+                                  }}
+                                />
+                                <Label htmlFor={option.id} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                  {option.label}
+                                </Label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <DialogFooter>
                       <Button variant="outline" onClick={handleBackupCancel}>
                         Cancel
                       </Button>
-                      <Button onClick={handleBackupConfirm} disabled={isLoading || selectedBackupItems.size === 0}>
+                      <Button
+                        onClick={handleBackupConfirm}
+                        disabled={isLoading || backupTypes.size === 0 || (backupTypes.has('json') && selectedBackupItems.size === 0)}
+                      >
                         {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                         Create Backup
                       </Button>
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
+
+                {/* Backup Data button restored - now saves to NAS automatically */}
 
                 <Dialog open={isRestoreOpen} onOpenChange={(open) => {
                   setIsRestoreOpen(open);
@@ -2959,7 +3325,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                         <DialogHeader>
                           <DialogTitle>Restore Data from Backup</DialogTitle>
                           <DialogDescription>
-                            Select a JSON backup file to restore your data.
+                            Select a backup file (.json or .db) to restore your data.
                           </DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4">
@@ -2968,7 +3334,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                             <Input
                               id="restore-file"
                               type="file"
-                              accept=".json"
+                              accept=".json,.db,.sqlite"
                               onChange={handleFileSelect}
                               className="mt-1"
                               disabled={isLoading}
@@ -3174,8 +3540,8 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {[...activities].reverse().map((activity) => (
-                                <TableRow key={activity.id}>
+                              {[...activities].reverse().map((activity, idx) => (
+                                <TableRow key={activity.id || idx}>
                                   <TableCell className="font-mono text-xs">
                                     {new Date(activity.timestamp).toLocaleString()}
                                   </TableCell>
@@ -3194,6 +3560,290 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                   </DialogContent>
                 </Dialog>
               </div>
+
+              {/* Automatic Backup Scheduler Panel */}
+              {window.backupScheduler && (
+                <Card className="border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-transparent mt-6">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Database className="h-5 w-5 text-primary" />
+                      Automatic Backup Scheduler
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Configure automatic daily backups to NAS and local storage
+                    </p>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* Status Overview */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="p-4 border rounded-lg bg-card">
+                        <div className="text-sm font-medium text-muted-foreground">Status</div>
+                        <div className="text-2xl font-bold mt-1">
+                          {autoBackupEnabled ? (
+                            <span className="text-green-600">Enabled</span>
+                          ) : (
+                            <span className="text-gray-500">Disabled</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="p-4 border rounded-lg bg-card">
+                        <div className="text-sm font-medium text-muted-foreground">Next Backup</div>
+                        <div className="text-lg font-semibold mt-1">
+                          {backupSchedulerStatus?.nextRun
+                            ? (() => {
+                              try {
+                                const nextRun = backupSchedulerStatus.nextRun;
+                                // Handle different date formats
+                                const date = nextRun instanceof Date ? nextRun : new Date(nextRun);
+                                return !isNaN(date.getTime()) ? date.toLocaleString() : 'Today at 5:00 PM';
+                              } catch {
+                                return 'Today at 5:00 PM';
+                              }
+                            })()
+                            : 'Today at 5:00 PM'}
+                        </div>
+                      </div>
+                      <div className="p-4 border rounded-lg bg-card">
+                        <div className="text-sm font-medium text-muted-foreground">NAS Status</div>
+                        <div className="text-lg font-semibold mt-1 flex items-center gap-2">
+                          {nasAccessible === null ? (
+                            <span className="text-gray-500">Checking...</span>
+                          ) : nasAccessible ? (
+                            <>
+                              <span className="h-2 w-2 rounded-full bg-green-500"></span>
+                              <span className="text-green-600">Accessible</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="h-2 w-2 rounded-full bg-red-500"></span>
+                              <span className="text-red-600">Not Accessible</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Controls */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="space-y-1">
+                          <Label className="text-base font-semibold">Enable Automatic Backups</Label>
+                          <p className="text-sm text-muted-foreground">
+                            Backups run daily at 5:00 PM (17:00)
+                          </p>
+                        </div>
+                        <Switch
+                          checked={autoBackupEnabled}
+                          onCheckedChange={handleAutoBackupToggle}
+                        />
+                      </div>
+
+                      <div className="p-4 border rounded-lg space-y-3">
+                        <div>
+                          <Label className="text-base font-semibold">Retention Period</Label>
+                          <p className="text-sm text-muted-foreground mb-2">
+                            Number of days to keep backups
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <Input
+                            type="number"
+                            min="1"
+                            max="365"
+                            value={backupRetentionDays}
+                            onChange={(e) => {
+                              const days = parseInt(e.target.value);
+                              if (days > 0 && days <= 365) {
+                                setBackupRetentionDays(days);
+                              }
+                            }}
+                            className="w-24"
+                          />
+                          <span className="text-sm text-muted-foreground">days</span>
+                          <Button
+                            size="sm"
+                            onClick={() => handleRetentionChange(backupRetentionDays)}
+                            disabled={isLoading}
+                          >
+                            Apply
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="p-4 border rounded-lg space-y-3">
+                        <div>
+                          <Label className="text-base font-semibold">NAS Backup Path</Label>
+                          <p className="text-sm text-muted-foreground">
+                            {backupSchedulerStatus?.nasBackupPath || '\\\\MYCLOUDEX2ULTRA\\Operations\\Inventory System\\Backups'}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleCheckNAS}
+                            disabled={isLoading}
+                          >
+                            Check NAS Accessibility
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex flex-wrap gap-3">
+                      {/* Backup Now button removed - use "Backup Data" dialog at top of page */}
+                      <Button
+                        variant="outline"
+                        onClick={async () => {
+                          if (window.backupScheduler) {
+                            const backups = await window.backupScheduler.listBackups();
+                            setBackupsList(backups);
+                            toast({ title: "Backups List Refreshed" });
+                          }
+                        }}
+                        className="gap-2"
+                      >
+                        <ActivityIcon className="h-4 w-4" />
+                        Refresh List
+                      </Button>
+                    </div>
+
+                    {/* Backups List */}
+                    {backupsList && (
+                      <div className="space-y-4">
+                        <div className="border-t pt-4">
+                          <h3 className="text-lg font-semibold mb-3">Recent NAS Backups</h3>
+
+                          {/* Local Backups - Disabled (only saving to NAS) */}
+                          {/* <div className="mb-4">
+                            <h4 className="text-sm font-medium text-muted-foreground mb-2">
+                              Local Backups ({backupsList.local?.length || 0})
+                            </h4>
+                            {backupsList.local && backupsList.local.length > 0 ? (
+                              <div className="space-y-2 max-h-40 overflow-y-auto">
+                                {backupsList.local.slice(0, 5).map((backup: any) => (
+                                  <div key={backup.path} className="flex items-center justify-between p-2 border rounded text-sm">
+                                    <div className="flex-1">
+                                      <div className="font-medium">{backup.name}</div>
+                                      <div className="text-xs text-muted-foreground">
+                                        {new Date(backup.created).toLocaleString()} • {(backup.size / 1024 / 1024).toFixed(2)} MB • {backup.age} days old
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-muted-foreground">No local backups found</p>
+                            )}
+                          </div> */}
+
+                          {/* NAS Backups */}
+                          {nasAccessible && (
+                            <div className="space-y-4">
+                              {/* JSON Backups */}
+                              <div className="border rounded-md">
+                                <button
+                                  onClick={() => setIsNasJsonOpen(!isNasJsonOpen)}
+                                  className="flex items-center justify-between w-full p-3 hover:bg-muted/50 transition-colors"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    {isNasJsonOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                    <h4 className="font-semibold text-sm">NAS JSON Backups</h4>
+                                  </div>
+                                  <span className="text-xs text-muted-foreground mr-2">{backupsList.nas?.json?.length || 0} files</span>
+                                </button>
+
+                                {isNasJsonOpen && (
+                                  <div className="px-3 pb-3">
+                                    {backupsList.nas?.json && backupsList.nas.json.length > 0 ? (
+                                      <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                                        {backupsList.nas.json.map((backup: any) => (
+                                          <div key={backup.path} className="flex items-center justify-between p-2 rounded-lg border bg-green-50/50 dark:bg-green-950/20 hover:bg-green-100/50 dark:hover:bg-green-900/30 transition-colors">
+                                            <div className="flex-1">
+                                              <div className="font-medium text-sm flex items-center gap-2">
+                                                <FileText className="h-3 w-3 text-green-600" />
+                                                {backup.name}
+                                              </div>
+                                              <div className="text-xs text-muted-foreground ml-5">
+                                                {new Date(backup.created).toLocaleString()} • {(backup.size / 1024 / 1024).toFixed(2)} MB • {backup.age} days old
+                                              </div>
+                                            </div>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="ml-2 h-8 w-8 p-0"
+                                              onClick={() => handleRestoreFromNAS(backup.path)}
+                                              disabled={isLoading}
+                                              title="Restore from this backup"
+                                            >
+                                              <UploadCloud className="h-4 w-4 text-green-700 dark:text-green-400" />
+                                            </Button>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <p className="text-sm text-muted-foreground py-2 italic ml-5">No NAS JSON backups found</p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* DB Backups */}
+                              <div className="border rounded-md">
+                                <button
+                                  onClick={() => setIsNasDbOpen(!isNasDbOpen)}
+                                  className="flex items-center justify-between w-full p-3 hover:bg-muted/50 transition-colors"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    {isNasDbOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                    <h4 className="font-semibold text-sm">NAS Database Backups</h4>
+                                  </div>
+                                  <span className="text-xs text-muted-foreground mr-2">{backupsList.nas?.database?.length || 0} files</span>
+                                </button>
+
+                                {isNasDbOpen && (
+                                  <div className="px-3 pb-3">
+                                    {backupsList.nas?.database && backupsList.nas.database.length > 0 ? (
+                                      <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                                        {backupsList.nas.database.map((backup: any) => (
+                                          <div key={backup.path} className="flex items-center justify-between p-2 rounded-lg border bg-blue-50/50 dark:bg-blue-950/20 hover:bg-blue-100/50 dark:hover:bg-blue-900/30 transition-colors">
+                                            <div className="flex-1">
+                                              <div className="font-medium text-sm flex items-center gap-2">
+                                                <Database className="h-3 w-3 text-blue-600" />
+                                                {backup.name}
+                                              </div>
+                                              <div className="text-xs text-muted-foreground ml-5">
+                                                {new Date(backup.created).toLocaleString()} • {(backup.size / 1024 / 1024).toFixed(2)} MB • {backup.age} days old
+                                              </div>
+                                            </div>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="ml-2 h-8 w-8 p-0"
+                                              onClick={() => handleRestoreFromNAS(backup.path)}
+                                              disabled={isLoading}
+                                              title="Restore from this backup"
+                                            >
+                                              <UploadCloud className="h-4 w-4 text-blue-700 dark:text-blue-400" />
+                                            </Button>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <p className="text-sm text-muted-foreground py-2 italic ml-5">No NAS database backups found</p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
             </CardContent>
           </Card>
 
@@ -3207,7 +3857,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
               Save Settings
             </Button>
           </div>
-        </TabsContent >
+        </TabsContent>
 
         {/* Database Sync Tab */}
         <TabsContent value="sync" className="space-y-6">

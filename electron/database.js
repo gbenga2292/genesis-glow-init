@@ -156,6 +156,11 @@ const remove = (tableName) => (id) => {
   return db(tableName).where({ id }).del();
 }
 
+const clearTable = (tableName) => async () => {
+  if (!db) throw new Error('Database not connected');
+  return db(tableName).del();
+}
+
 // Declare all functions as constants before exporting
 const getUsers = getAll('users');
 const getSites = () => {
@@ -994,12 +999,452 @@ const migrateSavedKeysToKeytar = async () => {
 };
 
 const getApiKeyFromKeyRef = async (keyRef) => {
-  if (!db) throw new Error('Database not connected');
   if (!keyRef) return null;
   const keytarModule = await import('keytar');
   const keytar = keytarModule.default || keytarModule;
   const SERVICE = process.env.KEYTAR_SERVICE || 'hi-there-project-09-keys';
   return keytar.getPassword(SERVICE, keyRef);
+};
+
+// --- BACKUP AND RESTORE FUNCTIONS ---
+
+/**
+ * Create a complete JSON backup of all database tables
+ * @param {Array<string>} selectedSections - Array of section names to backup
+ * @returns {Promise<Object>} Backup data with metadata
+ */
+const createJsonBackup = async (selectedSections = []) => {
+  if (!db) throw new Error('Database not connected');
+
+  const backupData = {
+    metadata: {
+      version: '1.0',
+      timestamp: new Date().toISOString(),
+      appVersion: process.env.npm_package_version || '1.0.0',
+      sections: selectedSections
+    },
+    data: {}
+  };
+
+  try {
+    // Backup each selected section
+    if (selectedSections.includes('users')) {
+      const users = await db('users').select('id', 'username', 'name', 'role', 'created_at', 'updated_at');
+      backupData.data.users = users;
+    }
+
+    if (selectedSections.includes('assets')) {
+      backupData.data.assets = await db('assets').select('*');
+    }
+
+    if (selectedSections.includes('waybills')) {
+      backupData.data.waybills = await db('waybills').select('*');
+    }
+
+    if (selectedSections.includes('quick_checkouts')) {
+      backupData.data.quick_checkouts = await db('quick_checkouts').select('*');
+    }
+
+    if (selectedSections.includes('sites')) {
+      backupData.data.sites = await db('sites').select('*');
+    }
+
+    if (selectedSections.includes('site_transactions')) {
+      backupData.data.site_transactions = await db('site_transactions').select('*');
+    }
+
+    if (selectedSections.includes('employees')) {
+      backupData.data.employees = await db('employees').select('*');
+    }
+
+    if (selectedSections.includes('vehicles')) {
+      backupData.data.vehicles = await db('vehicles').select('*');
+    }
+
+    if (selectedSections.includes('equipment_logs')) {
+      backupData.data.equipment_logs = await db('equipment_logs').select('*');
+    }
+
+    if (selectedSections.includes('consumable_logs')) {
+      backupData.data.consumable_logs = await db('consumable_logs').select('*');
+    }
+
+    if (selectedSections.includes('activities')) {
+      backupData.data.activities = await db('activities').select('*');
+    }
+
+    if (selectedSections.includes('company_settings')) {
+      backupData.data.company_settings = await db('company_settings').select('*');
+    }
+
+    // Calculate checksum for data integrity
+    const dataString = JSON.stringify(backupData.data);
+    const crypto = await import('crypto');
+    const checksum = crypto.createHash('sha256').update(dataString).digest('hex');
+    backupData.metadata.checksum = checksum;
+
+    return { success: true, data: backupData };
+  } catch (error) {
+    console.error('JSON backup failed:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Restore data from JSON backup with transaction support
+ * @param {Object} backupData - Backup data object
+ * @param {Array<string>} selectedSections - Sections to restore
+ * @returns {Promise<Object>} Result with success status and errors
+ */
+const restoreJsonBackup = async (backupData, selectedSections = []) => {
+  if (!db) throw new Error('Database not connected');
+
+  // Validate backup data
+  if (!backupData || !backupData.metadata || !backupData.data) {
+    return { success: false, error: 'Invalid backup file structure' };
+  }
+
+  // Verify checksum
+  const dataString = JSON.stringify(backupData.data);
+  const crypto = await import('crypto');
+  const calculatedChecksum = crypto.createHash('sha256').update(dataString).digest('hex');
+
+  if (backupData.metadata.checksum !== calculatedChecksum) {
+    return { success: false, error: 'Backup file checksum mismatch - file may be corrupted' };
+  }
+
+  const errors = [];
+  const trx = await db.transaction();
+
+  try {
+    // Restore users (without passwords - they need to be reset)
+    if (selectedSections.includes('users') && backupData.data.users) {
+      for (const user of backupData.data.users) {
+        try {
+          // Skip admin user to prevent conflicts
+          if (user.username === 'admin') continue;
+
+          const existing = await trx('users').where({ username: user.username }).first();
+          if (!existing) {
+            // Create with a default password that must be changed
+            const bcrypt = await import('bcrypt');
+            const defaultPassword = await bcrypt.hash('ChangeMe123!', 10);
+            await trx('users').insert({
+              ...user,
+              password_hash: defaultPassword
+            });
+          }
+        } catch (err) {
+          errors.push({ section: 'users', id: user.username, error: err.message });
+        }
+      }
+    }
+
+    // Restore assets
+    if (selectedSections.includes('assets') && backupData.data.assets) {
+      for (const asset of backupData.data.assets) {
+        try {
+          const existing = await trx('assets').where({ id: asset.id }).first();
+          if (existing) {
+            await trx('assets').where({ id: asset.id }).update(asset);
+          } else {
+            await trx('assets').insert(asset);
+          }
+        } catch (err) {
+          errors.push({ section: 'assets', id: asset.id, error: err.message });
+        }
+      }
+    }
+
+    // Restore sites (must come before waybills)
+    if (selectedSections.includes('sites') && backupData.data.sites) {
+      for (const site of backupData.data.sites) {
+        try {
+          const existing = await trx('sites').where({ id: site.id }).first();
+          if (existing) {
+            await trx('sites').where({ id: site.id }).update(site);
+          } else {
+            await trx('sites').insert(site);
+          }
+        } catch (err) {
+          errors.push({ section: 'sites', id: site.id, error: err.message });
+        }
+      }
+    }
+
+    // Restore employees (must come before quick_checkouts)
+    if (selectedSections.includes('employees') && backupData.data.employees) {
+      for (const employee of backupData.data.employees) {
+        try {
+          const existing = await trx('employees').where({ id: employee.id }).first();
+          if (existing) {
+            await trx('employees').where({ id: employee.id }).update(employee);
+          } else {
+            await trx('employees').insert(employee);
+          }
+        } catch (err) {
+          errors.push({ section: 'employees', id: employee.id, error: err.message });
+        }
+      }
+    }
+
+    // Restore vehicles
+    if (selectedSections.includes('vehicles') && backupData.data.vehicles) {
+      for (const vehicle of backupData.data.vehicles) {
+        try {
+          const existing = await trx('vehicles').where({ id: vehicle.id }).first();
+          if (existing) {
+            await trx('vehicles').where({ id: vehicle.id }).update(vehicle);
+          } else {
+            await trx('vehicles').insert(vehicle);
+          }
+        } catch (err) {
+          errors.push({ section: 'vehicles', id: vehicle.id, error: err.message });
+        }
+      }
+    }
+
+    // Restore waybills
+    if (selectedSections.includes('waybills') && backupData.data.waybills) {
+      for (const waybill of backupData.data.waybills) {
+        try {
+          const existing = await trx('waybills').where({ id: waybill.id }).first();
+          if (!existing) {
+            await trx('waybills').insert(waybill);
+          }
+        } catch (err) {
+          errors.push({ section: 'waybills', id: waybill.id, error: err.message });
+        }
+      }
+    }
+
+    // Restore quick checkouts
+    if (selectedSections.includes('quick_checkouts') && backupData.data.quick_checkouts) {
+      for (const checkout of backupData.data.quick_checkouts) {
+        try {
+          const existing = await trx('quick_checkouts').where({ id: checkout.id }).first();
+          if (!existing) {
+            await trx('quick_checkouts').insert(checkout);
+          }
+        } catch (err) {
+          errors.push({ section: 'quick_checkouts', id: checkout.id, error: err.message });
+        }
+      }
+    }
+
+    // Restore site transactions
+    if (selectedSections.includes('site_transactions') && backupData.data.site_transactions) {
+      for (const transaction of backupData.data.site_transactions) {
+        try {
+          const existing = await trx('site_transactions').where({ id: transaction.id }).first();
+          if (!existing) {
+            await trx('site_transactions').insert(transaction);
+          }
+        } catch (err) {
+          errors.push({ section: 'site_transactions', id: transaction.id, error: err.message });
+        }
+      }
+    }
+
+    // Restore equipment logs
+    if (selectedSections.includes('equipment_logs') && backupData.data.equipment_logs) {
+      for (const log of backupData.data.equipment_logs) {
+        try {
+          const existing = await trx('equipment_logs').where({ id: log.id }).first();
+          if (!existing) {
+            await trx('equipment_logs').insert(log);
+          }
+        } catch (err) {
+          errors.push({ section: 'equipment_logs', id: log.id, error: err.message });
+        }
+      }
+    }
+
+    // Restore consumable logs
+    if (selectedSections.includes('consumable_logs') && backupData.data.consumable_logs) {
+      for (const log of backupData.data.consumable_logs) {
+        try {
+          const existing = await trx('consumable_logs').where({ id: log.id }).first();
+          if (!existing) {
+            await trx('consumable_logs').insert(log);
+          }
+        } catch (err) {
+          errors.push({ section: 'consumable_logs', id: log.id, error: err.message });
+        }
+      }
+    }
+
+    // Restore activities
+    if (selectedSections.includes('activities') && backupData.data.activities) {
+      for (const activity of backupData.data.activities) {
+        try {
+          const existing = await trx('activities').where({ id: activity.id }).first();
+          if (!existing) {
+            await trx('activities').insert(activity);
+          }
+        } catch (err) {
+          errors.push({ section: 'activities', id: activity.id, error: err.message });
+        }
+      }
+    }
+
+    // Restore company settings
+    if (selectedSections.includes('company_settings') && backupData.data.company_settings) {
+      const settings = backupData.data.company_settings[0];
+      if (settings) {
+        try {
+          const existing = await trx('company_settings').first();
+          if (existing) {
+            await trx('company_settings').where({ id: existing.id }).update(settings);
+          } else {
+            await trx('company_settings').insert(settings);
+          }
+        } catch (err) {
+          errors.push({ section: 'company_settings', id: 'settings', error: err.message });
+        }
+      }
+    }
+
+    // Commit transaction if no critical errors
+    await trx.commit();
+
+    return {
+      success: true,
+      errors: errors,
+      message: errors.length > 0
+        ? `Restore completed with ${errors.length} non-critical errors`
+        : 'Restore completed successfully'
+    };
+
+  } catch (error) {
+    // Rollback on critical error
+    await trx.rollback();
+    console.error('Restore failed, transaction rolled back:', error);
+    return {
+      success: false,
+      error: error.message,
+      errors: errors
+    };
+  }
+};
+
+/**
+ * Create a native SQLite database backup
+ * @param {string} destinationPath - Path where backup should be saved
+ * @returns {Promise<{success: boolean, path?: string, size?: number, message?: string, error?: string}>}
+ */
+const createDatabaseBackup = async (destinationPath) => {
+  if (!db) throw new Error('Database not connected');
+
+  try {
+    const fs = await import('fs/promises');
+    const path = await import('path');
+
+    // Get the current database file path from Knex config
+    const dbPath = db.client.config.connection.filename;
+
+    if (!dbPath) {
+      throw new Error('Database path not found in configuration');
+    }
+
+    // Ensure destination directory exists
+    const destDir = path.dirname(destinationPath);
+    await fs.mkdir(destDir, { recursive: true });
+
+    // Checkpoint the WAL file to ensure all data is in the main database file
+    // This is important for SQLite databases using WAL mode
+    try {
+      await db.raw('PRAGMA wal_checkpoint(TRUNCATE)');
+      console.log('✓ WAL checkpoint completed');
+    } catch (err) {
+      console.warn('WAL checkpoint failed (database might not be in WAL mode):', err.message);
+    }
+
+    // Copy the database file
+    await fs.copyFile(dbPath, destinationPath);
+
+    // Also copy WAL and SHM files if they exist (for safety)
+    try {
+      const walPath = `${dbPath}-wal`;
+      const shmPath = `${dbPath}-shm`;
+
+      // Check if WAL file exists
+      try {
+        await fs.access(walPath);
+        await fs.copyFile(walPath, `${destinationPath}-wal`);
+        console.log('✓ WAL file copied');
+      } catch (err) {
+        // WAL file doesn't exist, that's okay
+      }
+
+      // Check if SHM file exists
+      try {
+        await fs.access(shmPath);
+        await fs.copyFile(shmPath, `${destinationPath}-shm`);
+        console.log('✓ SHM file copied');
+      } catch (err) {
+        // SHM file doesn't exist, that's okay
+      }
+    } catch (err) {
+      console.warn('Could not copy WAL/SHM files:', err.message);
+    }
+
+    // Verify backup file was created
+    const stats = await fs.stat(destinationPath);
+
+    console.log(`✓ Database backup created: ${destinationPath} (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
+
+    return {
+      success: true,
+      path: destinationPath,
+      size: stats.size,
+      message: 'Database backup created successfully'
+    };
+  } catch (error) {
+    console.error('Database backup failed:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+};
+
+/**
+ * Restore database from a native SQLite backup file
+ * @param {string} sourcePath - Path to backup file
+ * @param {string} targetPath - Path where database should be restored
+ * @returns {Promise<Object>} Result with success status
+ */
+const restoreDatabaseBackup = async (sourcePath, targetPath) => {
+  try {
+    const fs = await import('fs/promises');
+
+    // Verify source file exists
+    await fs.access(sourcePath);
+
+    // Close current database connection
+    if (db) {
+      await db.destroy();
+      db = null;
+    }
+
+    // Copy backup file to target location
+    await fs.copyFile(sourcePath, targetPath);
+
+    // Reconnect to the restored database
+    connect(targetPath);
+
+    return {
+      success: true,
+      message: 'Database restored successfully'
+    };
+  } catch (error) {
+    console.error('Database restore failed:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
 };
 
 export {
@@ -1083,4 +1528,9 @@ export {
   getActiveApiKey,
   migrateSavedKeysToKeytar,
   getApiKeyFromKeyRef,
+  createJsonBackup,
+  restoreJsonBackup,
+  createDatabaseBackup,
+  restoreDatabaseBackup,
+  clearTable,
 };

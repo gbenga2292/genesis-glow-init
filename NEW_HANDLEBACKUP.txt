@@ -1,0 +1,65 @@
+// Replace the handleBackup function in CompanySettings.tsx (around line 1143)
+// This new version uses the backup scheduler to save to NAS automatically
+
+const handleBackup = async (selectedItems: Set<string>) => {
+  setIsLoading(true);
+  setError(null);
+  
+  try {
+    // Use the backup scheduler to save to NAS automatically
+    if (window.backupScheduler) {
+      console.log('🔄 Manual backup triggered from Backup Data dialog');
+      const result = await window.backupScheduler.triggerManual();
+
+      // Refresh backups list in the scheduler section
+      const backups = await window.backupScheduler.listBackups();
+      setBackupsList(backups);
+
+      // Refresh status
+      const status = await window.backupScheduler.getStatus();
+      setBackupSchedulerStatus(status);
+      setNasAccessible(status.nasAccessible);
+
+      // Check results
+      const jsonSuccess = result.json?.success || false;
+      const dbSuccess = result.database?.success || false;
+
+      if (jsonSuccess && dbSuccess) {
+        toast({
+          title: "Backup Complete",
+          description: result.nasAccessible 
+            ? "Both JSON and Database backups saved to NAS successfully"
+            : "Backup failed - NAS not accessible"
+        });
+      } else if (jsonSuccess || dbSuccess) {
+        const successType = jsonSuccess ? "JSON" : "Database";
+        toast({
+          title: "Partial Backup Complete",
+          description: `${successType} backup created successfully. ${jsonSuccess ? 'Database' : 'JSON'} backup failed.`,
+          variant: result.nasAccessible ? "default" : "destructive"
+        });
+      } else {
+        toast({
+          title: "Backup Failed",
+          description: result.nasAccessible ? "Both backups failed. Check console for details." : "NAS not accessible - backup failed",
+          variant: "destructive"
+        });
+      }
+    } else {
+      toast({
+        title: "Backup Not Available",
+        description: "Backup scheduler not initialized",
+        variant: "destructive"
+      });
+    }
+  } catch (err) {
+    setError("Failed to create backup. Please try again.");
+    toast({
+      title: "Backup Failed",
+      description: "An error occurred while creating backup.",
+      variant: "destructive"
+    });
+  } finally {
+    setIsLoading(false);
+  }
+};

@@ -42,7 +42,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
   const totalQuantity = assets.reduce((sum, asset) => sum + asset.quantity, 0);
   const outOfStockCount = assets.filter(asset => asset.quantity === 0).length;
   const lowStockCount = assets.filter(asset => asset.quantity > 0 && asset.quantity < 10).length;
-  
+
   const outstandingWaybills = (waybills || []).filter(w => w.status === 'outstanding').length;
   const outstandingCheckouts = (quickCheckouts || []).filter(c => c.status === 'outstanding').length;
 
@@ -61,7 +61,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
     const loadData = async () => {
       const loadedActivities = await getActivities();
       setActivities(loadedActivities);
-      
+
       const history = await getMetricsHistory(7);
       setMetricsHistory(history);
     };
@@ -74,9 +74,9 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
       // Fallback to single data point if no history yet
       return [currentValue];
     }
-    
+
     const data = metricsHistory.map(snapshot => {
-      switch(metricKey) {
+      switch (metricKey) {
         case 'totalAssets': return snapshot.total_assets;
         case 'totalQuantity': return snapshot.total_quantity;
         case 'outstandingWaybills': return snapshot.outstanding_waybills;
@@ -86,7 +86,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
         default: return currentValue;
       }
     });
-    
+
     // Always include current value as the last data point
     return [...data, currentValue];
   };
@@ -96,11 +96,11 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
     const last = data[data.length - 1];
     const diff = last - first;
     const percentage = first === 0 ? 0 : Math.round((diff / first) * 100);
-    
+
     if (Math.abs(percentage) < 5) return { trend: "neutral", percentage: 0 };
     return { trend: diff > 0 ? "up" : "down", percentage };
   };
-  
+
   // Calculate categories
   const dewateringAssets = assets.filter(a => a.category === 'dewatering');
   const waterproofingAssets = assets.filter(a => a.category === 'waterproofing');
@@ -122,7 +122,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
     const displayAssets = isExpanded ? assets : assets.slice(0, 3);
 
     return (
-      <Card className="border-0 shadow-soft animate-slide-up" style={{animationDelay: delay}}>
+      <Card className="border-0 shadow-soft animate-slide-up" style={{ animationDelay: delay }}>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -146,13 +146,12 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
-            {displayAssets.map(asset => (
-              <div key={asset.id} className="flex justify-between items-center">
+            {displayAssets.map((asset, index) => (
+              <div key={asset.id || index} className="flex justify-between items-center">
                 <span className="text-sm">{asset.name}</span>
-                <span className={`text-sm font-medium ${
-                  asset.quantity === 0 ? 'text-destructive' :
-                  asset.quantity < 10 ? 'text-warning' : 'text-success'
-                }`}>
+                <span className={`text-sm font-medium ${asset.quantity === 0 ? 'text-destructive' :
+                    asset.quantity < 10 ? 'text-warning' : 'text-success'
+                  }`}>
                   {asset.quantity} {asset.unitOfMeasurement}
                 </span>
               </div>
@@ -172,7 +171,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
       </Card>
     );
   };
-  
+
   // Get all equipment requiring logging
   const equipmentRequiringLogging = assets.filter(
     asset => asset.type === 'equipment' && asset.requiresLogging === true
@@ -202,7 +201,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
     const logs = equipmentLogs
       .filter(log => log.equipmentId === equipmentId)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    
+
     if (logs.length > 0) {
       return { active: logs[0].active, date: logs[0].date };
     }
@@ -222,7 +221,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
     }
     return null;
   };
-  
+
   const stats = useMemo(() => [
     {
       title: "Total Assets",
@@ -231,7 +230,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
       icon: Package,
       color: "text-primary",
       trendData: getTrendDataFromHistory('totalAssets', totalAssets),
-      getTrendInfo: function() { return getTrend(this.trendData); }
+      getTrendInfo: function () { return getTrend(this.trendData); }
     },
     {
       title: "Total Quantity",
@@ -240,7 +239,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
       icon: Package,
       color: "text-success",
       trendData: getTrendDataFromHistory('totalQuantity', totalQuantity),
-      getTrendInfo: function() { return getTrend(this.trendData); }
+      getTrendInfo: function () { return getTrend(this.trendData); }
     },
     {
       title: "Outstanding Waybills",
@@ -249,7 +248,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
       icon: FileText,
       color: "text-warning",
       trendData: getTrendDataFromHistory('outstandingWaybills', outstandingWaybills),
-      getTrendInfo: function() { return getTrend(this.trendData); }
+      getTrendInfo: function () { return getTrend(this.trendData); }
     },
     {
       title: "Quick Checkouts",
@@ -258,7 +257,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
       icon: ShoppingCart,
       color: "text-primary",
       trendData: getTrendDataFromHistory('outstandingCheckouts', outstandingCheckouts),
-      getTrendInfo: function() { return getTrend(this.trendData); }
+      getTrendInfo: function () { return getTrend(this.trendData); }
     },
     {
       title: "Out of Stock",
@@ -267,7 +266,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
       icon: AlertTriangle,
       color: "text-destructive",
       trendData: getTrendDataFromHistory('outOfStock', outOfStockCount),
-      getTrendInfo: function() { return getTrend(this.trendData); }
+      getTrendInfo: function () { return getTrend(this.trendData); }
     },
     {
       title: "Low Stock",
@@ -276,7 +275,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
       icon: TrendingDown,
       color: "text-warning",
       trendData: getTrendDataFromHistory('lowStock', lowStockCount),
-      getTrendInfo: function() { return getTrend(this.trendData); }
+      getTrendInfo: function () { return getTrend(this.trendData); }
     }
   ], [totalAssets, totalQuantity, outstandingWaybills, outstandingCheckouts, outOfStockCount, lowStockCount, metricsHistory]);
 
@@ -312,7 +311,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
             <Card
               key={stat.title}
               className="border-0 shadow-soft hover:shadow-medium transition-all duration-300 animate-slide-up"
-              style={{animationDelay: `${index * 0.1}s`}}
+              style={{ animationDelay: `${index * 0.1}s` }}
             >
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -327,7 +326,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
                 <CardDescription className="mt-2 mb-3">
                   {stat.description}
                 </CardDescription>
-                <TrendChart 
+                <TrendChart
                   data={stat.trendData}
                   trend={trendInfo.trend}
                   percentage={trendInfo.percentage}
@@ -359,7 +358,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
 
       {/* Equipment Requiring Logging */}
       {equipmentRequiringLogging.length > 0 && (
-        <Card className="border-0 shadow-soft animate-slide-up" style={{animationDelay: '0.8s'}}>
+        <Card className="border-0 shadow-soft animate-slide-up" style={{ animationDelay: '0.8s' }}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Wrench className="h-5 w-5 text-primary" />
@@ -371,20 +370,20 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {equipmentRequiringLogging.map(equipment => {
+              {equipmentRequiringLogging.map((equipment, index) => {
                 const status = getLatestStatus(equipment.id);
                 const siteName = getSiteName(equipment);
                 const site = getSiteForEquipment(equipment);
-                
+
                 return (
-                  <Card 
-                    key={equipment.id} 
+                  <Card
+                    key={equipment.id || index}
                     className="border-0 shadow-soft hover:shadow-medium transition-all duration-300"
                   >
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base flex items-center justify-between">
                         <span className="truncate">{equipment.name}</span>
-                        <Badge 
+                        <Badge
                           variant={status.active ? "default" : "secondary"}
                           className="text-xs ml-2"
                         >
@@ -433,7 +432,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
       )}
 
       {/* Recent Activity */}
-      <Card className="border-0 shadow-soft animate-slide-up" style={{animationDelay: '0.9s'}}>
+      <Card className="border-0 shadow-soft animate-slide-up" style={{ animationDelay: '0.9s' }}>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -465,7 +464,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {filteredActivities.slice(0, 10).map(activity => {
+            {filteredActivities.slice(0, 10).map((activity, index) => {
               // Format the action text to be more readable
               const formatAction = (action: string): string => {
                 return action
@@ -487,18 +486,18 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
               // Get site name if entityId is a site ID
               const getDisplayEntityId = (entityId?: string): string => {
                 if (!entityId) return '';
-                
+
                 // Check if it's a site ID pattern and get the site name
                 const site = sites.find(s => s.id === entityId);
                 if (site) {
                   return site.name;
                 }
-                
+
                 return entityId;
               };
 
               return (
-                <div key={activity.id} className="flex justify-between items-center p-3 bg-muted/50 rounded-lg">
+                <div key={activity.id || index} className="flex justify-between items-center p-3 bg-muted/50 rounded-lg">
                   <div>
                     <div className="font-medium flex items-center gap-2">
                       <User className="h-4 w-4 text-primary" />
@@ -544,8 +543,8 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
             <SiteMachineAnalytics
               site={selectedSite}
               equipment={[selectedEquipment]}
-              equipmentLogs={equipmentLogs.filter(log => 
-                log.equipmentId === selectedEquipment.id && 
+              equipmentLogs={equipmentLogs.filter(log =>
+                log.equipmentId === selectedEquipment.id &&
                 log.siteId === selectedSite.id
               )}
               selectedEquipmentId={selectedEquipment.id}

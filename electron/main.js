@@ -9,6 +9,7 @@ import { migrateDatabase } from './migrateDatabase.js';
 import * as db from './database.js';
 import config, { getDatabasePath } from './config.js';
 import { SyncManager } from './syncManager.js';
+import { backupScheduler } from './backupScheduler.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -40,7 +41,7 @@ let syncManager;
 async function main() {
   // Initialize sync manager
   syncManager = new SyncManager(APP_DATA_PATH, masterDbPath, localDbPath);
-  
+
   // Ensure the database directory exists
   if (!fs.existsSync(DB_PATH)) {
     console.log('Creating database directory:', DB_PATH);
@@ -171,7 +172,7 @@ async function main() {
       });
     }
   }
-  
+
   // Add handler to get database info
   ipcMain.handle('db:getDatabaseInfo', () => {
     return {
@@ -182,12 +183,12 @@ async function main() {
       lockingEnabled: config.enableLocking
     };
   });
-  
+
   ipcMain.handle('db:wipeLocalDatabase', () => {
     console.log('Wipe command received. Attempting to delete local database.');
     // First, disconnect from the database if connected
     db.disconnect();
-    
+
     console.log('Attempting to delete file at:', localDbPath);
     try {
       if (fs.existsSync(localDbPath)) {
@@ -219,7 +220,7 @@ async function main() {
       return { success: false, error: error.message };
     }
   });
-  
+
   // Add sync status handlers
   ipcMain.handle('sync:getStatus', () => {
     if (syncManager) {
@@ -236,7 +237,7 @@ async function main() {
     try {
       syncManager.markSyncStarted();
       const result = syncManager.syncToMaster();
-      
+
       if (result.success) {
         return {
           success: true,
@@ -256,8 +257,13 @@ async function main() {
       };
     }
   });
-  
+
   console.log('IPC handlers registered.');
+
+  // --- Initialize Backup Scheduler ---
+  console.log('Initializing automatic backup scheduler...');
+  backupScheduler.initialize(APP_DATA_PATH);
+  console.log('✓ Backup scheduler initialized');
 
   // --- LLM Manager Integration ---
   // Dynamically import the ESM LLM manager module (main.js is ESM)
@@ -417,6 +423,42 @@ async function main() {
     return await llmManager.restart();
   });
 
+  // --- Backup Scheduler IPC Handlers ---
+  ipcMain.handle('backup:getStatus', () => {
+    return backupScheduler.getStatus();
+  });
+
+  ipcMain.handle('backup:triggerManual', async (event, options) => {
+    return await backupScheduler.triggerManualBackup(options);
+  });
+
+  ipcMain.handle('backup:setEnabled', (event, enabled) => {
+    backupScheduler.setEnabled(enabled);
+    return { success: true };
+  });
+
+  ipcMain.handle('backup:setRetention', (event, days) => {
+    backupScheduler.setRetentionDays(days);
+    return { success: true };
+  });
+
+  ipcMain.handle('backup:listBackups', () => {
+    return backupScheduler.listBackups();
+  });
+
+  ipcMain.handle('backup:checkNAS', async () => {
+    return await backupScheduler.checkNASAccessibility();
+  });
+
+  ipcMain.handle('backup:readBackupFile', async (event, filePath) => {
+    return await backupScheduler.readBackupFile(filePath);
+  });
+
+  ipcMain.handle('backup:setNASPath', (event, nasPath) => {
+    backupScheduler.setNASPath(nasPath);
+    return { success: true };
+  });
+
 
   // 7. Create the browser window
   createWindow();
@@ -459,7 +501,7 @@ app.on('activate', () => {
 // Handle the "Check-In" process on quit
 app.on('before-quit', (event) => {
   console.log('Starting shutdown process...');
-  
+
   // Stop LLM server first
   try {
     console.log('Shutting down LLM server...');
@@ -472,7 +514,16 @@ app.on('before-quit', (event) => {
   } catch (err) {
     console.error('Error stopping LLM server:', err);
   }
-  
+
+  // Stop backup scheduler
+  try {
+    console.log('Stopping backup scheduler...');
+    backupScheduler.stop();
+    console.log('✓ Backup scheduler stopped');
+  } catch (err) {
+    console.error('Error stopping backup scheduler:', err);
+  }
+
   // Sync database back to master
   if (syncManager) {
     const syncResult = syncManager.syncToMaster();

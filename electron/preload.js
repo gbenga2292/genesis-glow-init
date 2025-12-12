@@ -21,7 +21,8 @@ const dbFunctions = [
     'createWaybillWithTransaction', 'processReturnWithTransaction', 'sendToSiteWithTransaction', 'deleteWaybillWithTransaction', 'updateWaybillWithTransaction',
     'getSavedApiKeys', 'createSavedApiKey', 'updateSavedApiKey', 'setActiveApiKey', 'deleteSavedApiKey', 'getActiveApiKey',
     'migrateSavedKeysToKeytar', 'getApiKeyFromKeyRef',
-    'getDatabaseInfo', 'wipeLocalDatabase'
+    'createJsonBackup', 'restoreJsonBackup', 'createDatabaseBackup', 'restoreDatabaseBackup',
+    'getDatabaseInfo', 'wipeLocalDatabase', 'clearTable'
 ];
 
 // Dynamically create an API object for the frontend
@@ -35,8 +36,20 @@ contextBridge.exposeInMainWorld('db', dbAPI);
 
 // Expose sync APIs
 contextBridge.exposeInMainWorld('electronAPI', {
-  getSyncStatus: () => ipcRenderer.invoke('sync:getStatus'),
-  manualSync: () => ipcRenderer.invoke('sync:manualSync'),
+    getSyncStatus: () => ipcRenderer.invoke('sync:getStatus'),
+    manualSync: () => ipcRenderer.invoke('sync:manualSync'),
+});
+
+// Expose Backup Scheduler API
+contextBridge.exposeInMainWorld('backupScheduler', {
+    getStatus: () => ipcRenderer.invoke('backup:getStatus'),
+    triggerManual: (options) => ipcRenderer.invoke('backup:triggerManual', options),
+    setEnabled: (enabled) => ipcRenderer.invoke('backup:setEnabled', enabled),
+    setRetention: (days) => ipcRenderer.invoke('backup:setRetention', days),
+    listBackups: () => ipcRenderer.invoke('backup:listBackups'),
+    checkNAS: () => ipcRenderer.invoke('backup:checkNAS'),
+    setNASPath: (nasPath) => ipcRenderer.invoke('backup:setNASPath', nasPath),
+    readBackupFile: (filePath) => ipcRenderer.invoke('backup:readBackupFile', filePath),
 });
 
 // Expose Local LLM API (Bundled Runtime)

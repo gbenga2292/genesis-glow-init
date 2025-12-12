@@ -181,12 +181,15 @@ export const WaybillDocument = ({ waybill, sites, companySettings, onClose }: Wa
                   <div>
                     <Badge
                       variant={
-                        item.status === 'outstanding' ? 'secondary' :
-                          item.status === 'return_completed' ? 'default' : 'outline'
+                        item.status === 'outstanding'
+                          ? (waybill.status === 'sent_to_site' || waybill.status === 'partial_returned' ? 'default' : 'secondary')
+                          : item.status === 'return_completed' ? 'default' : 'outline'
                       }
-                      className="text-xs"
+                      className={`text-xs ${item.status === 'outstanding' && (waybill.status === 'sent_to_site' || waybill.status === 'partial_returned') ? 'bg-blue-500 hover:bg-blue-600 text-white border-transparent' : ''}`}
                     >
-                      {item.status.replace('_', ' ').toUpperCase()}
+                      {item.status === 'outstanding' && (waybill.status === 'sent_to_site' || waybill.status === 'partial_returned')
+                        ? 'SENT TO SITE'
+                        : item.status.replace('_', ' ').toUpperCase()}
                     </Badge>
                   </div>
                 </div>

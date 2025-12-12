@@ -81,5 +81,57 @@ interface Window {
     getApiKeyFromKeyRef: (keyRef: string) => Promise<string | null>;
     getDatabaseInfo: () => Promise<{ storageType: string; dbPath: string; masterDbPath: string; localDbPath: string; lockingEnabled: boolean }>;
     wipeLocalDatabase: () => Promise<{ success: boolean; message?: string; error?: string }>;
+    createJsonBackup: (selectedSections: string[]) => Promise<{ success: boolean; data?: any; error?: string }>;
+    restoreJsonBackup: (backupData: any, selectedSections: string[]) => Promise<{ success: boolean; errors?: any[]; message?: string; error?: string }>;
+    createDatabaseBackup: (destinationPath: string) => Promise<{ success: boolean; path?: string; size?: number; message?: string; error?: string }>;
+    restoreDatabaseBackup: (sourcePath: string, targetPath: string) => Promise<{ success: boolean; message?: string; error?: string }>;
+  };
+  backupScheduler?: {
+    getStatus: () => Promise<{
+      enabled: boolean;
+      scheduledTime: string;
+      localBackupDirectory: string;
+      nasBackupPath: string;
+      nasAccessible: boolean;
+      totalLocalBackups: number;
+      maxBackups: number;
+      nextRun: Date | null;
+    }>;
+    triggerManual: (options?: any) => Promise<{
+      json: { success: boolean; local: string | null; nas: string | null; error: string | null };
+      database: { success: boolean; local: string | null; nas: string | null; error: string | null };
+      nasAccessible: boolean;
+      errors: string[];
+    }>;
+    setEnabled: (enabled: boolean) => Promise<{ success: boolean }>;
+    setRetention: (days: number) => Promise<{ success: boolean }>;
+    listBackups: () => Promise<{
+      local: Array<{
+        name: string;
+        path: string;
+        size: number;
+        created: Date;
+        age: number;
+      }>;
+      nas: {
+        json: Array<{
+          name: string;
+          path: string;
+          size: number;
+          created: Date;
+          age: number;
+        }>;
+        database: Array<{
+          name: string;
+          path: string;
+          size: number;
+          created: Date;
+          age: number;
+        }>;
+      };
+    }>;
+    checkNAS: () => Promise<{ accessible: boolean; message: string }>;
+    setNASPath: (nasPath: string) => Promise<{ success: boolean }>;
+    readBackupFile: (filePath: string) => Promise<{ success: boolean; data?: any; error?: string }>;
   };
 }

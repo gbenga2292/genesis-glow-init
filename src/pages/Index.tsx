@@ -2108,6 +2108,30 @@ const Index = () => {
   };
 
   const handleResetAllData = async () => {
+    // Clear database tables if available
+    if (window.db && (window.db as any).clearTable) {
+      try {
+        // Clear tables in dependency order (reverse of creation)
+        const clearTable = (window.db as any).clearTable;
+        await clearTable('site_transactions');
+        await clearTable('quick_checkouts');
+        await clearTable('equipment_logs');
+        await clearTable('consumable_logs');
+        await clearTable('waybills');
+        await clearTable('assets');
+        await clearTable('sites');
+        await clearTable('vehicles');
+        await clearTable('employees');
+        await clearTable('activity_log');
+
+        // Note: Users are NOT cleared to prevent admin lockout
+        // Company settings will be reset to default by the caller (CompanySettings component)
+      } catch (err) {
+        console.error("Failed to clear database tables", err);
+        toast({ title: "Reset Partially Failed", description: "Could not clear some database tables.", variant: "destructive" });
+      }
+    }
+
     // Clear all states
     setAssets([]);
     setWaybills([]);
@@ -2121,7 +2145,7 @@ const Index = () => {
     await logActivity({
       action: 'reset',
       entity: 'system',
-      details: 'Evaluated Reset All Data'
+      details: 'Performed Full Data Reset'
     });
   };
 
