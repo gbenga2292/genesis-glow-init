@@ -47,7 +47,7 @@ export const QuickCheckoutForm = ({
     condition: 'good' as 'good' | 'damaged' | 'missing'
   });
 
-  const { isAuthenticated, currentUser } = useAuth();
+  const { isAuthenticated, currentUser, hasPermission } = useAuth();
   const { toast } = useToast();
 
   const filteredCheckouts = quickCheckouts; // No filter implementation requested
@@ -257,7 +257,7 @@ export const QuickCheckoutForm = ({
               <Button
                 type="submit"
                 className="w-full bg-gradient-primary hover:scale-105 transition-all duration-300 shadow-medium"
-                disabled={!formData.assetId || !formData.employee || currentUser?.role === 'staff'}
+                disabled={!formData.assetId || !formData.employee || !hasPermission('write_quick_checkouts')}
               >
                 <ShoppingCart className="h-4 w-4 mr-2" />
                 Checkout Item
@@ -319,13 +319,13 @@ export const QuickCheckoutForm = ({
                             size="sm"
                             variant="outline"
                             className="flex-1"
-                            disabled={!isAuthenticated || currentUser?.role === 'staff'}
+                            disabled={!isAuthenticated || !hasPermission('write_quick_checkouts')}
                           >
                             <RotateCcw className="h-3 w-3 mr-2" />
                             Return / Update
                           </Button>
                         )}
-                        {onDeleteCheckout && isAuthenticated && currentUser?.role !== 'staff' && (
+                        {onDeleteCheckout && isAuthenticated && hasPermission('delete_quick_checkouts') && (
                           <Button
                             onClick={() => onDeleteCheckout(checkout.id)}
                             size="sm"

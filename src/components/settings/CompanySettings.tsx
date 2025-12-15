@@ -2123,6 +2123,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     const updateData: any = {
       name: editUserName.trim(),
       username: editUserUsername.trim(),
+      role: editUserRole,
     };
 
     // Only include password if it's been entered
@@ -2139,7 +2140,6 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       setEditUserName('');
       setEditUserUsername('');
       setEditUserPassword('');
-      setEditUserRole('staff');
       setEditUserRole('staff');
       toast({
         title: "User Updated",
@@ -2593,10 +2593,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
             <CardContent className="space-y-4">
               <div className="flex justify-between items-center">
                 <h4 className="font-medium">Active Employees</h4>
-                <Button onClick={() => setIsAddEmployeeDialogOpen(true)} className="gap-2">
-                  <UserPlus className="h-4 w-4" />
-                  Add Employee
-                </Button>
+                {hasPermission('write_employees') && (
+                  <Button onClick={() => setIsAddEmployeeDialogOpen(true)} className="gap-2">
+                    <UserPlus className="h-4 w-4" />
+                    Add Employee
+                  </Button>
+                )}
               </div>
               <div>
                 {employees.filter(emp => emp.status === 'active').length === 0 ? (
@@ -2636,8 +2638,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                               <Button size="sm" variant="ghost" onClick={() => setAnalyticsEmployee(emp)} title="View Analytics">
                                 <BarChart3 className="h-4 w-4" />
                               </Button>
-                              <Button size="sm" variant="outline" onClick={() => handleEditEmployee(emp.id)}>Edit</Button>
-                              <Button size="sm" variant="destructive" onClick={() => { setEmployeeToDelist(emp); setIsDelistEmployeeDialogOpen(true); }}>Delist</Button>
+                              {hasPermission('write_employees') && (
+                                <Button size="sm" variant="outline" onClick={() => handleEditEmployee(emp.id)}>Edit</Button>
+                              )}
+                              {hasPermission('delist_employees') && (
+                                <Button size="sm" variant="destructive" onClick={() => { setEmployeeToDelist(emp); setIsDelistEmployeeDialogOpen(true); }}>Delist</Button>
+                              )}
                             </div>
                           </>
                         )}
@@ -2761,7 +2767,9 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                   onChange={(e) => setVehicleName(e.target.value)}
                   className="flex-1"
                 />
-                <Button onClick={handleAddVehicle}>Add</Button>
+                {hasPermission('write_vehicles') && (
+                  <Button onClick={handleAddVehicle}>Add</Button>
+                )}
               </div>
               <div>
                 {vehicles.length === 0 ? (
@@ -2785,8 +2793,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                           <>
                             <span>{vehicle.name}</span>
                             <div className="flex gap-1">
-                              <Button size="sm" variant="outline" onClick={() => handleEditVehicle(vehicle.id)}>Edit</Button>
-                              <Button size="sm" variant="destructive" onClick={() => handleRemoveVehicle(vehicle.id)}>Remove</Button>
+                              {hasPermission('write_vehicles') && (
+                                <Button size="sm" variant="outline" onClick={() => handleEditVehicle(vehicle.id)}>Edit</Button>
+                              )}
+                              {hasPermission('delete_vehicles') && (
+                                <Button size="sm" variant="destructive" onClick={() => handleRemoveVehicle(vehicle.id)}>Remove</Button>
+                              )}
                             </div>
                           </>
                         )}
@@ -3163,29 +3175,31 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
               </p>
 
               <div className="flex flex-wrap gap-3">
-                <AlertDialog open={isResetOpen} onOpenChange={setIsResetOpen}>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="destructive" disabled={isLoading} className="gap-2">
-                      <Trash2 className="h-4 w-4" />
-                      Reset All Data
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Reset All Data</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will permanently delete all assets, waybills, returns, sites, employees, vehicles, and settings data. This action cannot be undone.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleReset} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                        {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                {hasPermission('reset_data') && (
+                  <AlertDialog open={isResetOpen} onOpenChange={setIsResetOpen}>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" disabled={isLoading} className="gap-2">
+                        <Trash2 className="h-4 w-4" />
                         Reset All Data
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Reset All Data</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently delete all assets, waybills, returns, sites, employees, vehicles, and settings data. This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleReset} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                          {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                          Reset All Data
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
 
                 <Dialog open={isBackupDialogOpen} onOpenChange={setIsBackupDialogOpen}>
                   <DialogTrigger asChild>
@@ -3313,12 +3327,14 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                     setRestoreProgress({ phase: 'idle', total: 0, done: 0, message: '', errors: [] });
                   }
                 }}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" disabled={isLoading} className="gap-2">
-                      <UploadCloud className="h-4 w-4" />
-                      Restore Data
-                    </Button>
-                  </DialogTrigger>
+                  {hasPermission('restore_data') && (
+                    <DialogTrigger asChild>
+                      <Button variant="outline" disabled={isLoading} className="gap-2">
+                        <UploadCloud className="h-4 w-4" />
+                        Restore Data
+                      </Button>
+                    </DialogTrigger>
+                  )}
                   <DialogContent className="max-w-2xl">
                     {!showRestoreSectionSelector && !isRestoringLive ? (
                       <>
@@ -3632,10 +3648,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                             Backups run daily at 5:00 PM (17:00)
                           </p>
                         </div>
-                        <Switch
-                          checked={autoBackupEnabled}
-                          onCheckedChange={handleAutoBackupToggle}
-                        />
+                        {hasPermission('restore_data') && (
+                          <Switch
+                            checked={autoBackupEnabled}
+                            onCheckedChange={handleAutoBackupToggle}
+                          />
+                        )}
                       </div>
 
                       <div className="p-4 border rounded-lg space-y-3">
@@ -3663,7 +3681,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                           <Button
                             size="sm"
                             onClick={() => handleRetentionChange(backupRetentionDays)}
-                            disabled={isLoading}
+                            disabled={isLoading || !hasPermission('restore_data')}
                           >
                             Apply
                           </Button>
@@ -3769,16 +3787,18 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                                                 {new Date(backup.created).toLocaleString()} • {(backup.size / 1024 / 1024).toFixed(2)} MB • {backup.age} days old
                                               </div>
                                             </div>
-                                            <Button
-                                              variant="ghost"
-                                              size="sm"
-                                              className="ml-2 h-8 w-8 p-0"
-                                              onClick={() => handleRestoreFromNAS(backup.path)}
-                                              disabled={isLoading}
-                                              title="Restore from this backup"
-                                            >
-                                              <UploadCloud className="h-4 w-4 text-green-700 dark:text-green-400" />
-                                            </Button>
+                                            {hasPermission('restore_data') && (
+                                              <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="ml-2 h-8 w-8 p-0"
+                                                onClick={() => handleRestoreFromNAS(backup.path)}
+                                                disabled={isLoading}
+                                                title="Restore from this backup"
+                                              >
+                                                <UploadCloud className="h-4 w-4 text-green-700 dark:text-green-400" />
+                                              </Button>
+                                            )}
                                           </div>
                                         ))}
                                       </div>
@@ -3817,16 +3837,18 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                                                 {new Date(backup.created).toLocaleString()} • {(backup.size / 1024 / 1024).toFixed(2)} MB • {backup.age} days old
                                               </div>
                                             </div>
-                                            <Button
-                                              variant="ghost"
-                                              size="sm"
-                                              className="ml-2 h-8 w-8 p-0"
-                                              onClick={() => handleRestoreFromNAS(backup.path)}
-                                              disabled={isLoading}
-                                              title="Restore from this backup"
-                                            >
-                                              <UploadCloud className="h-4 w-4 text-blue-700 dark:text-blue-400" />
-                                            </Button>
+                                            {hasPermission('restore_data') && (
+                                              <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="ml-2 h-8 w-8 p-0"
+                                                onClick={() => handleRestoreFromNAS(backup.path)}
+                                                disabled={isLoading}
+                                                title="Restore from this backup"
+                                              >
+                                                <UploadCloud className="h-4 w-4 text-blue-700 dark:text-blue-400" />
+                                              </Button>
+                                            )}
                                           </div>
                                         ))}
                                       </div>

@@ -131,9 +131,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         'read_waybills', 'write_waybills',
         'read_returns', 'write_returns', 'delete_returns',
         'read_sites',
-        'read_employees', 'write_employees', 'delete_employees',
-        'write_vehicles', 'delete_vehicles',
-        'manage_users',
+        'read_employees', 'write_employees', // removed delete_employees
+        'write_vehicles', // removed delete_vehicles
+        'read_quick_checkouts', 'write_quick_checkouts', // Added access but no delete
         'edit_company_info', 'view_activity_log', 'change_theme',
         'print_documents'
       ],
@@ -143,24 +143,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         'read_returns',
         'read_sites',
         'read_reports',
-        'write_employees',
-        'write_vehicles',
+        'read_employees', // Changed from write to read
+        'read_quick_checkouts', // Added read-only access
         'edit_company_info', 'change_theme',
         'print_documents'
       ],
       manager: [
         'read_assets', 'write_assets',
         'read_waybills', 'write_waybills',
-        'read_returns', 'write_returns',
+        'read_returns', 'write_returns', 'delete_returns', // Matches data_entry_supervisor
         'read_sites',
-        'read_employees',
+        'read_employees', 'write_employees', 'delist_employees', // Manager can delist
         'read_reports',
-        'read_quick_checkouts', 'write_quick_checkouts',
+        'read_quick_checkouts', 'write_quick_checkouts', // Manager can write, but NO delete
+        'write_vehicles', 'delete_vehicles', // Manager can delete vehicles
+        'edit_company_info', 'view_activity_log', 'change_theme', // Matches data_entry_supervisor
         'print_documents'
       ],
       staff: [
         'read_assets', 'write_assets',
-        'read_waybills',
+        'read_waybills', 'write_waybills',
         'read_returns',
         'read_sites',
         'read_quick_checkouts'

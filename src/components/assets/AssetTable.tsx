@@ -223,7 +223,7 @@ export const AssetTable = ({ assets, onEdit, onDelete, onUpdateAsset, onViewAnal
               }
               setShowRestockDialog(true);
             }}
-            disabled={!hasPermission('print_documents')}
+            disabled={!hasPermission('write_assets')}
             className="bg-gradient-primary hover:opacity-90"
           >
             <Package className="h-4 w-4 mr-2" />

@@ -2333,7 +2333,7 @@ const Index = () => {
                     Add Asset
                   </Button>
                 )}
-                {isAuthenticated && hasPermission('write_assets') && <BulkImportAssets onImport={handleImport} />}
+                {isAuthenticated && hasPermission('write_assets') && currentUser?.role !== 'staff' && <BulkImportAssets onImport={handleImport} />}
                 <InventoryReport assets={assets} companySettings={companySettings} />
 
               </div>

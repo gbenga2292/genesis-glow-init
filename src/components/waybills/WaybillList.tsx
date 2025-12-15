@@ -164,7 +164,7 @@ export const WaybillList = ({ waybills, sites, onViewWaybill, onEditWaybill, onI
                           <Edit className="h-4 w-4" />
                         </Button>
                       )}
-                      {waybill.type === 'waybill' && waybill.status === 'outstanding' && onSentToSite && hasPermission('write_waybills') && (
+                      {waybill.type === 'waybill' && waybill.status === 'outstanding' && onSentToSite && hasPermission('write_waybills') && currentUser?.role !== 'staff' && (
                         <Button
                           onClick={() => {
                             setSelectedWaybill(waybill);
