@@ -500,8 +500,8 @@ export const AssetTable = ({ assets, onEdit, onDelete, onUpdateAsset, onViewAnal
               };
 
               // Update in database
-              if (window.db) {
-                await window.db.updateAsset(asset.id, updatedAsset);
+              if (window.electronAPI && window.electronAPI.db) {
+                await window.electronAPI.db.updateAsset(asset.id, updatedAsset);
               }
 
               // Update in local state
@@ -529,10 +529,15 @@ export const AssetTable = ({ assets, onEdit, onDelete, onUpdateAsset, onViewAnal
               };
 
               // Add to equipment logs if available
-              if (window.electronAPI) {
-                window.electronAPI.addEquipmentLog(restockLog);
-              } else if (window.db) {
-                window.db.createEquipmentLog(restockLog);
+              if (window.electronAPI && window.electronAPI.db) {
+                // If addEquipmentLog is specific or if it just uses db.createEquipmentLog
+                if (window.electronAPI.addEquipmentLog) {
+                  window.electronAPI.addEquipmentLog(restockLog);
+                } else {
+                  window.electronAPI.db.createEquipmentLog(restockLog);
+                }
+              } else if (window.electronAPI && window.electronAPI.db) {
+                window.electronAPI.db.createEquipmentLog(restockLog);
               }
 
               logActivity({

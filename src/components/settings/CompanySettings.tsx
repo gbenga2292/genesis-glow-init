@@ -61,7 +61,9 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     currency: "USD",
     dateFormat: "dd/MM/yyyy",
     theme: "light",
-    notifications: { email: true, push: true }
+    notifications: { email: true, push: true },
+    maintenanceFrequency: 60,
+    currencySymbol: "₦"
   };
 
   const { toast } = useToast();
@@ -186,7 +188,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         description: `Found ${models.length} Google AI models`
       });
     } catch (error) {
-      console.error('Failed to fetch Google models:', error);
+      logger.error('Failed to fetch Google models', error);
       toast({
         title: "Fetch Failed",
         description: "Failed to fetch models from Google AI",
@@ -220,8 +222,8 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
     (async () => {
       try {
-        if (window.db?.getSavedApiKeys) {
-          const savedKeys = await window.db.getSavedApiKeys();
+        if (window.electronAPI && window.electronAPI.db && window.electronAPI.db.getSavedApiKeys) {
+          const savedKeys = await window.electronAPI.db.getSavedApiKeys();
           if (!isActive) return;
 
           const keysMap: Record<string, any> = {};
@@ -291,7 +293,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         }
       } catch (err) {
         if (!isActive) return;
-        console.error('Failed to load saved API keys', err);
+        logger.error('Failed to load saved API keys', err);
         // Fallback to localStorage
         const savedKeys = localStorage.getItem('ai_api_keys');
         if (savedKeys) {
@@ -332,7 +334,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           const backups = await window.backupScheduler.listBackups();
           setBackupsList(backups);
         } catch (err) {
-          console.error('Failed to load backup scheduler status:', err);
+          logger.error('Failed to load backup scheduler status', err);
         }
       }
     };
@@ -439,16 +441,16 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     if (!employeeName.trim()) return;
 
     try {
-      if (window.db) {
+      if (window.electronAPI && window.electronAPI.db) {
         // Persist to DB (timestamps handled by DB)
-        await window.db.createEmployee({
+        await window.electronAPI.db.createEmployee({
           name: employeeName.trim(),
           role: employeeRole,
           email: employeeEmail.trim() || undefined,
           status: 'active',
         });
         // Reload from DB to ensure IDs and timestamps are correct
-        const latest = await window.db.getEmployees();
+        const latest = await window.electronAPI.db.getEmployees();
         const mapped = latest.map((item: any) => ({
           ...item,
           createdAt: new Date(item.createdAt),
@@ -509,8 +511,8 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
     try {
       // Save to database first if available
-      if (window.db) {
-        await window.db.updateEmployee(employeeToDelist.id, updatedEmployee);
+      if (window.electronAPI && window.electronAPI.db) {
+        await window.electronAPI.db.updateEmployee(employeeToDelist.id, updatedEmployee);
       }
 
       const updatedEmployees = employees.map(emp =>
@@ -547,8 +549,9 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
   const handleRemoveEmployee = async (id: string) => {
     try {
       // Delete from database first if available
-      if (window.db) {
-        await window.db.deleteEmployee(id);
+      // Delete from database first if available
+      if (window.electronAPI && window.electronAPI.db) {
+        await window.electronAPI.db.deleteEmployee(id);
       }
 
       onEmployeesChange(employees.filter(emp => emp.id !== id));
@@ -571,9 +574,9 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     if (!vehicleName.trim()) return;
 
     try {
-      if (window.db) {
-        await window.db.createVehicle({ name: vehicleName.trim(), status: 'active' });
-        const latest = await window.db.getVehicles();
+      if (window.electronAPI && window.electronAPI.db) {
+        await window.electronAPI.db.createVehicle({ name: vehicleName.trim(), status: 'active' });
+        const latest = await window.electronAPI.db.getVehicles();
         const mapped = latest.map((item: any) => ({
           ...item,
           createdAt: new Date(item.created_at || item.createdAt),
@@ -612,8 +615,8 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
   const handleRemoveVehicle = async (id: string) => {
     try {
       // Delete from database first if available
-      if (window.db) {
-        await window.db.deleteVehicle(id);
+      if (window.electronAPI && window.electronAPI.db) {
+        await window.electronAPI.db.deleteVehicle(id);
       }
 
       onVehiclesChange(vehicles.filter(v => v.id !== id));
@@ -656,8 +659,8 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
     try {
       // Save to database first if available
-      if (window.db) {
-        await window.db.updateEmployee(editingEmployeeId, updatedEmployee);
+      if (window.electronAPI && window.electronAPI.db) {
+        await window.electronAPI.db.updateEmployee(editingEmployeeId, updatedEmployee);
       }
 
       const updatedEmployees = employees.map(emp =>
@@ -712,9 +715,9 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     if (!vehicle) return;
 
     try {
-      if (window.db) {
-        await window.db.updateVehicle(vehicle.id, { name: tempVehicleName.trim() });
-        const latest = await window.db.getVehicles();
+      if (window.electronAPI && window.electronAPI.db) {
+        await window.electronAPI.db.updateVehicle(vehicle.id, { name: tempVehicleName.trim() });
+        const latest = await window.electronAPI.db.getVehicles();
         const mapped = latest.map((item: any) => ({
           ...item,
           createdAt: new Date(item.created_at || item.createdAt),
@@ -781,20 +784,20 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
         // Try to update if ID exists, otherwise create new record
         let savedSettings: any = null;
-        if ((formData as any)?.id && window?.db?.updateCompanySettings) {
-          const result = await window.db.updateCompanySettings((formData as any).id, updated);
+        if ((formData as any)?.id && window?.electronAPI?.db?.updateCompanySettings) {
+          const result = await window.electronAPI.db.updateCompanySettings((formData as any).id, updated);
           savedSettings = Array.isArray(result) ? result[0] : result;
-          console.log('AI settings updated to DB (existing record)', savedSettings);
-        } else if (window?.db?.updateCompanySettings) {
+          logger.info('AI settings updated to DB (existing record)', { data: { savedSettings } });
+        } else if (window?.electronAPI?.db?.updateCompanySettings) {
           // updateCompanySettings now handles creation if ID is missing
-          const result = await window.db.updateCompanySettings(null, updated);
+          const result = await window.electronAPI.db.updateCompanySettings(null, updated);
           savedSettings = Array.isArray(result) ? result[0] : result;
-          console.log('AI settings saved to DB (new record created)', savedSettings);
+          logger.info('AI settings saved to DB (new record created)', { data: { savedSettings } });
         }
 
         // Reload fresh settings from DB and pass back to parent to ensure consistency
-        if (window?.db?.getCompanySettings) {
-          const reloadedSettings = await window.db.getCompanySettings();
+        if (window?.electronAPI?.db?.getCompanySettings) {
+          const reloadedSettings = await window.electronAPI.db.getCompanySettings();
           // Update parent state with the fresh data from DB
           onSave(reloadedSettings || updated);
           console.log('Reloaded company settings from DB after save', reloadedSettings);
@@ -806,7 +809,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           description: "Your AI configuration has been persisted."
         });
       } catch (err) {
-        console.error('Failed to persist AI settings to DB', err);
+        logger.error('Failed to persist AI settings to DB', err);
         toast({
           title: "Save Failed",
           description: "Failed to save AI settings. Please try again.",
@@ -898,13 +901,13 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         };
         let result: any;
         if (editingKeyId) {
-          result = await window.db.updateSavedApiKey(editingKeyId, payload);
+          result = await window.electronAPI.db.updateSavedApiKey(editingKeyId, payload);
         } else {
-          result = await window.db.createSavedApiKey(payload);
+          result = await window.electronAPI.db.createSavedApiKey(payload);
         }
 
         // Reload saved keys from database
-        const updatedKeys = await window.db.getSavedApiKeys();
+        const updatedKeys = await window.electronAPI.db.getSavedApiKeys();
         const keysMap: Record<string, any> = {};
         updatedKeys.forEach((key: any) => {
           keysMap[key.key_name] = key;
@@ -921,20 +924,20 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           } else if (result && result.id) {
             newId = result.id;
           }
-          if (newId && window.db?.setActiveApiKey) {
-            await window.db.setActiveApiKey(newId);
+          if (newId && window.electronAPI.db?.setActiveApiKey) {
+            await window.electronAPI.db.setActiveApiKey(newId);
 
             // Also update the selected key in settings
             setSelectedSavedKey(newKeyName.trim());
             // reflect active flag in local state
-            const refreshed = await window.db.getSavedApiKeys();
+            const refreshed = await window.electronAPI.db.getSavedApiKeys();
             const refreshedMap: Record<string, any> = {};
             refreshed.forEach((k: any) => { refreshedMap[k.key_name] = k; });
             setSavedApiKeys(refreshedMap);
             setSelectedSavedKey(newKeyName.trim());
           }
         } catch (err) {
-          console.warn('Failed to set active key after save', err);
+          logger.warn('Failed to set active key after save', err);
         }
 
         toast({
@@ -987,10 +990,10 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         if (keyData.model) {
           setAiModel(keyData.model);
         }
-        if (keyData.key_ref && window.db?.getApiKeyFromKeyRef) {
+        if (keyData.key_ref && window.electronAPI.db?.getApiKeyFromKeyRef) {
           // retrieve from secure store
           try {
-            const secret = await window.db.getApiKeyFromKeyRef(keyData.key_ref);
+            const secret = await window.electronAPI.db.getApiKeyFromKeyRef(keyData.key_ref);
             if (secret) setAiApiKey(secret);
           } catch (err) {
             console.error('Failed to retrieve API key from secure store', err);
@@ -1080,10 +1083,10 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           localStorage.setItem('ai_api_keys', JSON.stringify(updatedKeys));
         } else if (keyId) {
           // Delete from database
-          await window.db.deleteSavedApiKey(keyId);
+          await window.electronAPI.db.deleteSavedApiKey(keyId);
 
           // Reload saved keys from database
-          const updatedKeys = await window.db.getSavedApiKeys();
+          const updatedKeys = await window.electronAPI.db.getSavedApiKeys();
           const keysMap: Record<string, any> = {};
           updatedKeys.forEach((key: any) => {
             keysMap[key.key_name] = key;
@@ -1408,7 +1411,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       const backupData = loadedBackupData;
 
       // Check if running in Electron with database access
-      const hasDB = window.db !== undefined;
+      const hasDB = window.electronAPI && window.electronAPI.db;
 
       // Prepare live progress tracking
       setIsRestoringLive(true);
@@ -1416,7 +1419,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
       // Handle Full Database Binary Restore
       if ((backupData as any).type === 'full_db') {
-        if (!hasDB || !window.db.restoreDatabaseBackup || !window.db.getDatabaseInfo) {
+        if (!hasDB || !window.electronAPI.db.restoreDatabaseBackup || !window.electronAPI.db.getDatabaseInfo) {
           throw new Error("Database restore service not available");
         }
 
@@ -1424,13 +1427,13 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
         const sourcePath = (backupData as any).path;
         // Get current DB path target
-        const dbInfo = await window.db.getDatabaseInfo();
+        const dbInfo = await window.electronAPI.db.getDatabaseInfo();
         const targetPath = dbInfo.localDbPath || dbInfo.dbPath;
 
         if (!targetPath) throw new Error("Could not determine target database location");
 
         // Perform restore
-        const result = await window.db.restoreDatabaseBackup(sourcePath, targetPath);
+        const result = await window.electronAPI.db.restoreDatabaseBackup(sourcePath, targetPath);
 
         if (result.success) {
           setRestoreProgress({ ...progressState, done: 1, total: 1, phase: 'Complete', message: 'Database restored successfully' });
@@ -1470,8 +1473,8 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       // Pre-Restore Cleanup
       if (hasDB) {
         const clearTableSafe = async (table: string) => {
-          if ((window.db as any).clearTable) {
-            try { await (window.db as any).clearTable(table); }
+          if (window.electronAPI.db && (window.electronAPI.db as any).clearTable) {
+            try { await (window.electronAPI.db as any).clearTable(table); }
             catch (e) { logger.warn(`Failed to clear table ${table}`, e); }
           }
         };
@@ -1520,12 +1523,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         if (hasDB) {
           for (const site of sites) {
             try {
-              const existingSites = await window.db.getSites();
+              const existingSites = await window.electronAPI.db.getSites();
               const exists = existingSites.some((s: any) => s.id === site.id);
               if (exists) {
-                await window.db.updateSite(site.id, site);
+                await window.electronAPI.db.updateSite(site.id, site);
               } else {
-                await window.db.createSite(site);
+                await window.electronAPI.db.createSite(site);
               }
             } catch (err) {
               logger.warn(`Could not restore site ${site.id}`, err);
@@ -1548,12 +1551,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         if (hasDB) {
           for (const emp of employees) {
             try {
-              const existingEmployees = await window.db.getEmployees();
+              const existingEmployees = await window.electronAPI.db.getEmployees();
               const exists = existingEmployees.some((e: any) => e.id === emp.id);
               if (exists) {
-                await window.db.updateEmployee(emp.id, emp);
+                await window.electronAPI.db.updateEmployee(emp.id, emp);
               } else {
-                await window.db.createEmployee(emp);
+                await window.electronAPI.db.createEmployee(emp);
               }
             } catch (err) {
               logger.warn(`Could not restore employee ${emp.id}`, err);
@@ -1572,12 +1575,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         if (hasDB) {
           for (const vehicle of vehicles) {
             try {
-              const existingVehicles = await window.db.getVehicles();
+              const existingVehicles = await window.electronAPI.db.getVehicles();
               const exists = existingVehicles.some((v: any) => v.id === vehicle.id);
               if (exists) {
-                await window.db.updateVehicle(vehicle.id, vehicle);
+                await window.electronAPI.db.updateVehicle(vehicle.id, vehicle);
               } else {
-                await window.db.createVehicle(vehicle);
+                await window.electronAPI.db.createVehicle(vehicle);
               }
             } catch (err) {
               logger.warn(`Could not restore vehicle ${vehicle.id}`, err);
@@ -1602,12 +1605,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           setRestoreProgress((p: any) => ({ ...p, phase: 'Restoring assets', message: 'Saving assets to database...' }));
           for (const asset of assets) {
             try {
-              const existingAssets = await window.db.getAssets();
+              const existingAssets = await window.electronAPI.db.getAssets();
               const exists = existingAssets.some((a: any) => a.id === asset.id);
               if (exists) {
-                await window.db.updateAsset(asset.id, asset);
+                await window.electronAPI.db.updateAsset(asset.id, asset);
               } else {
-                await window.db.createAsset(asset);
+                await window.electronAPI.db.createAsset(asset);
               }
             } catch (err) {
               logger.warn(`Could not restore asset ${asset.id}`, err);
@@ -1644,7 +1647,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           let idx = 0;
           for (const waybill of waybills) {
             try {
-              await window.db.createWaybill(waybill, { skipStockUpdate: true });
+              await window.electronAPI.db.createWaybill(waybill, { skipStockUpdate: true });
             } catch (err) {
               logger.warn(`Could not restore waybill ${waybill.id} - may already exist`, err);
               waybillPersistErrors.push({ id: waybill.id, error: err });
@@ -1662,14 +1665,14 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           try {
             const syncRes = await (window as any).electronAPI.manualSync();
             if (!syncRes || !syncRes.success) {
-              console.warn('Manual sync after restore reported failure', syncRes);
+              logger.warn('Manual sync after restore reported failure', { data: { syncRes } });
             }
           } catch (err) {
-            console.warn('Manual sync after restore failed', err);
+            logger.warn('Manual sync after restore failed', err);
           }
 
           try {
-            const persistedWaybills = await window.db.getWaybills();
+            const persistedWaybills = await window.electronAPI.db.getWaybills();
             if (persistedWaybills && typeof onWaybillsChange === 'function') {
               onWaybillsChange(persistedWaybills);
               window.dispatchEvent(new Event('refreshWaybills'));
@@ -1680,7 +1683,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         }
 
         if (waybillPersistErrors.length > 0) {
-          console.error('Waybill restore errors (details):', waybillPersistErrors);
+          logger.error('Waybill restore errors (details)', { data: { waybillPersistErrors } });
           logger.warn('Waybill restore errors', { data: waybillPersistErrors.map(e => ({ id: e.id, message: e.error?.message || e.error || String(e) })) });
           const firstMsg = waybillPersistErrors[0].error?.message || waybillPersistErrors[0].error || 'Unknown error';
           toast({
@@ -1707,7 +1710,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         if (hasDB) {
           for (const checkout of checkouts) {
             try {
-              await window.db.createQuickCheckout(checkout);
+              await window.electronAPI.db.createQuickCheckout(checkout);
             } catch (err) {
               logger.warn(`Could not restore quick checkout ${checkout.id} - may already exist`, err);
             }
@@ -1747,7 +1750,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         if (hasDB) {
           for (const transaction of transactions) {
             try {
-              await window.db.addSiteTransaction(transaction);
+              await window.electronAPI.db.addSiteTransaction(transaction);
             } catch (err) {
               logger.warn(`Could not restore site transaction ${transaction.id} - may already exist`, err);
             }
@@ -1769,7 +1772,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         if (hasDB) {
           for (const log of logs) {
             try {
-              await window.db.createEquipmentLog(log);
+              await window.electronAPI.db.createEquipmentLog(log);
             } catch (err) {
               logger.warn(`Could not restore equipment log ${log.id} - may already exist`, err);
             }
@@ -1791,7 +1794,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         if (hasDB) {
           for (const log of logs) {
             try {
-              await window.db.createConsumableLog(log);
+              await window.electronAPI.db.createConsumableLog(log);
             } catch (err) {
               logger.warn(`Could not restore consumable log ${log.id} - may already exist`, err);
             }
@@ -1812,7 +1815,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         if (hasDB) {
           for (const activity of activities) {
             try {
-              await window.db.createActivity(activity);
+              await window.electronAPI.db.createActivity(activity);
             } catch (err) {
               logger.warn(`Could not restore activity ${activity.id} - may already exist`, err);
             }
@@ -1834,7 +1837,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
           if (hasDB) {
             try {
-              await window.db.updateCompanySettings(null, restoredSettings);
+              await window.electronAPI.db.updateCompanySettings(null, restoredSettings);
             } catch (err) {
               logger.warn('Could not restore company settings to database', err);
             }
@@ -1972,7 +1975,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         throw new Error("Backup service not available");
       }
     } catch (err: any) {
-      console.error('Error loading NAS backup:', err);
+      logger.error('Error loading NAS backup', err);
       toast({
         title: "Load Failed",
         description: err.message || "Could not load backup file from NAS.",
@@ -2239,34 +2242,69 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Company Name</Label>
-                  <p className="text-lg font-medium">{defaultSettings.companyName}</p>
+                  <Label htmlFor="companyName">Company Name</Label>
+                  <Input
+                    id="companyName"
+                    value={formData.companyName}
+                    onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+                  />
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Address</Label>
-                  <p className="text-sm text-muted-foreground">{defaultSettings.address}</p>
+                  <Label htmlFor="address">Address</Label>
+                  <Textarea
+                    id="address"
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
+                    <Label htmlFor="phone" className="flex items-center gap-2">
                       <Phone className="h-4 w-4" />
                       Phone
                     </Label>
-                    <p className="text-sm">{defaultSettings.phone}</p>
+                    <Input
+                      id="phone"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    />
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
+                    <Label htmlFor="website" className="flex items-center gap-2">
                       <Globe className="h-4 w-4" />
                       Website
                     </Label>
-                    <p className="text-sm">
-                      <a href={defaultSettings.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                        {defaultSettings.website}
-                      </a>
-                    </p>
+                    <Input
+                      id="website"
+                      value={formData.website}
+                      onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+                  <div className="space-y-2">
+                    <Label htmlFor="maintenanceFrequency">Maintenance Frequency (Days)</Label>
+                    <Input
+                      id="maintenanceFrequency"
+                      type="number"
+                      value={formData.maintenanceFrequency || 60}
+                      onChange={(e) => setFormData({ ...formData, maintenanceFrequency: parseInt(e.target.value) || 60 })}
+                    />
+                    <p className="text-xs text-muted-foreground">Default interval for equipment maintenance alerts</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="currencySymbol">Currency Symbol</Label>
+                    <Input
+                      id="currencySymbol"
+                      value={formData.currencySymbol || '₦'}
+                      onChange={(e) => setFormData({ ...formData, currencySymbol: e.target.value })}
+                    />
+                    <p className="text-xs text-muted-foreground">Currency symbol displayed throughout the app</p>
                   </div>
                 </div>
               </CardContent>
@@ -3098,11 +3136,11 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                           onClick={async () => {
                             setIsLoading(true);
                             try {
-                              if (window.db?.migrateSavedKeysToKeytar) {
-                                const r = await window.db.migrateSavedKeysToKeytar();
+                              if (window.electronAPI?.db?.migrateSavedKeysToKeytar) {
+                                const r = await window.electronAPI.db.migrateSavedKeysToKeytar();
                                 toast({ title: 'Saved Keys Migration', description: `Migrated ${r?.migrated || 0} saved keys to secure store` });
                                 // reload saved keys
-                                const updatedKeys = await window.db.getSavedApiKeys();
+                                const updatedKeys = await window.electronAPI.db.getSavedApiKeys();
                                 const keysMap: Record<string, any> = {};
                                 updatedKeys.forEach((k: any) => { keysMap[k.key_name] = k; });
                                 setSavedApiKeys(keysMap);
@@ -3110,7 +3148,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                                 toast({ title: 'Not Available', description: 'Migration helper not available', variant: 'destructive' });
                               }
                             } catch (err) {
-                              console.error('Saved keys migration failed', err);
+                              logger.error('Saved keys migration failed', err);
                               toast({ title: 'Migration Failed', description: String(err), variant: 'destructive' });
                             } finally { setIsLoading(false); }
                           }}

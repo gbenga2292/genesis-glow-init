@@ -27,9 +27,9 @@ export const AssetsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [assets, setAssets] = useState<Asset[]>([]);
 
   const loadAssets = useCallback(async () => {
-    if (window.db) {
+    if (window.electronAPI && window.electronAPI.db) {
       try {
-        const loadedAssets = await window.db.getAssets();
+        const loadedAssets = await window.electronAPI.db.getAssets();
         setAssets(loadedAssets.map((item: any) => ({
           ...item,
           createdAt: new Date(item.createdAt),
@@ -64,24 +64,10 @@ export const AssetsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Recalculate availableQuantity for all assets
   // Formula: quantity - reserved - damaged - missing (NOT subtracting siteQuantities)
-  useEffect(() => {
-    setAssets(prev => prev.map(asset => {
-      if (!asset.siteId) {
-        const reservedQuantity = asset.reservedQuantity || 0;
-        const damagedCount = asset.damagedCount || 0;
-        const missingCount = asset.missingCount || 0;
-        const totalQuantity = asset.quantity;
-        return {
-          ...asset,
-          availableQuantity: totalQuantity - reservedQuantity - damagedCount - missingCount
-        };
-      }
-      return asset;
-    }));
-  }, [assets.length]);
+
 
   const addAsset = async (assetData: Omit<Asset, 'id' | 'createdAt' | 'updatedAt'>) => {
-    if (!window.db) {
+    if (!window.electronAPI || !window.electronAPI.db) {
       toast({
         title: "Database Not Available",
         description: "This app needs to run in Electron mode to access the database.",
@@ -100,10 +86,10 @@ export const AssetsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
 
     try {
-      const savedAssets = await window.db.addAsset(newAsset);
+      const savedAssets = await window.electronAPI.db.addAsset(newAsset);
       const savedAsset = savedAssets[0];
       setAssets(prev => [...prev, savedAsset]);
-      
+
       toast({
         title: "Asset Added",
         description: `${newAsset.name} has been added successfully`
@@ -121,19 +107,17 @@ export const AssetsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const updateAsset = async (id: string, updatedAsset: Asset) => {
     const assetWithUpdatedDate = {
       ...updatedAsset,
-      availableQuantity: !updatedAsset.siteId ? 
-        (updatedAsset.quantity - (updatedAsset.reservedQuantity || 0)) : 
-        updatedAsset.availableQuantity,
+      availableQuantity: updatedAsset.availableQuantity, // Use provided value or DB value
       updatedAt: new Date()
     };
 
     try {
-      if (window.db) {
-        await window.db.updateAsset(id, assetWithUpdatedDate);
+      if (window.electronAPI && window.electronAPI.db) {
+        await window.electronAPI.db.updateAsset(id, assetWithUpdatedDate);
       }
-      
+
       setAssets(prev => prev.map(asset => asset.id === id ? assetWithUpdatedDate : asset));
-      
+
       toast({
         title: "Asset Updated",
         description: `${assetWithUpdatedDate.name} has been updated successfully`
@@ -153,9 +137,11 @@ export const AssetsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!asset) return;
 
     try {
-      await window.db.deleteAsset(id);
+      if (window.electronAPI && window.electronAPI.db) {
+        await window.electronAPI.db.deleteAsset(id);
+      }
       setAssets(prev => prev.filter(asset => asset.id !== id));
-      
+
       toast({
         title: "Asset Deleted",
         description: `${asset.name} has been deleted successfully`

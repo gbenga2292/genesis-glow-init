@@ -7,7 +7,7 @@ import { logger } from "@/lib/logger";
  */
 
 export const logActivity = async (activity: Omit<Activity, 'id' | 'timestamp' | 'userName'>): Promise<void> => {
-  if (!window.db) {
+  if (!window.electronAPI || !window.electronAPI.db) {
     logger.warn('Database not available for activity logging');
     return;
   }
@@ -33,20 +33,20 @@ export const logActivity = async (activity: Omit<Activity, 'id' | 'timestamp' | 
     };
 
     // Save to database
-    await window.db.createActivity(newActivity);
+    await window.electronAPI.db.createActivity(newActivity);
   } catch (error) {
     logger.error('Failed to log activity', error);
   }
 };
 
 export const getActivities = async (): Promise<Activity[]> => {
-  if (!window.db) {
+  if (!window.electronAPI || !window.electronAPI.db) {
     logger.warn('Database not available for getting activities');
     return [];
   }
 
   try {
-    const activities = await window.db.getActivities();
+    const activities = await window.electronAPI.db.getActivities();
     return activities.map((activity: any) => ({
       ...activity,
       timestamp: new Date(activity.timestamp)
@@ -58,13 +58,13 @@ export const getActivities = async (): Promise<Activity[]> => {
 };
 
 export const clearActivities = async (): Promise<void> => {
-  if (!window.db) {
+  if (!window.electronAPI || !window.electronAPI.db) {
     logger.warn('Database not available for clearing activities');
     return;
   }
 
   try {
-    await window.db.clearActivities();
+    await window.electronAPI.db.clearActivities();
   } catch (error) {
     logger.error('Failed to clear activities', error);
   }
@@ -73,16 +73,16 @@ export const clearActivities = async (): Promise<void> => {
 export const exportActivitiesToTxt = async (): Promise<string> => {
   const activities = await getActivities();
   if (activities.length === 0) return "No activities logged.";
-  
+
   let txt = "Inventory Activity Log\n";
   txt += "======================\n\n";
-  
+
   activities.forEach(activity => {
     const date = activity.timestamp.toLocaleString();
     txt += `[${date}] User: ${activity.userName || activity.userId}\n`;
     txt += `Action: ${activity.action} on ${activity.entity}${activity.entityId ? ` (${activity.entityId})` : ''}\n`;
     txt += `Details: ${activity.details || 'N/A'}\n\n`;
   });
-  
+
   return txt;
 };

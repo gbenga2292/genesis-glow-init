@@ -27,27 +27,15 @@ export const RestockHistoryDialog = ({ asset, open, onOpenChange }: RestockHisto
   }, [asset, open]);
 
   const loadRestockLogs = async (assetId: string) => {
-    if (window.electronAPI) {
+    if (window.electronAPI && window.electronAPI.db) {
       try {
-        const logs = await window.electronAPI.getEquipmentLogs();
+        const logs = await window.electronAPI.db.getEquipmentLogs();
         const filteredLogs = logs.filter((log: any) =>
           log.type === 'restock' && log.assetId === assetId
         );
         setRestockLogs(filteredLogs);
       } catch (error) {
         logger.error('Failed to load restock logs', error);
-        setRestockLogs([]);
-      }
-    } else if (window.db) {
-      // Use window.db for equipment logs
-      try {
-        const logs = await window.db.getEquipmentLogs();
-        const filteredLogs = logs.filter((log: any) =>
-          log.type === 'restock' && log.assetId === assetId
-        );
-        setRestockLogs(filteredLogs);
-      } catch (error) {
-        logger.error('Failed to load restock logs from database', error);
         setRestockLogs([]);
       }
     } else {

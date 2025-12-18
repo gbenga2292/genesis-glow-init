@@ -31,13 +31,17 @@ for (const functionName of dbFunctions) {
     dbAPI[functionName] = (...args) => ipcRenderer.invoke(`db:${functionName}`, ...args);
 }
 
-// Expose the entire API on window.db
-contextBridge.exposeInMainWorld('db', dbAPI);
-
-// Expose sync APIs
+// Expose everything via a single electronAPI (IPC) namespace
 contextBridge.exposeInMainWorld('electronAPI', {
+    // Database operations grouped under .db
+    db: dbAPI,
+
+    // Sync APIs
     getSyncStatus: () => ipcRenderer.invoke('sync:getStatus'),
     manualSync: () => ipcRenderer.invoke('sync:manualSync'),
+
+    // Logging
+    log: (level, message, data) => ipcRenderer.send('log-message', { level, message, data }),
 });
 
 // Expose Backup Scheduler API

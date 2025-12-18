@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -45,13 +46,13 @@ export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybil
   const { isAuthenticated } = useAuth();
   const [formData, setFormData] = useState<WaybillFormData>(() => {
     const activeEmployees = employees.filter(emp => emp.status === 'active');
-    
+
     // Use AI-suggested data if available
     const siteId = initialData?.siteId || (sites.length > 0 ? String(sites[0].id) : '');
     const driverName = initialData?.driver || (activeEmployees.length > 0 ? activeEmployees[0].name : '');
     const vehicleName = initialData?.vehicle || (vehicles.length > 0 ? vehicles[0].name : '');
     const purpose = initialData?.purpose || 'For Operational Purpose';
-    
+
     // Convert AI items to waybill items
     const items: WaybillItem[] = initialData?.items?.map(aiItem => ({
       assetId: aiItem.id,
@@ -60,7 +61,7 @@ export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybil
       returnedQuantity: 0,
       status: 'outstanding' as const
     })) || [];
-    
+
     return {
       siteId,
       driverName,
@@ -112,8 +113,7 @@ export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybil
         if (i === index) {
           if (field === 'assetId') {
             const asset = assets.find(a => String(a.id) === String(value));
-            console.log('Selected asset:', asset);
-            console.log('Available quantity:', asset?.availableQuantity);
+            logger.info('Selected asset', { data: { asset, availableQuantity: asset?.availableQuantity } });
             return {
               ...item,
               assetId: value,
@@ -178,7 +178,7 @@ export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybil
   const getMaxQuantity = (assetId: string) => {
     const asset = assets.find(a => a.id.toString() === assetId);
     const availableQty = asset?.availableQuantity || 0;
-    console.log('getMaxQuantity for assetId:', assetId, 'result:', availableQty, 'asset:', asset);
+    // logger.debug('getMaxQuantity debug', { data: { assetId, availableQty, asset } }); // Removed to reduce verbosity
     return availableQty;
   };
 
@@ -210,7 +210,7 @@ export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybil
                   <Textarea
                     id="purpose"
                     value={formData.purpose}
-                    onChange={(e) => setFormData({...formData, purpose: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
                     placeholder="Describe the purpose of this waybill"
                     className="border-0 bg-muted/50 focus:bg-background transition-all duration-300"
                     required
@@ -221,7 +221,7 @@ export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybil
                   <Label htmlFor="siteId">Site *</Label>
                   <Select
                     value={String(formData.siteId)}
-                    onValueChange={(value) => setFormData({...formData, siteId: value})}
+                    onValueChange={(value) => setFormData({ ...formData, siteId: value })}
                   >
                     <SelectTrigger className="border-0 bg-muted/50 focus:bg-background transition-all duration-300">
                       <SelectValue placeholder="Select a site" />
@@ -245,7 +245,7 @@ export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybil
                   <Label htmlFor="service">Service *</Label>
                   <Select
                     value={formData.service}
-                    onValueChange={(value) => setFormData({...formData, service: value})}
+                    onValueChange={(value) => setFormData({ ...formData, service: value })}
                   >
                     <SelectTrigger className="border-0 bg-muted/50 focus:bg-background transition-all duration-300">
                       <SelectValue placeholder="Select a service" />
@@ -265,7 +265,7 @@ export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybil
                   <Label htmlFor="driverName">Driver Name *</Label>
                   <Select
                     value={formData.driverName}
-                    onValueChange={(value) => setFormData({...formData, driverName: value})}
+                    onValueChange={(value) => setFormData({ ...formData, driverName: value })}
                   >
                     <SelectTrigger className="border-0 bg-muted/50 focus:bg-background transition-all duration-300">
                       <SelectValue placeholder="Select a driver" />
@@ -289,7 +289,7 @@ export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybil
                   <Label htmlFor="vehicle">Vehicle</Label>
                   <Select
                     value={formData.vehicle}
-                    onValueChange={(value) => setFormData({...formData, vehicle: value})}
+                    onValueChange={(value) => setFormData({ ...formData, vehicle: value })}
                   >
                     <SelectTrigger className="border-0 bg-muted/50 focus:bg-background transition-all duration-300">
                       <SelectValue placeholder="Select a vehicle" />
@@ -315,7 +315,7 @@ export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybil
                     id="expectedReturnDate"
                     type="date"
                     value={formData.expectedReturnDate}
-                    onChange={(e) => setFormData({...formData, expectedReturnDate: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, expectedReturnDate: e.target.value })}
                     className="border-0 bg-muted/50 focus:bg-background transition-all duration-300"
                   />
                 </div>
@@ -425,10 +425,10 @@ export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybil
 
             {/* Form Actions */}
             <div className="flex gap-3 pt-4">
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={onCancel} 
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onCancel}
                 className="flex-1 hover:bg-muted transition-all duration-300"
               >
                 <X className="h-4 w-4 mr-2" />

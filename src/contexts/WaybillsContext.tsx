@@ -22,17 +22,17 @@ export const useWaybills = () => {
   return context;
 };
 
-export const WaybillsProvider: React.FC<{ children: React.ReactNode; currentUserName?: string }> = ({ 
-  children, 
-  currentUserName = 'Unknown User' 
+export const WaybillsProvider: React.FC<{ children: React.ReactNode; currentUserName?: string }> = ({
+  children,
+  currentUserName = 'Unknown User'
 }) => {
   const { toast } = useToast();
   const [waybills, setWaybills] = useState<Waybill[]>([]);
 
   const loadWaybills = useCallback(async () => {
-    if (window.db) {
+    if (window.electronAPI && window.electronAPI.db) {
       try {
-        const loadedWaybills = await window.db.getWaybills();
+        const loadedWaybills = await window.electronAPI.db.getWaybills();
         setWaybills(loadedWaybills.map((item: any) => ({
           ...item,
           issueDate: new Date(item.issueDate),
@@ -52,7 +52,7 @@ export const WaybillsProvider: React.FC<{ children: React.ReactNode; currentUser
   }, [loadWaybills]);
 
   const createWaybill = async (waybillData: Partial<Waybill>): Promise<Waybill | null> => {
-    if (!window.db) {
+    if (!window.electronAPI || !window.electronAPI.db) {
       toast({
         title: "Database Not Available",
         description: "This app needs to run in Electron mode to access the database.",
@@ -94,25 +94,27 @@ export const WaybillsProvider: React.FC<{ children: React.ReactNode; currentUser
     };
 
     try {
-      const result = await window.db.createWaybill(dbWaybillData);
-      
+      const result = await window.electronAPI.db.createWaybill(dbWaybillData);
+
       if (!result) {
         throw new Error('Failed to create waybill');
       }
-      
+
       // Reload from database to ensure consistency
       await loadWaybills();
 
       // Also refresh assets to show updated reserved quantities
-      if (window.db) {
+      if (window.electronAPI && window.electronAPI.db) {
         try {
-          const loadedAssets = await window.db.getAssets();
+          const loadedAssets = await window.electronAPI.db.getAssets();
           // Trigger assets refresh in AssetsContext
-          window.dispatchEvent(new CustomEvent('refreshAssets', { detail: loadedAssets.map((item: any) => ({
-            ...item,
-            createdAt: new Date(item.createdAt),
-            updatedAt: new Date(item.updatedAt)
-          })) }));
+          window.dispatchEvent(new CustomEvent('refreshAssets', {
+            detail: loadedAssets.map((item: any) => ({
+              ...item,
+              createdAt: new Date(item.createdAt),
+              updatedAt: new Date(item.updatedAt)
+            }))
+          }));
         } catch (error) {
           logger.error('Failed to refresh assets after waybill creation', error);
         }
@@ -137,12 +139,12 @@ export const WaybillsProvider: React.FC<{ children: React.ReactNode; currentUser
 
   const updateWaybill = async (id: string, updatedWaybill: Waybill) => {
     try {
-      if (window.db) {
-        await window.db.updateWaybill(id, updatedWaybill);
+      if (window.electronAPI && window.electronAPI.db) {
+        await window.electronAPI.db.updateWaybill(id, updatedWaybill);
       }
-      
+
       setWaybills(prev => prev.map(wb => wb.id === id ? updatedWaybill : wb));
-      
+
       toast({
         title: "Waybill Updated",
         description: `Waybill ${id} has been updated successfully`
@@ -159,9 +161,11 @@ export const WaybillsProvider: React.FC<{ children: React.ReactNode; currentUser
 
   const deleteWaybill = async (id: string) => {
     try {
-      await window.db.deleteWaybill(id);
+      if (window.electronAPI && window.electronAPI.db) {
+        await window.electronAPI.db.deleteWaybill(id);
+      }
       setWaybills(prev => prev.filter(wb => wb.id !== id));
-      
+
       toast({
         title: "Waybill Deleted",
         description: `Waybill ${id} has been deleted successfully`

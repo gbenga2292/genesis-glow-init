@@ -24,6 +24,7 @@ import {
   transformQuickCheckoutFromDB,
   transformQuickCheckoutToDB
 } from './dataTransform.js';
+import { calculateAvailableQuantity } from './utils/assetCalculations.js';
 
 let db;
 
@@ -279,7 +280,7 @@ const deleteWaybill = async (id) => {
           const currentDamaged = asset.damaged_count || 0;
           const currentMissing = asset.missing_count || 0;
           // Available = quantity - reserved - damaged - missing
-          const newAvailable = asset.quantity - newReserved - currentDamaged - currentMissing;
+          const newAvailable = calculateAvailableQuantity(asset.quantity, newReserved, currentDamaged, currentMissing);
 
           console.log(`Asset ${assetId}: unreserving ${item.quantity}, reserved ${currentReserved} -> ${newReserved}`);
 
@@ -307,7 +308,7 @@ const deleteWaybill = async (id) => {
           const currentDamaged = asset.damaged_count || 0;
           const currentMissing = asset.missing_count || 0;
           // Available = quantity - reserved - damaged - missing
-          const newAvailable = asset.quantity - currentReserved - currentDamaged - currentMissing;
+          const newAvailable = calculateAvailableQuantity(asset.quantity, currentReserved, currentDamaged, currentMissing);
 
           console.log(`Asset ${assetId}: removing ${item.quantity} from site, site qty ${currentSiteQty} -> ${siteQuantities[waybill.siteId]}`);
 
@@ -652,7 +653,7 @@ const deleteWaybillWithTransaction = async (waybillId) => {
         }
 
         const totalSiteQty = Object.values(siteQuantities).reduce((sum, qty) => sum + qty, 0);
-        const newAvailable = asset.quantity - (asset.reserved_quantity || 0) - totalSiteQty;
+        const newAvailable = calculateAvailableQuantity(asset.quantity, (asset.reserved_quantity || 0), (asset.damaged_count || 0), (asset.missing_count || 0));
 
         await trx('assets')
           .where({ id: parseInt(item.assetId) })
@@ -671,7 +672,7 @@ const deleteWaybillWithTransaction = async (waybillId) => {
         const newReserved = Math.max(0, currentReserved - item.quantity);
         const siteQuantities = asset.site_quantities ? JSON.parse(asset.site_quantities) : {};
         const totalSiteQty = Object.values(siteQuantities).reduce((sum, qty) => sum + qty, 0);
-        const newAvailable = asset.quantity - newReserved - totalSiteQty;
+        const newAvailable = calculateAvailableQuantity(asset.quantity, newReserved, (asset.damaged_count || 0), (asset.missing_count || 0));
 
         await trx('assets')
           .where({ id: parseInt(item.assetId) })
@@ -733,7 +734,7 @@ const updateWaybillWithTransaction = async (waybillId, updatedData) => {
           siteQuantities[existingWaybill.siteId] = Math.max(0, currentSiteQty + difference);
 
           const totalSiteQty = Object.values(siteQuantities).reduce((sum, qty) => sum + qty, 0);
-          const newAvailable = asset.quantity - (asset.reserved_quantity || 0) - totalSiteQty;
+          const newAvailable = calculateAvailableQuantity(asset.quantity, (asset.reserved_quantity || 0), (asset.damaged_count || 0), (asset.missing_count || 0));
 
           await trx('assets')
             .where({ id: parseInt(item.assetId) })
@@ -746,7 +747,7 @@ const updateWaybillWithTransaction = async (waybillId, updatedData) => {
           const newReserved = Math.max(0, currentReserved + difference);
           const siteQuantities = asset.site_quantities ? JSON.parse(asset.site_quantities) : {};
           const totalSiteQty = Object.values(siteQuantities).reduce((sum, qty) => sum + qty, 0);
-          const newAvailable = asset.quantity - newReserved - totalSiteQty;
+          const newAvailable = calculateAvailableQuantity(asset.quantity, newReserved, (asset.damaged_count || 0), (asset.missing_count || 0));
 
           await trx('assets')
             .where({ id: parseInt(item.assetId) })

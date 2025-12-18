@@ -1,5 +1,6 @@
 import knex from 'knex';
 import { transformWaybillToDB, transformWaybillFromDB, transformAssetFromDB } from './dataTransform.js';
+import { calculateAvailableQuantity } from './utils/assetCalculations.js';
 
 /**
  * Creates a waybill transaction, updating asset quantities accordingly
@@ -84,7 +85,7 @@ export async function createWaybillTransaction(db, waybillData, options = {}) {
           const currentMissing = asset.missing_count || 0;
 
           // Available = quantity - reserved - damaged - missing (NOT subtracting site quantities)
-          const newAvailable = asset.quantity - newReserved - currentDamaged - currentMissing;
+          const newAvailable = calculateAvailableQuantity(asset.quantity, newReserved, currentDamaged, currentMissing);
 
           console.log(`Asset ${assetId}: current reserved=${currentReserved}, new reserved=${newReserved}, available=${newAvailable}`);
 
@@ -169,7 +170,7 @@ export async function sendToSiteTransaction(db, waybillId) {
       // Site quantities are already accounted for in reserved quantity
       const currentDamaged = asset.damaged_count || 0;
       const currentMissing = asset.missing_count || 0;
-      const newAvailable = asset.quantity - currentReserved - currentDamaged - currentMissing;
+      const newAvailable = calculateAvailableQuantity(asset.quantity, currentReserved, currentDamaged, currentMissing);
 
       console.log(`Asset ${assetId}: reserved stays at ${currentReserved}, site qty becomes ${siteQuantities[waybill.siteId]}, available=${newAvailable}`);
 
@@ -283,7 +284,7 @@ export async function processReturnTransaction(db, returnData) {
 
       // Calculate new available quantity
       // Available = quantity - reserved - damaged - missing (NOT subtracting site quantities)
-      const newAvailable = asset.quantity - newReserved - newDamaged - newMissing;
+      const newAvailable = calculateAvailableQuantity(asset.quantity, newReserved, newDamaged, newMissing);
 
       console.log(`Asset ${assetId}: reserved ${currentReserved} -> ${newReserved}, site qty ${currentSiteQty} -> ${newSiteQty}, damaged=${newDamaged}, missing=${newMissing}, available=${newAvailable}`);
 

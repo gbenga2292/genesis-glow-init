@@ -18,8 +18,8 @@ export const AIAssistantChat: React.FC = () => {
   useEffect(() => {
     const checkAIStatus = async () => {
       try {
-        if (window.db?.getCompanySettings) {
-          const settings = await window.db.getCompanySettings();
+        if (window.electronAPI && window.electronAPI.db && window.electronAPI.db.getCompanySettings) {
+          const settings = await window.electronAPI.db.getCompanySettings();
           const remoteConfig = (settings as any)?.ai?.remote;
           const r = remoteConfig?.enabled;
           const enabled = !!r && r !== 'false' && r !== '0';

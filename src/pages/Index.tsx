@@ -63,9 +63,9 @@ const Index = () => {
   // Load assets from database
   useEffect(() => {
     (async () => {
-      if (window.db) {
+      if (window.electronAPI && window.electronAPI.db) {
         try {
-          const loadedAssets = await window.db.getAssets();
+          const loadedAssets = await window.electronAPI.db.getAssets();
           const processedAssets = loadedAssets.map((item: any) => {
             const asset = {
               ...item,
@@ -73,17 +73,9 @@ const Index = () => {
               updatedAt: new Date(item.updatedAt),
               siteQuantities: item.site_quantities ? JSON.parse(item.site_quantities) : {}
             };
-            // Recalculate availableQuantity on load
-            if (!asset.siteId) {
-              const reservedQuantity = asset.reservedQuantity || 0;
-              const damagedCount = asset.damagedCount || 0;
-              const missingCount = asset.missingCount || 0;
-              const totalQuantity = asset.quantity;
-              asset.availableQuantity = totalQuantity - reservedQuantity - damagedCount - missingCount;
-            }
             return asset;
           });
-          console.log('Loaded assets with availableQuantity:', processedAssets);
+          logger.info('Loaded assets with availableQuantity', { data: { processedAssets } });
           setAssets(processedAssets);
         } catch (error) {
           logger.error('Failed to load assets from database', error);
@@ -97,10 +89,10 @@ const Index = () => {
   // Load waybills from database
   useEffect(() => {
     (async () => {
-      if (window.db) {
+      if (window.electronAPI && window.electronAPI.db) {
         try {
-          const loadedWaybills = await window.db.getWaybills();
-          console.log("Loaded waybills from DB:", loadedWaybills);
+          const loadedWaybills = await window.electronAPI.db.getWaybills();
+          logger.info("Loaded waybills from DB", { data: { loadedWaybills } });
           setWaybills(loadedWaybills.map((item: any) => ({
             ...item,
             issueDate: new Date(item.issueDate),
@@ -121,9 +113,9 @@ const Index = () => {
   // Load quick checkouts from database
   useEffect(() => {
     (async () => {
-      if (window.db) {
+      if (window.electronAPI && window.electronAPI.db) {
         try {
-          const loadedCheckouts = await window.db.getQuickCheckouts();
+          const loadedCheckouts = await window.electronAPI.db.getQuickCheckouts();
           setQuickCheckouts(loadedCheckouts.map((item: any) => ({
             ...item,
             checkoutDate: new Date(item.checkoutDate)
@@ -143,9 +135,9 @@ const Index = () => {
   // Load employees from database
   useEffect(() => {
     (async () => {
-      if (window.db) {
+      if (window.electronAPI && window.electronAPI.db) {
         try {
-          const loadedEmployees = await window.db.getEmployees();
+          const loadedEmployees = await window.electronAPI.db.getEmployees();
           setEmployees(loadedEmployees.map((item: any) => ({
             ...item,
             createdAt: new Date(item.createdAt),
@@ -163,9 +155,9 @@ const Index = () => {
   // Load vehicles from database
   useEffect(() => {
     (async () => {
-      if (window.db) {
+      if (window.electronAPI && window.electronAPI.db) {
         try {
-          const loadedVehicles = await window.db.getVehicles();
+          const loadedVehicles = await window.electronAPI.db.getVehicles();
           setVehicles(loadedVehicles.map((item: any) => ({
             ...item,
             createdAt: new Date(item.created_at || item.createdAt),
@@ -184,9 +176,9 @@ const Index = () => {
   // Load sites from database
   useEffect(() => {
     (async () => {
-      if (window.db) {
+      if (window.electronAPI && window.electronAPI.db) {
         try {
-          const loadedSites = await window.db.getSites();
+          const loadedSites = await window.electronAPI.db.getSites();
           setSites(loadedSites.map((item: any) => ({
             ...item,
             createdAt: new Date(item.createdAt),
@@ -204,9 +196,9 @@ const Index = () => {
   // Load company settings from database
   useEffect(() => {
     (async () => {
-      if (window.db) {
+      if (window.electronAPI && window.electronAPI.db) {
         try {
-          const loadedSettings = await window.db.getCompanySettings();
+          const loadedSettings = await window.electronAPI.db.getCompanySettings();
           setCompanySettings(loadedSettings || {});
         } catch (error) {
           logger.error('Failed to load company settings from database', error);
@@ -220,9 +212,9 @@ const Index = () => {
   // Load site transactions from database
   useEffect(() => {
     (async () => {
-      if (window.db) {
+      if (window.electronAPI && window.electronAPI.db) {
         try {
-          const loadedTransactions = await window.db.getSiteTransactions();
+          const loadedTransactions = await window.electronAPI.db.getSiteTransactions();
           setSiteTransactions(loadedTransactions.map((item: any) => ({
             ...item,
             createdAt: new Date(item.createdAt)
@@ -239,9 +231,9 @@ const Index = () => {
   // Load equipment logs from database
   useEffect(() => {
     (async () => {
-      if (window.db) {
+      if (window.electronAPI && window.electronAPI.db) {
         try {
-          const logs = await window.db.getEquipmentLogs();
+          const logs = await window.electronAPI.db.getEquipmentLogs();
           // Database already returns transformed data (camelCase), no need to map again
           setEquipmentLogs(logs);
         } catch (error) {
@@ -256,9 +248,9 @@ const Index = () => {
   // Load consumable logs from database
   useEffect(() => {
     (async () => {
-      if (window.db) {
+      if (window.electronAPI && window.electronAPI.db) {
         try {
-          const logs = await window.db.getConsumableLogs();
+          const logs = await window.electronAPI.db.getConsumableLogs();
           // Database already returns transformed data (camelCase), no need to map again
           setConsumableLogs(logs);
         } catch (error) {
@@ -274,22 +266,7 @@ const Index = () => {
 
 
 
-  // Recalculate availableQuantity for all assets when assets change
-  useEffect(() => {
-    setAssets(prev => prev.map(asset => {
-      if (!asset.siteId) { // Only for office assets (which track total company stock)
-        const reservedQuantity = asset.reservedQuantity || 0;
-        const damagedCount = asset.damagedCount || 0;
-        const missingCount = asset.missingCount || 0;
-        const totalQuantity = asset.quantity;
-        return {
-          ...asset,
-          availableQuantity: totalQuantity - reservedQuantity - damagedCount - missingCount
-        };
-      }
-      return asset;
-    }));
-  }, [assets.length]); // Only recalculate when assets array length changes, not on every update to avoid loops
+
 
 
 
@@ -304,7 +281,7 @@ const Index = () => {
     }
 
     // Check if database is available
-    if (!window.db) {
+    if (!window.electronAPI || !window.electronAPI.db) {
       toast({
         title: "Database Not Available",
         description: "This app needs to run in Electron mode to access the database. Please run the desktop application.",
@@ -324,7 +301,7 @@ const Index = () => {
 
     try {
       // Save to database
-      const savedAssets = await window.db.addAsset(newAsset);
+      const savedAssets = await window.electronAPI.db.addAsset(newAsset);
       const savedAsset = savedAssets[0]; // addAsset returns an array
 
       // Update local state with the saved asset
@@ -373,8 +350,8 @@ const Index = () => {
 
     try {
       // Update in database first
-      if (window.db) {
-        await window.db.updateAsset(updatedAsset.id, assetWithUpdatedDate);
+      if (window.electronAPI && window.electronAPI.db) {
+        await window.electronAPI.db.updateAsset(updatedAsset.id, assetWithUpdatedDate);
       }
 
       // Then update local state
@@ -416,7 +393,9 @@ const Index = () => {
     if (deletingAsset) {
       try {
         // Delete from database first
-        await window.db.deleteAsset(deletingAsset.id);
+        if (window.electronAPI && window.electronAPI.db) {
+          await window.electronAPI.db.deleteAsset(deletingAsset.id);
+        }
 
         // Then remove from local state
         setAssets(prev => prev.filter(asset => asset.id !== deletingAsset.id));
@@ -455,7 +434,7 @@ const Index = () => {
     }
 
     // Check if database is available
-    if (!window.db) {
+    if (!window.electronAPI || !window.electronAPI.db) {
       toast({
         title: "Database Not Available",
         description: "This app needs to run in Electron mode to access the database. Please run the desktop application.",
@@ -486,34 +465,13 @@ const Index = () => {
 
     try {
       // Save waybill to database
-      await window.db.createWaybill(newWaybill);
+      await window.electronAPI.db.createWaybill(newWaybill);
 
-      // Update asset reserved quantities when waybill is created
-      for (const item of newWaybill.items) {
-        const asset = assets.find(a => a.id === item.assetId);
-        if (asset) {
-          const newReservedQuantity = (asset.reservedQuantity || 0) + item.quantity;
-          const totalAtSites = assets.filter(a => a.id === asset.id && a.siteId).reduce((sum, a) => sum + a.quantity, 0);
-          const totalQuantity = asset.quantity + totalAtSites;
-          const updatedAsset = {
-            ...asset,
-            reservedQuantity: newReservedQuantity,
-            availableQuantity: totalQuantity - newReservedQuantity - (asset.damagedCount || 0) - (asset.missingCount || 0),
-            updatedAt: new Date()
-          };
-
-          // Update in database
-          await window.db.updateAsset(asset.id, updatedAsset);
-
-          // Update local state
-          setAssets(prev => prev.map(a => a.id === asset.id ? updatedAsset : a));
-        }
-      }
-
+      // Rely on DB reload to update inventory
       setWaybills(prev => [...prev, newWaybill]);
 
       // Trigger assets refresh
-      const loadedAssets = await window.db.getAssets();
+      const loadedAssets = await window.electronAPI.db.getAssets();
       window.dispatchEvent(new CustomEvent('refreshAssets', {
         detail: loadedAssets.map((item: any) => ({
           ...item,
@@ -569,8 +527,8 @@ const Index = () => {
       // For outstanding return waybills: just delete without affecting inventory
       // since inventory wasn't changed when created
       try {
-        if (window.db) {
-          await window.db.deleteWaybill(waybill.id);
+        if (window.electronAPI && window.electronAPI.db) {
+          await window.electronAPI.db.deleteWaybill(waybill.id);
         }
         setWaybills(prev => prev.filter(wb => wb.id !== waybill.id));
 
@@ -596,11 +554,11 @@ const Index = () => {
     } else {
       // For regular waybills: use database transaction to properly revert changes
       try {
-        if (window.db) {
-          await window.db.deleteWaybillWithTransaction(waybill.id);
+        if (window.electronAPI && window.electronAPI.db) {
+          await window.electronAPI.db.deleteWaybillWithTransaction(waybill.id);
 
           // Reload assets and waybills from database to reflect changes
-          const loadedAssets = await window.db.getAssets();
+          const loadedAssets = await window.electronAPI.db.getAssets();
           const processedAssets = loadedAssets.map((item: any) => {
             const asset = {
               ...item,
@@ -608,19 +566,11 @@ const Index = () => {
               updatedAt: new Date(item.updatedAt),
               siteQuantities: item.site_quantities ? JSON.parse(item.site_quantities) : {}
             };
-            // Recalculate availableQuantity on load
-            if (!asset.siteId) {
-              const reservedQuantity = asset.reservedQuantity || 0;
-              const damagedCount = asset.damagedCount || 0;
-              const missingCount = asset.missingCount || 0;
-              const totalQuantity = asset.quantity;
-              asset.availableQuantity = totalQuantity - reservedQuantity - damagedCount - missingCount;
-            }
             return asset;
           });
           setAssets(processedAssets);
 
-          const loadedWaybills = await window.db.getWaybills();
+          const loadedWaybills = await window.electronAPI.db.getWaybills();
           setWaybills(loadedWaybills.map((item: any) => ({
             ...item,
             issueDate: new Date(item.issueDate),
@@ -629,26 +579,6 @@ const Index = () => {
             createdAt: new Date(item.createdAt),
             updatedAt: new Date(item.updatedAt)
           })));
-        } else {
-          // Fallback to local state updates if no database
-          waybill.items.forEach(item => {
-            setAssets(prev => prev.map(asset => {
-              if (asset.id === item.assetId) {
-                const newReservedQuantity = Math.max(0, (asset.reservedQuantity || 0) - item.quantity);
-                const totalAtSites = prev.filter(a => a.id === asset.id && a.siteId).reduce((sum, a) => sum + a.quantity, 0);
-                const totalQuantity = asset.quantity + totalAtSites;
-                return {
-                  ...asset,
-                  reservedQuantity: newReservedQuantity,
-                  availableQuantity: totalQuantity - newReservedQuantity - (asset.damagedCount || 0) - (asset.missingCount || 0),
-                  updatedAt: new Date()
-                };
-              }
-              return asset;
-            }));
-          });
-
-          setWaybills(prev => prev.filter(wb => wb.id !== waybill.id));
         }
 
         await logActivity({
@@ -674,7 +604,7 @@ const Index = () => {
   };
 
   const handleSentToSite = async (waybill: Waybill, sentToSiteDate: Date) => {
-    if (!window.db) {
+    if (!window.electronAPI || !window.electronAPI.db) {
       toast({
         title: "Database Not Available",
         description: "Cannot send waybill to site without database connection.",
@@ -685,7 +615,7 @@ const Index = () => {
 
     try {
       // Call the database transaction to handle all updates
-      const result = await window.db.sendToSiteWithTransaction(
+      const result = await window.electronAPI.db.sendToSiteWithTransaction(
         waybill.id,
         sentToSiteDate.toISOString()
       );
@@ -695,27 +625,19 @@ const Index = () => {
       }
 
       // Reload assets from database to reflect the changes
-      const loadedAssets = await window.db.getAssets();
+      const loadedAssets = await window.electronAPI.db.getAssets();
       const processedAssets = loadedAssets.map((item: any) => {
         const asset = {
           ...item,
           createdAt: new Date(item.createdAt),
           updatedAt: new Date(item.updatedAt)
         };
-        // Recalculate availableQuantity on load
-        if (!asset.siteId) {
-          const reservedQuantity = asset.reservedQuantity || 0;
-          const damagedCount = asset.damagedCount || 0;
-          const missingCount = asset.missingCount || 0;
-          const totalQuantity = asset.quantity;
-          asset.availableQuantity = totalQuantity - reservedQuantity - damagedCount - missingCount;
-        }
         return asset;
       });
       setAssets(processedAssets);
 
       // Reload waybills from database
-      const loadedWaybills = await window.db.getWaybills();
+      const loadedWaybills = await window.electronAPI.db.getWaybills();
       const processedWaybills = loadedWaybills.map((item: any) => ({
         ...item,
         issueDate: new Date(item.issueDate),
@@ -735,7 +657,7 @@ const Index = () => {
       }
 
       // Reload site transactions from database
-      const loadedTransactions = await window.db.getSiteTransactions();
+      const loadedTransactions = await window.electronAPI.db.getSiteTransactions();
       setSiteTransactions(loadedTransactions.map((item: any) => ({
         ...item,
         createdAt: new Date(item.createdAt)
@@ -782,7 +704,7 @@ const Index = () => {
     }
 
     // Check if database is available
-    if (!window.db) {
+    if (!window.electronAPI || !window.electronAPI.db) {
       toast({
         title: "Database Not Available",
         description: "This app needs to run in Electron mode to access the database. Please run the desktop application.",
@@ -866,8 +788,8 @@ const Index = () => {
 
     try {
       // Save return waybill to database (ID will be generated by backend)
-      console.log("Creating return waybill:", newReturnWaybill);
-      const createdWaybill = await window.db.createWaybill(newReturnWaybill);
+      logger.info("Creating return waybill", { data: { newReturnWaybill } });
+      const createdWaybill = await window.electronAPI.db.createWaybill(newReturnWaybill);
 
       if (createdWaybill) {
         setWaybills(prev => [...prev, createdWaybill]);
@@ -1055,8 +977,8 @@ const Index = () => {
 
     try {
       // Use the backend transaction to process the return
-      if (window.db) {
-        const result = await window.db.processReturnWithTransaction(returnData);
+      if (window.electronAPI && window.electronAPI.db) {
+        const result = await window.electronAPI.db.processReturnWithTransaction(returnData);
         if (result.success) {
           await logActivity({
             action: 'process_return',
@@ -1072,8 +994,8 @@ const Index = () => {
 
           // Refresh data from database
           const [updatedAssets, updatedWaybills] = await Promise.all([
-            window.db.getAssets(),
-            window.db.getWaybills()
+            window.electronAPI.db.getAssets(),
+            window.electronAPI.db.getWaybills()
           ]);
 
           // Data is already transformed by database layer
@@ -1084,7 +1006,7 @@ const Index = () => {
         }
       }
     } catch (error) {
-      console.error('Error processing return:', error);
+      logger.error('Error processing return:', error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to process return",
@@ -1111,12 +1033,11 @@ const Index = () => {
     };
 
     try {
-      if (window.db) {
+      if (window.electronAPI && window.electronAPI.db) {
         // Save to DB
-        await window.db.createQuickCheckout(newCheckout);
+        await window.electronAPI.db.createQuickCheckout(newCheckout);
       }
 
-      // Reserve the quantity in asset inventory
       setAssets(prev => prev.map(asset => {
         if (asset.id === checkoutData.assetId) {
           const newReservedQuantity = (asset.reservedQuantity || 0) + checkoutData.quantity;
@@ -1131,8 +1052,8 @@ const Index = () => {
           };
 
           // Persist asset update if DB available
-          if (window.db) {
-            window.db.updateAsset(asset.id, updatedAsset).catch(err => logger.error("Failed to update asset for checkout", err));
+          if (window.electronAPI && window.electronAPI.db) {
+            window.electronAPI.db.updateAsset(asset.id, updatedAsset).catch(err => logger.error("Failed to update asset for checkout", err));
           }
           return updatedAsset;
         }
@@ -1188,8 +1109,8 @@ const Index = () => {
       // Note: If status is 'outstanding', we might want to flag partials, but for now we follow simple logic. 
       // Actually, the newStatus logic above: if I return 1 of 2, it's still 'outstanding'. 
 
-      if (window.db) {
-        await window.db.updateQuickCheckout(checkout.id, updatedCheckout);
+      if (window.electronAPI && window.electronAPI.db) {
+        await window.electronAPI.db.updateQuickCheckout(checkout.id, updatedCheckout);
       }
 
       setQuickCheckouts(prev => prev.map(c => c.id === checkoutId ? updatedCheckout : c));
@@ -1236,8 +1157,8 @@ const Index = () => {
             updatedAt: new Date()
           };
 
-          if (window.db) {
-            window.db.updateAsset(asset.id, updatedAssetData).catch(e => logger.error("Failed to update asset after return", e));
+          if (window.electronAPI && window.electronAPI.db) {
+            window.electronAPI.db.updateAsset(asset.id, updatedAssetData).catch(e => logger.error("Failed to update asset after return", e));
           }
           return updatedAssetData;
         }
@@ -1296,8 +1217,8 @@ const Index = () => {
             };
 
             // Persist asset update
-            if (window.db) {
-              window.db.updateAsset(asset.id, updatedAsset).catch(e => logger.error("Failed to update asset for checkout deletion", e));
+            if (window.electronAPI && window.electronAPI.db) {
+              window.electronAPI.db.updateAsset(asset.id, updatedAsset).catch(e => logger.error("Failed to update asset for checkout deletion", e));
             }
 
             return updatedAsset;
@@ -1306,8 +1227,8 @@ const Index = () => {
         }));
       }
 
-      if (window.db) {
-        await window.db.deleteQuickCheckout(checkoutId);
+      if (window.electronAPI && window.electronAPI.db) {
+        await window.electronAPI.db.deleteQuickCheckout(checkoutId);
       }
       setQuickCheckouts(prev => prev.filter(c => c.id !== checkoutId));
 
@@ -1415,10 +1336,10 @@ const Index = () => {
             return;
           }
 
-          if (window.db) {
+          if (window.electronAPI && window.electronAPI.db) {
             try {
-              await window.db.createEquipmentLog(log);
-              const logs = await window.db.getEquipmentLogs();
+              await window.electronAPI.db.createEquipmentLog(log);
+              const logs = await window.electronAPI.db.getEquipmentLogs();
               setEquipmentLogs(logs);
               toast({
                 title: "Equipment Log Added",
@@ -1705,9 +1626,9 @@ const Index = () => {
                 return;
               }
               try {
-                if (window.db) {
-                  await window.db.createSite(site);
-                  const loadedSites = await window.db.getSites();
+                if (window.electronAPI && window.electronAPI.db) {
+                  await window.electronAPI.db.createSite(site);
+                  const loadedSites = await window.electronAPI.db.getSites();
                   setSites(loadedSites.map((item: any) => ({
                     ...item,
                     createdAt: new Date(item.createdAt),
@@ -1738,9 +1659,9 @@ const Index = () => {
                 return;
               }
               try {
-                if (window.db) {
-                  await window.db.updateSite(updatedSite.id, updatedSite);
-                  const loadedSites = await window.db.getSites();
+                if (window.electronAPI && window.electronAPI.db) {
+                  await window.electronAPI.db.updateSite(updatedSite.id, updatedSite);
+                  const loadedSites = await window.electronAPI.db.getSites();
                   setSites(loadedSites.map((item: any) => ({
                     ...item,
                     createdAt: new Date(item.createdAt),
@@ -1771,9 +1692,9 @@ const Index = () => {
                 return;
               }
               try {
-                if (window.db) {
-                  await window.db.deleteSite(siteId);
-                  const loadedSites = await window.db.getSites();
+                if (window.electronAPI && window.electronAPI.db) {
+                  await window.electronAPI.db.deleteSite(siteId);
+                  const loadedSites = await window.electronAPI.db.getSites();
                   setSites(loadedSites.map((item: any) => ({
                     ...item,
                     createdAt: new Date(item.createdAt),
@@ -1826,10 +1747,10 @@ const Index = () => {
                 return;
               }
 
-              if (window.db) {
+              if (window.electronAPI && window.electronAPI.db) {
                 try {
-                  await window.db.createEquipmentLog(log);
-                  const logs = await window.db.getEquipmentLogs();
+                  await window.electronAPI.db.createEquipmentLog(log);
+                  const logs = await window.electronAPI.db.getEquipmentLogs();
                   setEquipmentLogs(logs);
                   toast({
                     title: "Equipment Log Added",
@@ -1857,10 +1778,10 @@ const Index = () => {
                 return;
               }
 
-              if (window.db) {
+              if (window.electronAPI && window.electronAPI.db) {
                 try {
-                  await window.db.updateEquipmentLog(log.id, log);
-                  const logs = await window.db.getEquipmentLogs();
+                  await window.electronAPI.db.updateEquipmentLog(log.id, log);
+                  const logs = await window.electronAPI.db.getEquipmentLogs();
                   setEquipmentLogs(logs);
                   toast({
                     title: "Equipment Log Updated",
@@ -1888,10 +1809,10 @@ const Index = () => {
                 return;
               }
 
-              if (window.db) {
+              if (window.electronAPI && window.electronAPI.db) {
                 try {
-                  await window.db.createConsumableLog(log);
-                  const logs = await window.db.getConsumableLogs();
+                  await window.electronAPI.db.createConsumableLog(log);
+                  const logs = await window.electronAPI.db.getConsumableLogs();
                   // Database already returns transformed data (camelCase), no need to map again
                   setConsumableLogs(logs);
 
@@ -1907,7 +1828,7 @@ const Index = () => {
                       siteQuantities: updatedSiteQuantities,
                       updatedAt: new Date()
                     };
-                    await window.db.updateAsset(asset.id, updatedAsset);
+                    await window.electronAPI.db.updateAsset(asset.id, updatedAsset);
                     setAssets(prev => prev.map(a => a.id === asset.id ? updatedAsset : a));
                   }
 
@@ -1937,7 +1858,7 @@ const Index = () => {
                 return;
               }
 
-              if (window.db) {
+              if (window.electronAPI && window.electronAPI.db) {
                 try {
                   const logData = {
                     ...log,
@@ -1952,12 +1873,12 @@ const Index = () => {
                     used_by: log.usedBy,
                     notes: log.notes
                   };
-                  await window.db.updateConsumableLog(log.id, logData);
-                  const logs = await window.db.getConsumableLogs();
+                  await window.electronAPI.db.updateConsumableLog(log.id, logData);
+                  const logs = await window.electronAPI.db.getConsumableLogs();
                   // Database already returns transformed data (camelCase), no need to map again
                   setConsumableLogs(logs);
                 } catch (error) {
-                  console.error('Failed to update consumable log:', error);
+                  logger.error('Failed to update consumable log', error);
                   toast({
                     title: "Error",
                     description: "Failed to update consumable log in database.",
@@ -1981,10 +1902,10 @@ const Index = () => {
             return;
           }
 
-          if (window.db) {
+          if (window.electronAPI && window.electronAPI.db) {
             try {
-              await window.db.createEquipmentLog(log);
-              const logs = await window.db.getEquipmentLogs();
+              await window.electronAPI.db.createEquipmentLog(log);
+              const logs = await window.electronAPI.db.getEquipmentLogs();
               setEquipmentLogs(logs);
               toast({
                 title: "Equipment Log Added",
@@ -2017,7 +1938,7 @@ const Index = () => {
     }
 
     // Check if database is available
-    if (!window.db) {
+    if (!(window.electronAPI && window.electronAPI.db)) {
       toast({
         title: "Database Not Available",
         description: "This app needs to run in Electron mode to access the database. Please run the desktop application.",
@@ -2106,7 +2027,7 @@ const Index = () => {
       const failedAssets: string[] = [];
       for (const asset of mapped) {
         try {
-          const savedAsset = await window.db.createAsset(asset);
+          const savedAsset = await window.electronAPI.db.createAsset(asset);
           savedAssets.push(savedAsset[0]); // createAsset returns an array
         } catch (error) {
           logger.error('Failed to save asset to database', error, { context: 'BulkImport', data: { assetName: asset.name } });
@@ -2142,10 +2063,10 @@ const Index = () => {
 
   const handleResetAllData = async () => {
     // Clear database tables if available
-    if (window.db && (window.db as any).clearTable) {
+    if (window.electronAPI && window.electronAPI.db && (window.electronAPI.db as any).clearTable) {
       try {
         // Clear tables in dependency order (reverse of creation)
-        const clearTable = (window.db as any).clearTable;
+        const clearTable = (window.electronAPI.db as any).clearTable;
         await clearTable('site_transactions');
         await clearTable('quick_checkouts');
         await clearTable('equipment_logs');
@@ -2160,7 +2081,7 @@ const Index = () => {
         // Note: Users are NOT cleared to prevent admin lockout
         // Company settings will be reset to default by the caller (CompanySettings component)
       } catch (err) {
-        console.error("Failed to clear database tables", err);
+        logger.error("Failed to clear database tables", err);
         toast({ title: "Reset Partially Failed", description: "Could not clear some database tables.", variant: "destructive" });
       }
     }
@@ -2467,10 +2388,10 @@ const Index = () => {
                   employees={employees}
                   vehicles={vehicles}
                   onUpdate={async (updatedWaybill) => {
-                    if (!window.db) return;
+                    if (!(window.electronAPI && window.electronAPI.db)) return;
 
                     try {
-                      const result = await window.db.updateWaybillWithTransaction(
+                      const result = await window.electronAPI.db.updateWaybillWithTransaction(
                         updatedWaybill.id as string,
                         updatedWaybill
                       );
@@ -2480,7 +2401,7 @@ const Index = () => {
                       }
 
                       // Reload assets to reflect reserved quantity changes
-                      const loadedAssets = await window.db.getAssets();
+                      const loadedAssets = await window.electronAPI.db.getAssets();
                       const processedAssets = loadedAssets.map((item: any) => {
                         const asset = {
                           ...item,
@@ -2494,7 +2415,7 @@ const Index = () => {
                       setAssets(processedAssets);
 
                       // Reload waybills to reflect changes
-                      const loadedWaybills = await window.db.getWaybills();
+                      const loadedWaybills = await window.electronAPI.db.getWaybills();
                       setWaybills(loadedWaybills.map((item: any) => ({
                         ...item,
                         issueDate: new Date(item.issueDate),

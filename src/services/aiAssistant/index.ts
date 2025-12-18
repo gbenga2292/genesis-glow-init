@@ -8,6 +8,7 @@ import { ConfidenceCalculator } from './confidenceCalculator';
 import { ActionExecutor } from './actionExecutor';
 import { ConversationMemory } from './conversationMemory';
 import { aiConfig } from '@/config/aiConfig';
+import { logger } from '@/lib/logger';
 import { LocalClient } from './llmClients/localClient';
 
 export * from './types';
@@ -34,7 +35,7 @@ export class AIAssistantService {
   ) {
     this.context = { assets, sites, employees, vehicles, userRole };
     this.onLLMError = onLLMError;
-    
+
     this.entityExtractor = new EntityExtractor(sites, assets, employees, vehicles);
     this.conversationMemory = new ConversationMemory(() => {
       // Notify when memory is 80% full (40 messages)
@@ -52,12 +53,12 @@ export class AIAssistantService {
     try {
       if (typeof window !== 'undefined' && (window as any).llm && typeof (window as any).llm.generate === 'function') {
         this.localClient = new LocalClient();
-        console.log('AI Assistant: LLM bridge initialized successfully');
+        logger.info('AI Assistant: LLM bridge initialized successfully');
       } else {
-        console.warn('AI Assistant: LLM bridge not available - will use rule-based fallback');
+        logger.warn('AI Assistant: LLM bridge not available - will use rule-based fallback');
       }
     } catch (err) {
-      console.warn('AI Assistant: Error initializing LLM bridge:', err);
+      logger.warn('AI Assistant: Error initializing LLM bridge', { data: { error: err } });
       // ignore initialization errors in non-electron environments
     }
   }
@@ -75,7 +76,7 @@ export class AIAssistantService {
     this.context.sites = sites;
     this.context.employees = employees;
     this.context.vehicles = vehicles;
-    
+
     this.entityExtractor.updateContext(sites, assets, employees, vehicles);
   }
 
@@ -157,10 +158,10 @@ export class AIAssistantService {
         if (!this.llmFailureNotified && this.onLLMError) {
           this.llmFailureNotified = true;
           const errorMsg = err instanceof Error ? err.message : String(err);
-          
+
           // Extract meaningful error info
           let userFriendlyError = 'Remote AI unavailable, using fallback intent recognition.';
-          
+
           if (errorMsg.includes('429')) {
             userFriendlyError += ' (Rate limited - please wait a moment before trying again)';
           } else if (errorMsg.includes('401') || errorMsg.includes('403')) {
@@ -174,7 +175,7 @@ export class AIAssistantService {
               userFriendlyError += ` (${clean})`;
             }
           }
-          
+
           this.onLLMError(userFriendlyError);
         }
       }

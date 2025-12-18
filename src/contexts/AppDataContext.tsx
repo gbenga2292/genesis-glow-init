@@ -41,9 +41,9 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLog[]>([]);
 
   const loadQuickCheckouts = useCallback(async () => {
-    if (window.db) {
+    if (window.electronAPI && window.electronAPI.db) {
       try {
-        const loadedCheckouts = await window.db.getQuickCheckouts();
+        const loadedCheckouts = await window.electronAPI.db.getQuickCheckouts();
         setQuickCheckouts(loadedCheckouts.map((item: any) => ({
           ...item,
           checkoutDate: new Date(item.checkoutDate)
@@ -55,9 +55,9 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   const loadEmployees = useCallback(async () => {
-    if (window.db) {
+    if (window.electronAPI && window.electronAPI.db) {
       try {
-        const loadedEmployees = await window.db.getEmployees();
+        const loadedEmployees = await window.electronAPI.db.getEmployees();
         setEmployees(loadedEmployees.map((item: any) => ({
           ...item,
           createdAt: new Date(item.createdAt),
@@ -70,9 +70,9 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   const loadVehicles = useCallback(async () => {
-    if (window.db) {
+    if (window.electronAPI && window.electronAPI.db) {
       try {
-        const loadedVehicles = await window.db.getVehicles();
+        const loadedVehicles = await window.electronAPI.db.getVehicles();
         setVehicles(loadedVehicles.map((item: any) => ({
           ...item,
           createdAt: new Date(item.created_at || item.createdAt),
@@ -85,9 +85,9 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   const loadSites = useCallback(async () => {
-    if (window.db) {
+    if (window.electronAPI && window.electronAPI.db) {
       try {
-        const loadedSites = await window.db.getSites();
+        const loadedSites = await window.electronAPI.db.getSites();
         setSites(loadedSites.map((item: any) => ({
           ...item,
           createdAt: new Date(item.createdAt),
@@ -100,9 +100,9 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   const loadCompanySettings = useCallback(async () => {
-    if (window.db) {
+    if (window.electronAPI && window.electronAPI.db) {
       try {
-        const loadedSettings = await window.db.getCompanySettings();
+        const loadedSettings = await window.electronAPI.db.getCompanySettings();
         setCompanySettings(loadedSettings || {});
       } catch (error) {
         logger.error('Failed to load company settings from database', error);
@@ -111,9 +111,9 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   const loadSiteTransactions = useCallback(async () => {
-    if (window.db) {
+    if (window.electronAPI && window.electronAPI.db) {
       try {
-        const loadedTransactions = await window.db.getSiteTransactions();
+        const loadedTransactions = await window.electronAPI.db.getSiteTransactions();
         setSiteTransactions(loadedTransactions.map((item: any) => ({
           ...item,
           createdAt: new Date(item.createdAt)
@@ -125,9 +125,9 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   const loadEquipmentLogs = useCallback(async () => {
-    if (window.db) {
+    if (window.electronAPI && window.electronAPI.db) {
       try {
-        const logs = await window.db.getEquipmentLogs();
+        const logs = await window.electronAPI.db.getEquipmentLogs();
         setEquipmentLogs(logs.map((item: any) => ({
           ...item,
           date: new Date(item.date),

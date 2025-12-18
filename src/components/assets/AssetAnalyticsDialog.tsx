@@ -12,6 +12,7 @@ import { Asset, QuickCheckout, Site } from "@/types/asset";
 import { EquipmentLog } from "@/types/equipment";
 import { BarChart, TrendingUp, Clock, AlertTriangle, Package, Wrench, Zap, MapPin, User, Building } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAppData } from "@/contexts/AppDataContext";
 
 
 interface AssetAnalyticsDialogProps {
@@ -23,6 +24,7 @@ interface AssetAnalyticsDialogProps {
 }
 
 export const AssetAnalyticsDialog = ({ asset, open, onOpenChange, quickCheckouts = [], sites = [] }: AssetAnalyticsDialogProps) => {
+  const { companySettings } = useAppData();
   const [analytics, setAnalytics] = useState<any>(null);
   const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLog[]>([]);
 
@@ -37,26 +39,16 @@ export const AssetAnalyticsDialog = ({ asset, open, onOpenChange, quickCheckouts
       const calculatedAnalytics = calculateAnalytics(asset, equipmentLogs, quickCheckouts);
       setAnalytics(calculatedAnalytics);
     }
-  }, [asset, equipmentLogs, quickCheckouts]);
+  }, [asset, equipmentLogs, quickCheckouts, companySettings]); // Added companySettings to dependency
 
   const loadEquipmentLogs = async (assetId: string) => {
-    if (window.electronAPI) {
+    if (window.electronAPI && window.electronAPI.db) {
       try {
-        const logs = await window.electronAPI.getEquipmentLogs();
+        const logs = await window.electronAPI.db.getEquipmentLogs();
         const assetLogs = logs.filter((log: EquipmentLog) => log.equipmentId === assetId);
         setEquipmentLogs(assetLogs);
       } catch (error) {
         logger.error('Failed to load equipment logs', error);
-        setEquipmentLogs([]);
-      }
-    } else if (window.db) {
-      // Use window.db for equipment logs
-      try {
-        const logs = await window.db.getEquipmentLogs();
-        const assetLogs = logs.filter((log: EquipmentLog) => log.equipmentId === assetId);
-        setEquipmentLogs(assetLogs);
-      } catch (error) {
-        logger.error('Failed to load equipment logs from database', error);
         setEquipmentLogs([]);
       }
     } else {
@@ -157,18 +149,20 @@ export const AssetAnalyticsDialog = ({ asset, open, onOpenChange, quickCheckouts
         };
 
       case 'equipment':
-        // NEW LOGIC: Standard maintenance every 2 months (60 days) if operational (active/utilized).
+        // NEW LOGIC: Use configured maintenance frequency (default 60 days) if operational (active/utilized).
         // If not active, maintenance is not needed.
         let maintFreq = 0;
         let nextMaint = "Not Required (Inactive)";
 
+        const configuredFreq = companySettings?.maintenanceFrequency || 60;
+
         if (utilizationRate > 0) {
-          maintFreq = 60; // Every 2 months
+          maintFreq = configuredFreq;
           // If we have a last maintenance date, calculate next due
           if (baseAnalytics.lastMaintenance) {
             const lastDate = new Date(baseAnalytics.lastMaintenance);
             const nextDate = new Date(lastDate);
-            nextDate.setDate(lastDate.getDate() + 60);
+            nextDate.setDate(lastDate.getDate() + configuredFreq);
             nextMaint = nextDate.toLocaleDateString();
           } else {
             nextMaint = "Due Now (Active but no log)";
@@ -195,7 +189,7 @@ export const AssetAnalyticsDialog = ({ asset, open, onOpenChange, quickCheckouts
 
         // Calculate electricity-based analytics
         if (asset.electricityConsumption) {
-          equipmentAnalytics.dailyElectricityCost = asset.electricityConsumption * 200; // Using ₦200 per kWh example
+          equipmentAnalytics.dailyElectricityCost = asset.electricityConsumption * 200; // Using ₦200 per kWh example (TODO: make rate configurable)
           equipmentAnalytics.monthlyElectricityCost = equipmentAnalytics.dailyElectricityCost * 30;
         }
 
@@ -230,7 +224,7 @@ export const AssetAnalyticsDialog = ({ asset, open, onOpenChange, quickCheckouts
   if (!asset || !analytics) return null;
 
   // Helper to format currency
-  const formatCurrency = (val: number) => `₦${val.toLocaleString()}`;
+  const formatCurrency = (val: number) => `${companySettings?.currencySymbol || '₦'}${val.toLocaleString()}`;
 
   const renderAnalyticsContent = () => {
     switch (asset.type) {

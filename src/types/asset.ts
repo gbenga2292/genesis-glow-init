@@ -131,6 +131,8 @@ export interface CompanySettings {
       model: string;
     };
   };
+  maintenanceFrequency?: number; // Global default maintenance frequency in days
+  currencySymbol?: string; // e.g. ₦, $, €
 }
 
 export interface Employee {

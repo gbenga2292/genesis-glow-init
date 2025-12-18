@@ -4,7 +4,14 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import log from 'electron-log';
 import { initializeDatabase } from './databaseSetup.js';
+
+// Configure electron-log
+log.initialize();
+log.transports.file.level = 'info';
+log.transports.file.resolvePathFn = () => path.join(app.getPath('userData'), 'logs/main.log');
+
 import { migrateDatabase } from './migrateDatabase.js';
 import * as db from './database.js';
 import config, { getDatabasePath } from './config.js';
@@ -13,6 +20,15 @@ import { backupScheduler } from './backupScheduler.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Listen for logs from renderer
+ipcMain.on('log-message', (event, { level, message, data }) => {
+  if (log[level]) {
+    log[level](`[Renderer] ${message}`, data || '');
+  } else {
+    log.info(`[Renderer] ${message}`, data || '');
+  }
+});
 
 // --- Get Database Configuration ---
 const APP_DATA_PATH = app.getPath('userData');

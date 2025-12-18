@@ -9,6 +9,7 @@ import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "./contexts/AuthContext";
 import { AssetsProvider } from "./contexts/AssetsContext";
 import { WaybillsProvider } from "./contexts/WaybillsContext";
+import { AppDataProvider } from "./contexts/AppDataContext";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Index from "./pages/Index";
@@ -23,9 +24,9 @@ const queryClient = new QueryClient();
 const App = () => {
   useEffect(() => {
     const showDatabaseInfo = async () => {
-      if (window.db?.getDatabaseInfo) {
+      if (window.electronAPI && window.electronAPI.db && window.electronAPI.db.getDatabaseInfo) {
         try {
-          const dbInfo = await window.db.getDatabaseInfo();
+          const dbInfo = await window.electronAPI.db.getDatabaseInfo();
           let storageTypeLabel = '';
 
           switch (dbInfo.storageType) {
@@ -65,8 +66,8 @@ const App = () => {
     const validateLLMConfig = async () => {
       try {
         // Try reading persisted company settings (may include ai.remote)
-        if ((window as any).db?.getCompanySettings) {
-          const cs = await (window as any).db.getCompanySettings();
+        if ((window as any).electronAPI?.db?.getCompanySettings) {
+          const cs = await (window as any).electronAPI.db.getCompanySettings();
           const remote = cs?.ai?.remote;
           const r = remote?.enabled;
           if (remote && !!r && r !== 'false' && r !== '0') {
@@ -105,18 +106,20 @@ const App = () => {
                 <TooltipProvider>
                   <Toaster />
                   <Sonner />
-                  <HashRouter>
-                    <Routes>
-                      <Route path="/login" element={<Login />} />
-                      <Route path="/" element={
-                        <ProtectedRoute>
-                          <Index />
-                        </ProtectedRoute>
-                      } />
-                      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                      <Route path="*" element={<NotFound />} />
-                    </Routes>
-                  </HashRouter>
+                  <AppDataProvider>
+                    <HashRouter>
+                      <Routes>
+                        <Route path="/login" element={<Login />} />
+                        <Route path="/" element={
+                          <ProtectedRoute>
+                            <Index />
+                          </ProtectedRoute>
+                        } />
+                        {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                        <Route path="*" element={<NotFound />} />
+                      </Routes>
+                    </HashRouter>
+                  </AppDataProvider>
                 </TooltipProvider>
               </WaybillsProvider>
             </AssetsProvider>

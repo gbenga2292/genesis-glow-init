@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext';
 import { useAssets } from './AssetsContext';
 import { Asset, Site, Employee, Vehicle } from '@/types/asset';
 import { useToast } from '@/hooks/use-toast';
+import { logger } from '@/lib/logger';
 
 export interface ChatMessage {
   id: string;
@@ -71,14 +72,14 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({
         (error) => {
           // Only show toast for non-API key related errors to reduce noise
           if (!error.includes('API key') && !error.includes('Authentication failed')) {
-            console.warn('AI Service Error:', error);
+            logger.warn('AI Service Error', { data: { error } });
             toast({
               title: "AI Assistant",
               description: error,
               variant: "default"
             });
           } else {
-            console.warn('AI Service Error (suppressed):', error);
+            logger.warn('AI Service Error (suppressed)', { data: { error } });
           }
         }
       );
@@ -138,14 +139,14 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({
         },
         updateAsset: async (id, updates) => {
           // Use the database API to update asset
-          if (window.db && window.db.updateAsset) {
-            await window.db.updateAsset(id, updates);
+          if (window.electronAPI && window.electronAPI.db && window.electronAPI.db.updateAsset) {
+            await window.electronAPI.db.updateAsset(id, updates);
           }
           return { ...updates, id } as Asset;
         }
       });
 
-      console.log('AI Assistant Service initialized with execution context');
+      logger.info('AI Assistant Service initialized with execution context');
     }
   }, [currentUser, assets, sites, employees, vehicles, addAsset, onAction]);
 

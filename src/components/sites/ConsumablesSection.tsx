@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -63,22 +64,22 @@ export const ConsumablesSection = ({
   // Filter consumables at the site (INCLUDING depleted/zero and historical via waybills/logs)
   const siteConsumables = assets.filter(asset => {
     if (asset.type !== 'consumable') return false;
-    
+
     // Check if consumable has usage logs at this site
-    const hasLogs = consumableLogs.some(log => 
-      log.consumableId === asset.id && 
+    const hasLogs = consumableLogs.some(log =>
+      log.consumableId === asset.id &&
       log.siteId === site.id
     );
-    
+
     // Check if consumable currently has quantity at this site (including 0)
     const hasSiteQuantity = asset.siteQuantities && asset.siteQuantities[site.id] !== undefined;
-    
+
     // Check if consumable was ever sent to this site via waybill
-    const hasWaybillHistory = waybills.some(wb => 
-      wb.siteId === site.id && 
+    const hasWaybillHistory = waybills.some(wb =>
+      wb.siteId === site.id &&
       wb.items.some(item => item.assetId === asset.id)
     );
-    
+
     // Show consumable if it has logs, current site quantity, OR waybill history
     // This ensures consumables remain visible even if fully consumed/returned
     return hasLogs || hasSiteQuantity || hasWaybillHistory;
@@ -87,14 +88,14 @@ export const ConsumablesSection = ({
   const handleLogUsage = (consumable: Asset) => {
     setSelectedConsumable(consumable);
     setSelectedDate(new Date());
-    
+
     // Check for existing log for today
     const existingLog = consumableLogs.find(log =>
       log.consumableId === consumable.id &&
       log.siteId === site.id &&
       format(log.date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
     );
-    
+
     if (existingLog) {
       // Populate form with existing data
       setLogForm({
@@ -112,21 +113,21 @@ export const ConsumablesSection = ({
         notes: ""
       });
     }
-    
+
     setShowLogDialog(true);
   };
-  
+
   const handleDateSelect = (date: Date | undefined) => {
     if (date && selectedConsumable) {
       setSelectedDate(date);
-      
+
       // Check for existing log
       const existingLog = consumableLogs.find(log =>
         log.consumableId === selectedConsumable.id &&
         log.siteId === site.id &&
         format(log.date, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
       );
-      
+
       if (existingLog) {
         // Populate form with existing data
         setLogForm({
@@ -163,10 +164,12 @@ export const ConsumablesSection = ({
     // Check if unit exists and is not empty
     const unit = selectedConsumable.unitOfMeasurement?.trim();
     if (!unit) {
-      console.error('Missing unit:', {
-        consumable: selectedConsumable.name,
-        unitValue: selectedConsumable.unitOfMeasurement,
-        unitType: typeof selectedConsumable.unitOfMeasurement
+      logger.error('Missing unit', {
+        data: {
+          consumable: selectedConsumable.name,
+          unitValue: selectedConsumable.unitOfMeasurement,
+          unitType: typeof selectedConsumable.unitOfMeasurement
+        }
       });
       toast({
         title: "Missing Unit",
@@ -185,7 +188,7 @@ export const ConsumablesSection = ({
       });
       return;
     }
-    
+
     // Check if we're updating an existing log
     const existingLog = consumableLogs.find(log =>
       log.consumableId === selectedConsumable.id &&
@@ -226,17 +229,17 @@ export const ConsumablesSection = ({
         details: `Created usage log for ${selectedConsumable.name} at ${site.name} on ${format(selectedDate, 'MMM dd, yyyy')} - Used: ${quantityUsed} ${unit}`
       });
     }
-    
+
     setShowLogDialog(false);
     setSelectedConsumable(null);
     setSelectedDate(undefined);
-    
+
     toast({
       title: existingLog ? "Usage Updated" : "Usage Logged",
       description: `${quantityUsed} ${selectedConsumable.unitOfMeasurement} of ${selectedConsumable.name} ${existingLog ? 'updated' : 'logged'}.`,
     });
   };
-  
+
   const getLoggedDatesForConsumable = (consumableId: string) => {
     return consumableLogs
       .filter(log => log.consumableId === consumableId && log.siteId === site.id)
@@ -250,21 +253,22 @@ export const ConsumablesSection = ({
       const logSiteId = String(log.siteId);
       const targetConsumableId = String(consumableId);
       const targetSiteId = String(site.id);
-      
-      console.log('Filtering logs:', {
-        logConsumableId,
-        logSiteId,
-        targetConsumableId,
-        targetSiteId,
-        matches: logConsumableId === targetConsumableId && logSiteId === targetSiteId
+
+      logger.info('Filtering logs', {
+        data: {
+          logConsumableId,
+          logSiteId,
+          targetConsumableId,
+          targetSiteId,
+          matches: logConsumableId === targetConsumableId && logSiteId === targetSiteId
+        }
       });
-      
+
       return logConsumableId === targetConsumableId && logSiteId === targetSiteId;
     });
-    
-    console.log('All consumable logs:', consumableLogs);
-    console.log('Filtered logs for', consumableId, 'at site', site.id, ':', filtered);
-    
+
+    logger.info('Consumable logs debug', { data: { allLogs: consumableLogs, filteredLogs: filtered } });
+
     return filtered;
   };
 
@@ -282,8 +286,8 @@ export const ConsumablesSection = ({
           <h3 className="text-lg font-semibold">Consumables Tracking</h3>
         </div>
         <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             size="sm"
             onClick={() => setShowSiteAnalytics(true)}
             className="gap-2"
@@ -308,7 +312,7 @@ export const ConsumablesSection = ({
               const currentQty = consumable.siteQuantities?.[site.id] ?? 0;
               const totalUsed = getTotalUsed(consumable.id);
               const logs = getConsumableLogs(consumable.id);
-              
+
               return (
                 <Card key={consumable.id} className={`border-0 shadow-soft ${currentQty === 0 ? 'opacity-75' : ''}`}>
                   <CardHeader className="pb-3">
@@ -423,7 +427,7 @@ export const ConsumablesSection = ({
                   type="number"
                   step="0.01"
                   value={logForm.quantityUsed}
-                  onChange={(e) => setLogForm({...logForm, quantityUsed: e.target.value})}
+                  onChange={(e) => setLogForm({ ...logForm, quantityUsed: e.target.value })}
                   placeholder="0.00"
                 />
               </div>
@@ -433,7 +437,7 @@ export const ConsumablesSection = ({
                 <Input
                   id="usedFor"
                   value={logForm.usedFor}
-                  onChange={(e) => setLogForm({...logForm, usedFor: e.target.value})}
+                  onChange={(e) => setLogForm({ ...logForm, usedFor: e.target.value })}
                   placeholder="e.g., Waterproofing basement"
                 />
               </div>
@@ -442,7 +446,7 @@ export const ConsumablesSection = ({
                 <Label htmlFor="usedBy">Used By *</Label>
                 <Select
                   value={logForm.usedBy}
-                  onValueChange={(value) => setLogForm({...logForm, usedBy: value})}
+                  onValueChange={(value) => setLogForm({ ...logForm, usedBy: value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select employee" />
@@ -464,7 +468,7 @@ export const ConsumablesSection = ({
                 <Textarea
                   id="notes"
                   value={logForm.notes}
-                  onChange={(e) => setLogForm({...logForm, notes: e.target.value})}
+                  onChange={(e) => setLogForm({ ...logForm, notes: e.target.value })}
                   placeholder="Additional details"
                   rows={3}
                 />
@@ -520,7 +524,7 @@ export const ConsumablesSection = ({
                             <p className="text-sm text-muted-foreground">Used By</p>
                             <p className="font-medium">{log.usedBy}</p>
                           </div>
-                           {log.notes && (
+                          {log.notes && (
                             <div className="col-span-2">
                               <p className="text-sm text-muted-foreground">Notes</p>
                               <p className="text-sm bg-muted/50 p-2 rounded">{log.notes}</p>

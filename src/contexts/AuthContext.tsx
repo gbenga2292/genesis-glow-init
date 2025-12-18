@@ -53,8 +53,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (username: string, password: string): Promise<{ success: boolean; message?: string }> => {
     try {
       // Try database login first if available
-      if (window.db) {
-        const result = await window.db.login(username, password);
+      if (window.electronAPI && window.electronAPI.db) {
+        const result = await window.electronAPI.db.login(username, password);
         if (result.success && result.user) {
           setCurrentUser(result.user);
           setIsAuthenticated(true);
@@ -175,10 +175,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const getUsers = async (): Promise<User[]> => {
     try {
-      if (!window.db) {
+      if (!window.electronAPI || !window.electronAPI.db) {
         return [];
       }
-      return await window.db.getUsers();
+      return await window.electronAPI.db.getUsers();
     } catch (error) {
       logger.error('Get users error', error);
       return [];
@@ -187,10 +187,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const createUser = async (userData: { name: string; username: string; password: string; role: UserRole }): Promise<{ success: boolean; message?: string }> => {
     try {
-      if (!window.db) {
+      if (!window.electronAPI || !window.electronAPI.db) {
         return { success: false, message: 'Database not available' };
       }
-      const result = await window.db.createUser(userData);
+      const result = await window.electronAPI.db.createUser(userData);
       if (result.success) {
         await logActivity({
           action: 'create_user',
@@ -207,10 +207,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateUser = async (userId: string, userData: { name: string; username: string; role: UserRole; password?: string }): Promise<{ success: boolean; message?: string }> => {
     try {
-      if (!window.db) {
+      if (!window.electronAPI || !window.electronAPI.db) {
         return { success: false, message: 'Database not available' };
       }
-      const result = await window.db.updateUser(userId, userData);
+      const result = await window.electronAPI.db.updateUser(userId, userData);
       if (result.success) {
         await logActivity({
           action: 'update_user',
@@ -228,10 +228,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const deleteUser = async (userId: string): Promise<{ success: boolean; message?: string }> => {
     try {
-      if (!window.db) {
+      if (!window.electronAPI || !window.electronAPI.db) {
         return { success: false, message: 'Database not available' };
       }
-      const result = await window.db.deleteUser(userId);
+      const result = await window.electronAPI.db.deleteUser(userId);
       if (result.success) {
         await logActivity({
           action: 'delete_user',
