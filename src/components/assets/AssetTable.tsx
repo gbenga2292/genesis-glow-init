@@ -529,14 +529,7 @@ export const AssetTable = ({ assets, onEdit, onDelete, onUpdateAsset, onViewAnal
               };
 
               // Add to equipment logs if available
-              if (window.electronAPI && window.electronAPI.db) {
-                // If addEquipmentLog is specific or if it just uses db.createEquipmentLog
-                if (window.electronAPI.addEquipmentLog) {
-                  window.electronAPI.addEquipmentLog(restockLog);
-                } else {
-                  window.electronAPI.db.createEquipmentLog(restockLog);
-                }
-              } else if (window.electronAPI && window.electronAPI.db) {
+              if (window.electronAPI?.db?.createEquipmentLog) {
                 window.electronAPI.db.createEquipmentLog(restockLog);
               }
 
