@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { logger } from "@/lib/logger";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { CompanySettings as CompanySettingsType, Employee, Asset, Waybill, QuickCheckout, Site, SiteTransaction, Activity, Vehicle } from "@/types/asset";
-import { Settings, Upload, Save, Building, Phone, Globe, Trash2, Download, UploadCloud, Loader2, Sun, FileText, Activity as ActivityIcon, Users, UserPlus, Edit, UserMinus, Car, Database, Bot, BarChart3, FileJson, ChevronDown, ChevronRight } from "lucide-react";
+import { Settings, Upload, Save, Building, Phone, Globe, Trash2, Download, UploadCloud, Loader2, Sun, FileText, Activity as ActivityIcon, Users, UserPlus, Edit, UserMinus, Car, Database, Bot, BarChart3, FileJson, ChevronDown, ChevronRight, Mail, Zap, Lock, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "next-themes";
 import { Switch } from "@/components/ui/switch";
@@ -63,7 +64,8 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     theme: "light",
     notifications: { email: true, push: true },
     maintenanceFrequency: 60,
-    currencySymbol: "₦"
+    currencySymbol: "₦",
+    electricityRate: 200
   };
 
   const { toast } = useToast();
@@ -123,6 +125,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
   ]));
 
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [isCompanyInfoEditing, setIsCompanyInfoEditing] = useState(false);
 
   // Backup Scheduler state
   const [backupSchedulerStatus, setBackupSchedulerStatus] = useState<any>(null);
@@ -1473,13 +1476,18 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       // Pre-Restore Cleanup
       if (hasDB) {
         const clearTableSafe = async (table: string) => {
-          if (window.electronAPI.db && (window.electronAPI.db as any).clearTable) {
-            try { await (window.electronAPI.db as any).clearTable(table); }
-            catch (e) { logger.warn(`Failed to clear table ${table}`, e); }
+          const dbApi = window.electronAPI?.db;
+          // Use dynamic property access for optional clearTable method
+          if (dbApi && 'clearTable' in dbApi) {
+            try { 
+              await (dbApi as unknown as { clearTable: (table: string) => Promise<void> }).clearTable(table); 
+            } catch (e) { 
+              logger.warn(`Failed to clear table ${table}`, e); 
+            }
           }
         };
 
-        setRestoreProgress((p: any) => ({ ...p, phase: 'Preparation', message: 'Cleaning database...' }));
+        setRestoreProgress((prev) => ({ ...prev, phase: 'Preparation', message: 'Cleaning database...' }));
 
         // Clear tables in reverse dependency order
         if (restoreSelectedSections.has('site_transactions')) await clearTableSafe('site_transactions');
@@ -1496,7 +1504,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
       // Restore users
       if (restoreSelectedSections.has('users') && backupData.users && backupData.users.length > 0) {
-        setRestoreProgress((p: any) => ({ ...p, phase: 'Restoring users', message: 'Creating user accounts...' }));
+        setRestoreProgress((prev) => ({ ...prev, phase: 'Restoring users', message: 'Creating user accounts...' }));
         if (hasDB) {
           let idx = 0;
           for (const user of backupData.users) {
@@ -1507,7 +1515,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
               progressState.errors.push({ section: 'users', id: user.username, error: String(err) });
             }
             idx++;
-            setRestoreProgress((p: any) => ({ ...p, done: (p.done || 0) + 1, message: `${idx}/${backupData.users.length} users processed` }));
+            setRestoreProgress((prev) => ({ ...prev, done: (prev.done || 0) + 1, message: `${idx}/${backupData.users.length} users processed` }));
           }
         }
       }
@@ -2234,11 +2242,35 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Company Information */}
             <Card className="border-0 shadow-soft">
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
                   <Building className="h-5 w-5" />
                   Company Information
                 </CardTitle>
+                {isAdmin ? (
+                  <Button
+                    variant={isCompanyInfoEditing ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setIsCompanyInfoEditing(!isCompanyInfoEditing)}
+                  >
+                    {isCompanyInfoEditing ? (
+                      <>
+                        <Lock className="h-4 w-4 mr-2" />
+                        Lock
+                      </>
+                    ) : (
+                      <>
+                        <Pencil className="h-4 w-4 mr-2" />
+                        Edit
+                      </>
+                    )}
+                  </Button>
+                ) : (
+                  <Badge variant="secondary" className="flex items-center gap-1">
+                    <Lock className="h-3 w-3" />
+                    View Only
+                  </Badge>
+                )}
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
@@ -2247,6 +2279,8 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                     id="companyName"
                     value={formData.companyName}
                     onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+                    disabled={!isCompanyInfoEditing}
+                    className={!isCompanyInfoEditing ? "bg-muted cursor-not-allowed" : ""}
                   />
                 </div>
 
@@ -2256,6 +2290,8 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                     id="address"
                     value={formData.address}
                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    disabled={!isCompanyInfoEditing}
+                    className={!isCompanyInfoEditing ? "bg-muted cursor-not-allowed" : ""}
                   />
                 </div>
 
@@ -2269,23 +2305,43 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                       id="phone"
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      disabled={!isCompanyInfoEditing}
+                      className={!isCompanyInfoEditing ? "bg-muted cursor-not-allowed" : ""}
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="website" className="flex items-center gap-2">
-                      <Globe className="h-4 w-4" />
-                      Website
+                    <Label htmlFor="email" className="flex items-center gap-2">
+                      <Mail className="h-4 w-4" />
+                      Email
                     </Label>
                     <Input
-                      id="website"
-                      value={formData.website}
-                      onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                      id="email"
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      placeholder="company@example.com"
+                      disabled={!isCompanyInfoEditing}
+                      className={!isCompanyInfoEditing ? "bg-muted cursor-not-allowed" : ""}
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+                <div className="space-y-2">
+                  <Label htmlFor="website" className="flex items-center gap-2">
+                    <Globe className="h-4 w-4" />
+                    Website
+                  </Label>
+                  <Input
+                    id="website"
+                    value={formData.website}
+                    onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                    disabled={!isCompanyInfoEditing}
+                    className={!isCompanyInfoEditing ? "bg-muted cursor-not-allowed" : ""}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t">
                   <div className="space-y-2">
                     <Label htmlFor="maintenanceFrequency">Maintenance Frequency (Days)</Label>
                     <Input
@@ -2293,6 +2349,8 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                       type="number"
                       value={formData.maintenanceFrequency || 60}
                       onChange={(e) => setFormData({ ...formData, maintenanceFrequency: parseInt(e.target.value) || 60 })}
+                      disabled={!isCompanyInfoEditing}
+                      className={!isCompanyInfoEditing ? "bg-muted cursor-not-allowed" : ""}
                     />
                     <p className="text-xs text-muted-foreground">Default interval for equipment maintenance alerts</p>
                   </div>
@@ -2303,8 +2361,26 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                       id="currencySymbol"
                       value={formData.currencySymbol || '₦'}
                       onChange={(e) => setFormData({ ...formData, currencySymbol: e.target.value })}
+                      disabled={!isCompanyInfoEditing}
+                      className={!isCompanyInfoEditing ? "bg-muted cursor-not-allowed" : ""}
                     />
                     <p className="text-xs text-muted-foreground">Currency symbol displayed throughout the app</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="electricityRate" className="flex items-center gap-2">
+                      <Zap className="h-4 w-4" />
+                      Electricity Rate (per kWh)
+                    </Label>
+                    <Input
+                      id="electricityRate"
+                      type="number"
+                      value={formData.electricityRate || 200}
+                      onChange={(e) => setFormData({ ...formData, electricityRate: parseFloat(e.target.value) || 200 })}
+                      disabled={!isCompanyInfoEditing}
+                      className={!isCompanyInfoEditing ? "bg-muted cursor-not-allowed" : ""}
+                    />
+                    <p className="text-xs text-muted-foreground">Cost per kWh for electricity calculations</p>
                   </div>
                 </div>
               </CardContent>
@@ -2329,16 +2405,21 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
             </Card>
           </div>
 
-          <div className="flex justify-end">
-            <Button
-              onClick={handleSave}
-              className="bg-gradient-primary hover:scale-105 transition-all duration-300 shadow-medium"
-              disabled={isLoading}
-            >
-              <Save className="h-4 w-4 mr-2" />
-              Save Settings
-            </Button>
-          </div>
+          {isCompanyInfoEditing && isAdmin && (
+            <div className="flex justify-end">
+              <Button
+                onClick={() => {
+                  handleSave();
+                  setIsCompanyInfoEditing(false);
+                }}
+                className="bg-gradient-primary hover:scale-105 transition-all duration-300 shadow-medium"
+                disabled={isLoading}
+              >
+                <Save className="h-4 w-4 mr-2" />
+                Save Settings
+              </Button>
+            </div>
+          )}
         </TabsContent>
 
         {/* User Management Tab */}
