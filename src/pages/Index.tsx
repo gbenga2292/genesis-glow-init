@@ -1272,7 +1272,40 @@ const Index = () => {
       return;
     }
 
+    const checkout = quickCheckouts.find(c => c.id === checkoutId);
+    if (!checkout) return;
+
     try {
+      // Restore inventory if items haven't been returned yet
+      const qtyToRestore = checkout.quantity - (checkout.returnedQuantity || 0);
+
+      if (qtyToRestore > 0) {
+        setAssets(prev => prev.map(asset => {
+          if (asset.id === checkout.assetId) {
+            const newReserved = Math.max(0, (asset.reservedQuantity || 0) - qtyToRestore);
+
+            // Calculate updated available quantity
+            const totalAtSites = prev.filter(a => a.id === asset.id && a.siteId).reduce((sum, a) => sum + a.quantity, 0);
+            const totalQuantity = asset.quantity + totalAtSites;
+
+            const updatedAsset = {
+              ...asset,
+              reservedQuantity: newReserved,
+              availableQuantity: totalQuantity - newReserved - (asset.damagedCount || 0) - (asset.missingCount || 0) - (asset.usedCount || 0),
+              updatedAt: new Date()
+            };
+
+            // Persist asset update
+            if (window.db) {
+              window.db.updateAsset(asset.id, updatedAsset).catch(e => logger.error("Failed to update asset for checkout deletion", e));
+            }
+
+            return updatedAsset;
+          }
+          return asset;
+        }));
+      }
+
       if (window.db) {
         await window.db.deleteQuickCheckout(checkoutId);
       }
@@ -2520,6 +2553,8 @@ const Index = () => {
             asset={selectedAssetForAnalytics}
             open={showAnalyticsDialog}
             onOpenChange={setShowAnalyticsDialog}
+            quickCheckouts={quickCheckouts}
+            sites={sites}
           />
 
           {/* AI Assistant Dialog */}
