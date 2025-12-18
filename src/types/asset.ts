@@ -133,6 +133,7 @@ export interface CompanySettings {
   };
   maintenanceFrequency?: number; // Global default maintenance frequency in days
   currencySymbol?: string; // e.g. ₦, $, €
+  electricityRate?: number; // Electricity cost per kWh (e.g., 200 for ₦200/kWh)
 }
 
 export interface Employee {

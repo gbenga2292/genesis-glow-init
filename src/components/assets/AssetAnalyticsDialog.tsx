@@ -189,7 +189,8 @@ export const AssetAnalyticsDialog = ({ asset, open, onOpenChange, quickCheckouts
 
         // Calculate electricity-based analytics
         if (asset.electricityConsumption) {
-          equipmentAnalytics.dailyElectricityCost = asset.electricityConsumption * 200; // Using ₦200 per kWh example (TODO: make rate configurable)
+          const electricityRate = companySettings?.electricityRate || 200;
+          equipmentAnalytics.dailyElectricityCost = asset.electricityConsumption * electricityRate;
           equipmentAnalytics.monthlyElectricityCost = equipmentAnalytics.dailyElectricityCost * 30;
         }
 
