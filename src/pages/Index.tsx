@@ -39,6 +39,7 @@ import { SiteInventoryItem } from "@/types/inventory";
 import { AIAssistantProvider, useAIAssistant } from "@/contexts/AIAssistantContext";
 import { AIAssistantChat } from "@/components/ai/AIAssistantChat";
 import { logActivity } from "@/utils/activityLogger";
+import { calculateAvailableQuantity } from "@/utils/assetCalculations";
 
 const Index = () => {
   const { toast } = useToast();
@@ -344,7 +345,13 @@ const Index = () => {
     }
     const assetWithUpdatedDate = {
       ...updatedAsset,
-      availableQuantity: !updatedAsset.siteId ? (updatedAsset.quantity - (updatedAsset.reservedQuantity || 0) - (updatedAsset.damagedCount || 0) - (updatedAsset.missingCount || 0)) : updatedAsset.availableQuantity,
+      availableQuantity: !updatedAsset.siteId ? calculateAvailableQuantity(
+        updatedAsset.quantity,
+        updatedAsset.reservedQuantity,
+        updatedAsset.damagedCount,
+        updatedAsset.missingCount,
+        updatedAsset.usedCount
+      ) : updatedAsset.availableQuantity,
       updatedAt: new Date()
     };
 
@@ -1823,24 +1830,28 @@ const Index = () => {
                       ...asset.siteQuantities,
                       [log.siteId]: log.quantityRemaining
                     };
-                    
+
                     // Increment usedCount by the quantity consumed
                     const newUsedCount = (asset.usedCount || 0) + log.quantityUsed;
-                    
-                    // Recalculate available quantity (doesn't include siteQuantities - those are already at sites)
-                    // Available = Total - Reserved - Damaged - Missing - Used
-                    const newAvailable = Math.max(0, 
-                      asset.quantity - 
-                      (asset.reservedQuantity || 0) - 
-                      (asset.damagedCount || 0) - 
-                      (asset.missingCount || 0) - 
+
+                    // Decrease reservedQuantity by the quantity consumed
+                    // Items at site are reserved; when consumed, they leave reservation and enter 'used'
+                    const newReservedQuantity = Math.max(0, (asset.reservedQuantity || 0) - log.quantityUsed);
+
+                    // Recalculate available quantity
+                    const newAvailable = calculateAvailableQuantity(
+                      asset.quantity,
+                      newReservedQuantity,
+                      asset.damagedCount,
+                      asset.missingCount,
                       newUsedCount
                     );
-                    
+
                     const updatedAsset = {
                       ...asset,
                       siteQuantities: updatedSiteQuantities,
                       usedCount: newUsedCount,
+                      reservedQuantity: newReservedQuantity,
                       availableQuantity: newAvailable,
                       updatedAt: new Date()
                     };
@@ -1880,7 +1891,7 @@ const Index = () => {
                   const oldLog = consumableLogs.find(l => l.id === log.id);
                   const oldQuantityUsed = oldLog?.quantityUsed || 0;
                   const quantityDifference = log.quantityUsed - oldQuantityUsed;
-                  
+
                   const logData = {
                     ...log,
                     consumable_id: log.consumableId,
@@ -1897,7 +1908,7 @@ const Index = () => {
                   await window.electronAPI.db.updateConsumableLog(log.id, logData);
                   const logs = await window.electronAPI.db.getConsumableLogs();
                   setConsumableLogs(logs);
-                  
+
                   // Update asset usedCount and siteQuantities if quantity changed
                   if (quantityDifference !== 0) {
                     const asset = assets.find(a => a.id === log.consumableId);
@@ -1906,23 +1917,28 @@ const Index = () => {
                         ...asset.siteQuantities,
                         [log.siteId]: log.quantityRemaining
                       };
-                      
+
                       // Adjust usedCount by the difference
                       const newUsedCount = Math.max(0, (asset.usedCount || 0) + quantityDifference);
-                      
+
+                      // Adjust reservedQuantity by subtracting the difference
+                      // If usage increases, reserved decreases (consumed items leave reservation)
+                      const newReservedQuantity = Math.max(0, (asset.reservedQuantity || 0) - quantityDifference);
+
                       // Recalculate available quantity
-                      const newAvailable = Math.max(0, 
-                        asset.quantity - 
-                        (asset.reservedQuantity || 0) - 
-                        (asset.damagedCount || 0) - 
-                        (asset.missingCount || 0) - 
+                      const newAvailable = calculateAvailableQuantity(
+                        asset.quantity,
+                        newReservedQuantity,
+                        asset.damagedCount,
+                        asset.missingCount,
                         newUsedCount
                       );
-                      
+
                       const updatedAsset = {
                         ...asset,
                         siteQuantities: updatedSiteQuantities,
                         usedCount: newUsedCount,
+                        reservedQuantity: newReservedQuantity,
                         availableQuantity: newAvailable,
                         updatedAt: new Date()
                       };
@@ -2006,7 +2022,13 @@ const Index = () => {
         const quantity = Number(item.quantity || item.Quantity || 0);
         const reservedQuantity = 0; // Default to 0 for imports
         const siteQuantities = {}; // Empty for imports
-        const availableQuantity = quantity - reservedQuantity; // Calculate as quantity - reservedQuantity
+        const availableQuantity = calculateAvailableQuantity(
+          quantity,
+          reservedQuantity,
+          0,
+          0,
+          0
+        );
 
         return {
           id: Date.now().toString() + idx,
