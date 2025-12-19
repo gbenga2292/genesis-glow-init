@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Asset, QuickCheckout, Site } from "@/types/asset";
 import { EquipmentLog } from "@/types/equipment";
-import { BarChart, TrendingUp, Clock, AlertTriangle, Package, Wrench, Zap, MapPin, User, Building } from "lucide-react";
+import { BarChart, TrendingUp, Clock, AlertTriangle, Package, Wrench, Zap, MapPin, User, Building, CheckCircle2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppData } from "@/contexts/AppDataContext";
 
@@ -562,6 +562,7 @@ export const AssetAnalyticsDialog = ({ asset, open, onOpenChange, quickCheckouts
           <TabsList className="mb-4">
             <TabsTrigger value="overview">Overview & Stats</TabsTrigger>
             <TabsTrigger value="locations">Current Locations</TabsTrigger>
+            <TabsTrigger value="usage">Usage History</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview">
@@ -590,6 +591,12 @@ export const AssetAnalyticsDialog = ({ asset, open, onOpenChange, quickCheckouts
                   <CardContent className="p-4">
                     <div className="text-2xl font-bold text-red-600">{analytics.missingCount + analytics.damagedCount}</div>
                     <p className="text-xs text-muted-foreground">Issues</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="text-2xl font-bold text-purple-600">{asset.usedCount || 0}</div>
+                    <p className="text-xs text-muted-foreground">Used/Consumed</p>
                   </CardContent>
                 </Card>
               </div>
@@ -657,6 +664,74 @@ export const AssetAnalyticsDialog = ({ asset, open, onOpenChange, quickCheckouts
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground italic">No site allocations recorded.</p>
+                )}
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="usage">
+            <div className="space-y-6">
+              {/* Usage Summary */}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="text-2xl font-bold text-purple-600">{asset.usedCount || 0}</div>
+                    <p className="text-xs text-muted-foreground">Total Used/Consumed</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="text-2xl font-bold text-blue-600">
+                      {quickCheckouts.filter(c => c.assetId === asset.id && c.status === 'used').length}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Usage Transactions</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="text-2xl font-bold text-green-600">
+                      {quickCheckouts.filter(c => c.assetId === asset.id && c.status === 'used')
+                        .reduce((sum, c) => sum + c.quantity, 0)}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Qty from Checkouts</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Usage History */}
+              <div>
+                <h3 className="text-md font-semibold mb-3 flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-purple-500" />
+                  Usage History (Consumed Items)
+                </h3>
+                {quickCheckouts.filter(c => c.assetId === asset.id && c.status === 'used').length > 0 ? (
+                  <div className="grid gap-3">
+                    {quickCheckouts
+                      .filter(c => c.assetId === asset.id && c.status === 'used')
+                      .sort((a, b) => new Date(b.checkoutDate).getTime() - new Date(a.checkoutDate).getTime())
+                      .map(checkout => (
+                        <div key={checkout.id} className="flex items-center justify-between p-3 border rounded-lg bg-purple-50 dark:bg-purple-950/30">
+                          <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center text-purple-700 dark:text-purple-300 font-bold">
+                              <User className="h-4 w-4" />
+                            </div>
+                            <div>
+                              <div className="font-medium">{checkout.employee}</div>
+                              <div className="text-xs text-muted-foreground">
+                                Used on {new Date(checkout.checkoutDate).toLocaleDateString()}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary" className="bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300">
+                              {checkout.quantity} consumed
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">No usage history recorded. Items marked as "Used/Consumed" during returns will appear here.</p>
                 )}
               </div>
             </div>

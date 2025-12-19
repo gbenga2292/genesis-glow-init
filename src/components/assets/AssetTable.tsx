@@ -306,6 +306,7 @@ export const AssetTable = ({ assets, onEdit, onDelete, onUpdateAsset, onViewAnal
                 {!isMobile && <TableHead>Available</TableHead>}
                 {!isMobile && <TableHead>Missing</TableHead>}
                 {!isMobile && <TableHead>Damaged</TableHead>}
+                {!isMobile && <TableHead>Used</TableHead>}
                 {!isMobile && <TableHead>Category</TableHead>}
                 {!isMobile && <TableHead>Type</TableHead>}
                 <SortableHeader field="location">Location</SortableHeader>
@@ -345,6 +346,12 @@ export const AssetTable = ({ assets, onEdit, onDelete, onUpdateAsset, onViewAnal
                   {!isMobile && (
                     <TableCell>
                       {asset.damagedCount || 0}
+                    </TableCell>
+                  )}
+
+                  {!isMobile && (
+                    <TableCell>
+                      <span className="text-purple-600">{asset.usedCount || 0}</span>
                     </TableCell>
                   )}
 
