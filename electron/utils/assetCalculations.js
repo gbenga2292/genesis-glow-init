@@ -5,15 +5,16 @@
  */
 
 // Calculate available quantity based on total quantity and deductions
-export const calculateAvailableQuantity = (totalQuantity, reservedQuantity, damagedCount, missingCount) => {
+export const calculateAvailableQuantity = (totalQuantity, reservedQuantity, damagedCount, missingCount, usedCount = 0) => {
     // Ensure all inputs are numbers and default to 0 if undefined/null
     const total = Number(totalQuantity) || 0;
     const reserved = Number(reservedQuantity) || 0;
     const damaged = Number(damagedCount) || 0;
     const missing = Number(missingCount) || 0;
+    const used = Number(usedCount) || 0;
 
-    // Calculation: Available = Total - Reserved - Damaged - Missing
-    const available = total - reserved - damaged - missing;
+    // Calculation: Available = Total - Reserved - Damaged - Missing - Used
+    const available = total - reserved - damaged - missing - used;
 
     // Return 0 if calculation results in negative (shouldn't happen in valid state, but safe fallback)
     return Math.max(0, available);
