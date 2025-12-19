@@ -304,11 +304,8 @@ export const AssetTable = ({ assets, onEdit, onDelete, onUpdateAsset, onViewAnal
                 <SortableHeader field="quantity">Total Stock</SortableHeader>
                 {!isMobile && <TableHead>Reserved</TableHead>}
                 {!isMobile && <TableHead>Available</TableHead>}
-                {!isMobile && <TableHead>Missing</TableHead>}
-                {!isMobile && <TableHead>Damaged</TableHead>}
-                {!isMobile && <TableHead>Used</TableHead>}
-                {!isMobile && <TableHead>Category</TableHead>}
-                {!isMobile && <TableHead>Type</TableHead>}
+                {!isMobile && <TableHead>Stats (M | D | U)</TableHead>}
+                {!isMobile && <TableHead>Category | Type</TableHead>}
                 <SortableHeader field="location">Location</SortableHeader>
                 <SortableHeader field="stockStatus">Stock Status</SortableHeader>
                 <TableHead className="w-16">Actions</TableHead>
@@ -339,31 +336,29 @@ export const AssetTable = ({ assets, onEdit, onDelete, onUpdateAsset, onViewAnal
 
                   {!isMobile && (
                     <TableCell>
-                      {asset.missingCount || 0}
+                      <div className="flex flex-col text-xs space-y-1">
+                        <div className="flex justify-between w-24">
+                          <span className="text-muted-foreground">Missing:</span>
+                          <span className="font-medium text-destructive">{asset.missingCount || 0}</span>
+                        </div>
+                        <div className="flex justify-between w-24">
+                          <span className="text-muted-foreground">Damaged:</span>
+                          <span className="font-medium text-amber-500">{asset.damagedCount || 0}</span>
+                        </div>
+                        <div className="flex justify-between w-24">
+                          <span className="text-muted-foreground">Used:</span>
+                          <span className="font-medium text-blue-500">{asset.usedCount || 0}</span>
+                        </div>
+                      </div>
                     </TableCell>
                   )}
 
                   {!isMobile && (
                     <TableCell>
-                      {asset.damagedCount || 0}
-                    </TableCell>
-                  )}
-
-                  {!isMobile && (
-                    <TableCell>
-                      <span className="text-purple-600">{asset.usedCount || 0}</span>
-                    </TableCell>
-                  )}
-
-                  {!isMobile && (
-                    <TableCell>
-                      <Badge variant="outline">{asset.category}</Badge>
-                    </TableCell>
-                  )}
-
-                  {!isMobile && (
-                    <TableCell>
-                      <Badge variant="secondary">{asset.type}</Badge>
+                      <div className="flex flex-col space-y-1">
+                        <Badge variant="outline" className="w-fit">{asset.category}</Badge>
+                        <Badge variant="secondary" className="w-fit text-[10px]">{asset.type}</Badge>
+                      </div>
                     </TableCell>
                   )}
 

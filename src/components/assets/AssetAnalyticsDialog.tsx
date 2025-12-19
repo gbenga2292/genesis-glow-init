@@ -225,7 +225,11 @@ export const AssetAnalyticsDialog = ({ asset, open, onOpenChange, quickCheckouts
   if (!asset || !analytics) return null;
 
   // Helper to format currency
-  const formatCurrency = (val: number) => `${companySettings?.currencySymbol || '₦'}${val.toLocaleString()}`;
+  const formatCurrency = (val: number | undefined | null) => {
+    const symbol = companySettings?.currencySymbol || '₦';
+    const value = typeof val === 'number' ? val : 0;
+    return `${symbol}${value.toLocaleString()}`;
+  };
 
   const renderAnalyticsContent = () => {
     switch (asset.type) {
@@ -702,36 +706,51 @@ export const AssetAnalyticsDialog = ({ asset, open, onOpenChange, quickCheckouts
               <div>
                 <h3 className="text-md font-semibold mb-3 flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-purple-500" />
-                  Usage History (Consumed Items)
+                  Checkout & Usage History
                 </h3>
-                {quickCheckouts.filter(c => c.assetId === asset.id && c.status === 'used').length > 0 ? (
+                {quickCheckouts.filter(c => c.assetId === asset.id).length > 0 ? (
                   <div className="grid gap-3">
                     {quickCheckouts
-                      .filter(c => c.assetId === asset.id && c.status === 'used')
+                      .filter(c => c.assetId === asset.id)
                       .sort((a, b) => new Date(b.checkoutDate).getTime() - new Date(a.checkoutDate).getTime())
                       .map(checkout => (
-                        <div key={checkout.id} className="flex items-center justify-between p-3 border rounded-lg bg-purple-50 dark:bg-purple-950/30">
+                        <div key={checkout.id} className="flex items-center justify-between p-3 border rounded-lg bg-card shadow-sm hover:bg-muted/50 transition-colors">
                           <div className="flex items-center gap-3">
-                            <div className="h-8 w-8 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center text-purple-700 dark:text-purple-300 font-bold">
+                            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
                               <User className="h-4 w-4" />
                             </div>
                             <div>
                               <div className="font-medium">{checkout.employee}</div>
                               <div className="text-xs text-muted-foreground">
-                                Used on {new Date(checkout.checkoutDate).toLocaleDateString()}
+                                {new Date(checkout.checkoutDate).toLocaleDateString()}
                               </div>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <Badge variant="secondary" className="bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300">
-                              {checkout.quantity} consumed
+                            <Badge
+                              variant={
+                                checkout.status === 'outstanding' ? 'default' :
+                                  checkout.status === 'return_completed' ? 'secondary' :
+                                    checkout.status === 'used' ? 'outline' :
+                                      'destructive'
+                              }
+                              className={
+                                checkout.status === 'used' ? 'border-purple-500 text-purple-500' : ''
+                              }
+                            >
+                              {checkout.status === 'return_completed' ? 'Returned' :
+                                checkout.status === 'outstanding' ? 'Checked Out' :
+                                  checkout.status.charAt(0).toUpperCase() + checkout.status.slice(1)}
                             </Badge>
+                            <span className="text-sm font-semibold">
+                              Qty: {checkout.quantity}
+                            </span>
                           </div>
                         </div>
                       ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground italic">No usage history recorded. Items marked as "Used/Consumed" during returns will appear here.</p>
+                  <p className="text-sm text-muted-foreground italic">No checkout history recorded.</p>
                 )}
               </div>
             </div>

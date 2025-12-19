@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +19,7 @@ interface QuickCheckoutFormProps {
   quickCheckouts: QuickCheckout[];
   onQuickCheckout: (checkout: Omit<QuickCheckout, 'id'>) => void;
   onReturnItem: (checkoutId: string) => void;
-  onPartialReturn?: (checkoutId: string, quantity: number, condition: 'good' | 'damaged' | 'missing') => void;
+  onPartialReturn?: (checkoutId: string, quantity: number, condition: 'good' | 'damaged' | 'missing' | 'used', notes?: string) => void;
   onDeleteCheckout?: (checkoutId: string) => void;
   onNavigateToAnalytics?: () => void;
 }
@@ -44,18 +45,27 @@ export const QuickCheckoutForm = ({
     open: false,
     checkoutId: '',
     quantity: 1,
-    condition: 'good' as 'good' | 'damaged' | 'missing'
+    condition: 'good' as 'good' | 'damaged' | 'missing',
+    notes: ''
   });
+
+  const [activityFilter, setActivityFilter] = useState<'all' | 'outstanding' | 'return_completed' | 'used' | 'lost' | 'damaged'>('all');
 
   const { isAuthenticated, currentUser, hasPermission } = useAuth();
   const { toast } = useToast();
 
-  const filteredCheckouts = quickCheckouts; // No filter implementation requested
+  // Main checkout list shows only outstanding items
+  const filteredCheckouts = quickCheckouts.filter(checkout => checkout.status === 'outstanding');
 
   // Calculate available quantity based on OUTSTANDING items only
   const outstandingCheckouts = quickCheckouts.filter(checkout => checkout.status === 'outstanding' || checkout.status === 'lost' || checkout.status === 'damaged');
 
   const selectedAsset = assets.find(a => a.id === formData.assetId);
+
+  // Find asset for the return dialog
+  const returnCheckout = quickCheckouts.find(c => c.id === returnDialog.checkoutId);
+  const returnAsset = assets.find(a => a.id === returnCheckout?.assetId);
+  const canMarkAsUsed = returnAsset && returnAsset.type !== 'tools' && returnAsset.type !== 'equipment';
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,10 +99,11 @@ export const QuickCheckoutForm = ({
   const getAvailableQuantity = (assetId: string) => {
     const asset = assets.find(a => a.id === assetId);
     if (!asset) return 0;
-    const checkedOut = outstandingCheckouts
-      .filter(checkout => checkout.assetId === assetId)
-      .reduce((sum, checkout) => sum + checkout.quantity, 0);
-    return asset.availableQuantity - (asset.damagedCount || 0) - (asset.missingCount || 0) - checkedOut;
+
+    // Use the already calculated availableQuantity from the asset object
+    // This avoids double-counting reserved items since the main asset list 
+    // should already reflect reservations/checkouts in its availableQuantity.
+    return asset.availableQuantity || 0;
   };
 
   const availableAssets = assets.filter(asset => getAvailableQuantity(asset.id) > 0);
@@ -110,19 +121,21 @@ export const QuickCheckoutForm = ({
       open: true,
       checkoutId,
       quantity: remainingQuantity,
-      condition: 'good'
+      condition: 'good',
+      notes: checkout.notes || ''
     });
   };
 
   const handlePartialReturn = () => {
     if (onPartialReturn) {
-      onPartialReturn(returnDialog.checkoutId, returnDialog.quantity, returnDialog.condition);
+      onPartialReturn(returnDialog.checkoutId, returnDialog.quantity, returnDialog.condition, returnDialog.notes);
     }
     setReturnDialog({
       open: false,
       checkoutId: '',
       quantity: 1,
-      condition: 'good'
+      condition: 'good',
+      notes: ''
     });
   };
 
@@ -348,34 +361,86 @@ export const QuickCheckoutForm = ({
       {/* Recent Activity */}
       <Card className="border-0 shadow-soft">
         <CardHeader>
-          <CardTitle>Recent Checkout Activity</CardTitle>
+          <div className="flex justify-between items-center">
+            <CardTitle>Recent Checkout Activity</CardTitle>
+            <div className="flex gap-2 flex-wrap">
+              <Badge
+                variant={activityFilter === 'all' ? 'default' : 'outline'}
+                className="cursor-pointer"
+                onClick={() => setActivityFilter('all')}
+              >
+                All
+              </Badge>
+              <Badge
+                variant={activityFilter === 'outstanding' ? 'default' : 'outline'}
+                className="cursor-pointer"
+                onClick={() => setActivityFilter('outstanding')}
+              >
+                Outstanding
+              </Badge>
+              <Badge
+                variant={activityFilter === 'return_completed' ? 'default' : 'outline'}
+                className="cursor-pointer bg-gradient-success"
+                onClick={() => setActivityFilter('return_completed')}
+              >
+                Returned
+              </Badge>
+              <Badge
+                variant={activityFilter === 'used' ? 'default' : 'outline'}
+                className="cursor-pointer"
+                onClick={() => setActivityFilter('used')}
+              >
+                Used
+              </Badge>
+              <Badge
+                variant={activityFilter === 'lost' ? 'default' : 'outline'}
+                className="cursor-pointer"
+                onClick={() => setActivityFilter('lost')}
+              >
+                Lost
+              </Badge>
+              <Badge
+                variant={activityFilter === 'damaged' ? 'default' : 'outline'}
+                className="cursor-pointer"
+                onClick={() => setActivityFilter('damaged')}
+              >
+                Damaged
+              </Badge>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-          {quickCheckouts.length === 0 ? (
-            <div className="text-center py-8">
-              <ShoppingCart className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-              <p className="text-muted-foreground">No checkout history yet</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {quickCheckouts.slice(0, 5).map((checkout, index) => (
-                <div key={`${checkout.id}-${index}`} className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
-                  <div>
-                    <p className="font-medium">{checkout.assetName}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {checkout.employee} • {checkout.quantity} units
-                    </p>
+          {(() => {
+            const filteredActivity = activityFilter === 'all'
+              ? quickCheckouts
+              : quickCheckouts.filter(c => c.status === activityFilter);
+
+            return filteredActivity.length === 0 ? (
+              <div className="text-center py-8">
+                <ShoppingCart className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                <p className="text-muted-foreground">No checkout history for this filter</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredActivity.slice(0, 10).map((checkout, index) => (
+                  <div key={`${checkout.id}-${index}`} className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
+                    <div>
+                      <p className="font-medium">{checkout.assetName}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {checkout.employee} • {checkout.quantity} units
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      {getStatusBadge(checkout.status)}
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {checkout.checkoutDate.toLocaleDateString()}
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    {getStatusBadge(checkout.status)}
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {checkout.checkoutDate.toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            );
+          })()}
         </CardContent>
       </Card>
 
@@ -411,10 +476,23 @@ export const QuickCheckoutForm = ({
                   <SelectItem value="good">Returned (Good)</SelectItem>
                   <SelectItem value="damaged">Returned (Damaged)</SelectItem>
                   <SelectItem value="missing">Lost / Missing</SelectItem>
-                  {/* Note: Logic for 'Mark as Used' should be passed via onPartialReturn or handled here */}
-                  <SelectItem value="used">Used / Consumed</SelectItem>
+                  {/* Only show 'Used' option if asset is NOT a tool or equipment */}
+                  {canMarkAsUsed && <SelectItem value="used">Used / Consumed</SelectItem>}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="return-notes">Notes (Optional)</Label>
+              <Textarea
+                id="return-notes"
+                placeholder="Add any notes or clarification about this return/update..."
+                value={returnDialog.notes}
+                onChange={(e) => setReturnDialog({ ...returnDialog, notes: e.target.value })}
+                className="border-0 bg-muted/50 focus:bg-background transition-all duration-300 min-h-[80px]"
+              />
+              <p className="text-xs text-muted-foreground">
+                These notes will appear in checkout reports for additional context
+              </p>
             </div>
           </div>
           <DialogFooter>

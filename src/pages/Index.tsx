@@ -1104,20 +1104,26 @@ const Index = () => {
 
     const newReturnedQuantity = (checkout.returnedQuantity || 0) + qtyToUpdate;
     const isFullyReturned = newReturnedQuantity >= checkout.quantity;
-    const newStatus = isFullyReturned ? status : 'outstanding'; // Only change status if fully "returned/processed"
+    const newStatus = isFullyReturned ? status : 'outstanding';
+    const returnDate = isFullyReturned ? new Date() : checkout.returnDate;
 
     try {
       // Update Checkout in DB
-      const updatedCheckout = {
+      const updatedCheckout: QuickCheckout = {
         ...checkout,
         returnedQuantity: newReturnedQuantity,
-        status: newStatus === 'outstanding' ? checkout.status : newStatus // Keep original status if not fully processed, else update
+        status: newStatus,
+        returnDate: returnDate
       };
-      // Note: If status is 'outstanding', we might want to flag partials, but for now we follow simple logic. 
-      // Actually, the newStatus logic above: if I return 1 of 2, it's still 'outstanding'. 
 
       if (window.electronAPI && window.electronAPI.db) {
-        await window.electronAPI.db.updateQuickCheckout(checkout.id, updatedCheckout);
+        // Sanitize dates for DB (ensure they are strings)
+        const dbPayload = {
+          ...updatedCheckout,
+          checkoutDate: updatedCheckout.checkoutDate instanceof Date ? updatedCheckout.checkoutDate.toISOString() : updatedCheckout.checkoutDate,
+          returnDate: updatedCheckout.returnDate instanceof Date ? updatedCheckout.returnDate.toISOString() : updatedCheckout.returnDate
+        };
+        await window.electronAPI.db.updateQuickCheckout(checkout.id, dbPayload);
       }
 
       setQuickCheckouts(prev => prev.map(c => c.id === checkoutId ? updatedCheckout : c));
@@ -1260,7 +1266,7 @@ const Index = () => {
     handleUpdateCheckoutStatus(checkoutId, 'return_completed');
   };
 
-  const handlePartialReturn = async (checkoutId: string, quantity: number, condition: 'good' | 'damaged' | 'missing') => {
+  const handlePartialReturn = async (checkoutId: string, quantity: number, condition: 'good' | 'damaged' | 'missing' | 'used', notes?: string) => {
     const checkout = quickCheckouts.find(c => c.id === checkoutId);
     if (!checkout) return;
 
@@ -1278,13 +1284,36 @@ const Index = () => {
 
     const isFullyReturned = newReturnedQuantity >= checkout.quantity;
 
-    // Update checkout
+    // Determine status based on condition if fully returned
+    let finalStatus: QuickCheckout['status'] = 'return_completed';
+    if (condition === 'used') finalStatus = 'used';
+    else if (condition === 'missing') finalStatus = 'lost';
+    else if (condition === 'damaged') finalStatus = 'damaged';
+
+    const newStatus: QuickCheckout['status'] = isFullyReturned ? finalStatus : 'outstanding';
+
+    const updatedCheckoutData: QuickCheckout = {
+      ...checkout,
+      returnedQuantity: newReturnedQuantity,
+      status: newStatus,
+      returnDate: isFullyReturned ? new Date() : checkout.returnDate,
+      notes: notes || checkout.notes // Update notes if provided, otherwise keep existing
+    };
+
+    // DB Persistence: Update checkout
+    if (window.electronAPI && window.electronAPI.db) {
+      // Sanitize dates for DB
+      const dbPayload = {
+        ...updatedCheckoutData,
+        checkoutDate: updatedCheckoutData.checkoutDate instanceof Date ? updatedCheckoutData.checkoutDate.toISOString() : updatedCheckoutData.checkoutDate,
+        returnDate: updatedCheckoutData.returnDate instanceof Date ? updatedCheckoutData.returnDate.toISOString() : updatedCheckoutData.returnDate
+      };
+      await window.electronAPI.db.updateQuickCheckout(checkoutId, dbPayload);
+    }
+
+    // Update checkout state
     setQuickCheckouts(prev => prev.map(c =>
-      c.id === checkoutId ? {
-        ...c,
-        returnedQuantity: newReturnedQuantity,
-        status: isFullyReturned ? 'return_completed' : 'outstanding'
-      } : c
+      c.id === checkoutId ? updatedCheckoutData : c
     ));
 
     // Update asset inventory based on condition
@@ -1302,17 +1331,27 @@ const Index = () => {
           newDamagedCount += quantity;
         } else if (condition === 'missing') {
           newMissingCount += quantity;
+        } else if (condition === 'used') {
+          newUsedCount += quantity;
         }
 
-        return {
+        const updatedAsset = {
           ...asset,
           reservedQuantity: newReservedQuantity,
           damagedCount: newDamagedCount,
           missingCount: newMissingCount,
-          usedCount: newUsedCount, // Maintain existing used count
+          usedCount: newUsedCount,
           availableQuantity: totalQuantity - newReservedQuantity - newDamagedCount - newMissingCount - newUsedCount,
           updatedAt: new Date()
         };
+
+        // DB Persistence: Update Asset
+        if (window.electronAPI && window.electronAPI.db) {
+          window.electronAPI.db.updateAsset(asset.id, updatedAsset)
+            .catch(err => logger.error("Failed to update asset in partial return", err));
+        }
+
+        return updatedAsset;
       }
       return asset;
     }));
@@ -1324,10 +1363,17 @@ const Index = () => {
       details: `Partial return of ${quantity} items in ${condition} condition`
     });
 
-    toast({
-      title: "Partial Return Processed",
-      description: `${quantity} ${checkout.assetName} returned in ${condition} condition by ${checkout.employee}`
-    });
+    if (condition === 'used') {
+      toast({
+        title: "Item Marked as Used",
+        description: `Item (${quantity}) has been used by ${checkout.employee}`
+      });
+    } else {
+      toast({
+        title: "Partial Return Processed",
+        description: `${quantity} ${checkout.assetName} returned in ${condition} condition by ${checkout.employee}`
+      });
+    }
   };
 
   function renderContent() {

@@ -74,6 +74,7 @@ export interface QuickCheckout {
   expectedReturnDays: number;
   returnDate?: Date;
   status: 'outstanding' | 'return_completed' | 'lost' | 'damaged' | 'used';
+  notes?: string; // Optional notes for return/update clarification
 }
 
 export interface ReturnBill {

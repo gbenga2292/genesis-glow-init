@@ -58,7 +58,8 @@ export const QuickCheckoutReport = ({ quickCheckouts, companySettings }: QuickCh
       checkoutDate: checkout.checkoutDate.toLocaleDateString(),
       returnDate: checkout.returnDate ? checkout.returnDate.toLocaleDateString() : 'Not returned',
       expectedDays: checkout.expectedReturnDays,
-      status: checkout.status.replace('_', ' ').toUpperCase()
+      status: checkout.status.replace('_', ' ').toUpperCase(),
+      notes: checkout.notes || '-'
     }));
 
     await generateUnifiedReport({
@@ -75,7 +76,8 @@ export const QuickCheckoutReport = ({ quickCheckouts, companySettings }: QuickCh
         { header: 'Checkout Date', dataKey: 'checkoutDate', width: 30 },
         { header: 'Return Date', dataKey: 'returnDate', width: 30 },
         { header: 'Expected Days', dataKey: 'expectedDays', width: 28 },
-        { header: 'Status', dataKey: 'status', width: 30 }
+        { header: 'Status', dataKey: 'status', width: 30 },
+        { header: 'Notes', dataKey: 'notes', width: 60 }
       ],
       data: reportData,
       summaryStats: [
@@ -93,7 +95,7 @@ export const QuickCheckoutReport = ({ quickCheckouts, companySettings }: QuickCh
 
   const generateExcelReport = (filteredCheckouts: QuickCheckout[], title: string) => {
     const ws_data = [
-      ['Asset Name', 'Qty Checked Out', 'Qty Returned', 'Employee', 'Checkout Date', 'Return Date', 'Expected Days', 'Status'],
+      ['Asset Name', 'Qty Checked Out', 'Qty Returned', 'Employee', 'Checkout Date', 'Return Date', 'Expected Days', 'Status', 'Notes'],
       ...filteredCheckouts.map(checkout => [
         checkout.assetName,
         checkout.quantity,
@@ -102,7 +104,8 @@ export const QuickCheckoutReport = ({ quickCheckouts, companySettings }: QuickCh
         checkout.checkoutDate.toLocaleDateString(),
         checkout.returnDate ? checkout.returnDate.toLocaleDateString() : 'Not returned',
         checkout.expectedReturnDays,
-        checkout.status.replace('_', ' ').toUpperCase()
+        checkout.status.replace('_', ' ').toUpperCase(),
+        checkout.notes || '-'
       ])
     ];
 
@@ -204,6 +207,7 @@ export const QuickCheckoutReport = ({ quickCheckouts, companySettings }: QuickCh
                     <TableHead>Return Date</TableHead>
                     <TableHead>Expected Days</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Notes</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -217,6 +221,7 @@ export const QuickCheckoutReport = ({ quickCheckouts, companySettings }: QuickCh
                       <TableCell>{checkout.returnDate ? checkout.returnDate.toLocaleDateString() : 'Not returned'}</TableCell>
                       <TableCell>{checkout.expectedReturnDays}</TableCell>
                       <TableCell>{getStatusBadge(checkout.status)}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground max-w-xs truncate" title={checkout.notes}>{checkout.notes || '-'}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

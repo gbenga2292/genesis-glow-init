@@ -1479,10 +1479,10 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           const dbApi = window.electronAPI?.db;
           // Use dynamic property access for optional clearTable method
           if (dbApi && 'clearTable' in dbApi) {
-            try { 
-              await (dbApi as unknown as { clearTable: (table: string) => Promise<void> }).clearTable(table); 
-            } catch (e) { 
-              logger.warn(`Failed to clear table ${table}`, e); 
+            try {
+              await (dbApi as unknown as { clearTable: (table: string) => Promise<void> }).clearTable(table);
+            } catch (e) {
+              logger.warn(`Failed to clear table ${table}`, e);
             }
           }
         };
@@ -2277,7 +2277,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                   <Label htmlFor="companyName">Company Name</Label>
                   <Input
                     id="companyName"
-                    value={formData.companyName}
+                    value={formData.companyName || ""}
                     onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
                     disabled={!isCompanyInfoEditing}
                     className={!isCompanyInfoEditing ? "bg-muted cursor-not-allowed" : ""}
@@ -2288,7 +2288,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                   <Label htmlFor="address">Address</Label>
                   <Textarea
                     id="address"
-                    value={formData.address}
+                    value={formData.address || ""}
                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                     disabled={!isCompanyInfoEditing}
                     className={!isCompanyInfoEditing ? "bg-muted cursor-not-allowed" : ""}
@@ -2303,7 +2303,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                     </Label>
                     <Input
                       id="phone"
-                      value={formData.phone}
+                      value={formData.phone || ""}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                       disabled={!isCompanyInfoEditing}
                       className={!isCompanyInfoEditing ? "bg-muted cursor-not-allowed" : ""}
@@ -2318,7 +2318,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                     <Input
                       id="email"
                       type="email"
-                      value={formData.email}
+                      value={formData.email || ""}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       placeholder="company@example.com"
                       disabled={!isCompanyInfoEditing}
@@ -2334,7 +2334,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                   </Label>
                   <Input
                     id="website"
-                    value={formData.website}
+                    value={formData.website || ""}
                     onChange={(e) => setFormData({ ...formData, website: e.target.value })}
                     disabled={!isCompanyInfoEditing}
                     className={!isCompanyInfoEditing ? "bg-muted cursor-not-allowed" : ""}
@@ -2347,7 +2347,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                     <Input
                       id="maintenanceFrequency"
                       type="number"
-                      value={formData.maintenanceFrequency || 60}
+                      value={formData.maintenanceFrequency ?? 60}
                       onChange={(e) => setFormData({ ...formData, maintenanceFrequency: parseInt(e.target.value) || 60 })}
                       disabled={!isCompanyInfoEditing}
                       className={!isCompanyInfoEditing ? "bg-muted cursor-not-allowed" : ""}
@@ -2359,7 +2359,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                     <Label htmlFor="currencySymbol">Currency Symbol</Label>
                     <Input
                       id="currencySymbol"
-                      value={formData.currencySymbol || '₦'}
+                      value={formData.currencySymbol || ""}
                       onChange={(e) => setFormData({ ...formData, currencySymbol: e.target.value })}
                       disabled={!isCompanyInfoEditing}
                       className={!isCompanyInfoEditing ? "bg-muted cursor-not-allowed" : ""}
@@ -2375,7 +2375,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                     <Input
                       id="electricityRate"
                       type="number"
-                      value={formData.electricityRate || 200}
+                      value={formData.electricityRate ?? 200}
                       onChange={(e) => setFormData({ ...formData, electricityRate: parseFloat(e.target.value) || 200 })}
                       disabled={!isCompanyInfoEditing}
                       className={!isCompanyInfoEditing ? "bg-muted cursor-not-allowed" : ""}
