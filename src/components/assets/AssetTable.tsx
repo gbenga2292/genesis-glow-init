@@ -25,7 +25,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Asset } from "@/types/asset";
+import { Asset, Site } from "@/types/asset";
 import {
   Search,
   Filter,
@@ -46,9 +46,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { RestockDialog } from "./RestockDialog";
 import { RestockHistoryDialog } from "./RestockHistoryDialog";
+import { AdvancedFilterSheet, AdvancedFilters } from "./AdvancedFilterSheet";
 
 interface AssetTableProps {
   assets: Asset[];
+  sites: Site[];
   onEdit: (asset: Asset) => void;
   onDelete: (asset: Asset) => void;
   onUpdateAsset: (asset: Asset) => void;
@@ -59,52 +61,146 @@ type SortField = 'name' | 'quantity' | 'location' | 'stockStatus';
 
 type SortDirection = 'asc' | 'desc';
 
-export const AssetTable = ({ assets, onEdit, onDelete, onUpdateAsset, onViewAnalytics }: AssetTableProps) => {
+export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onViewAnalytics }: AssetTableProps) => {
   const isMobile = useIsMobile();
   const { isAuthenticated, hasPermission } = useAuth();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState<'all' | 'dewatering' | 'waterproofing' | 'tiling' | 'ppe' | 'office'>('all');
   const [filterType, setFilterType] = useState<'all' | 'consumable' | 'non-consumable' | 'tools' | 'equipment'>('all');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'damaged' | 'missing' | 'maintenance' | 'out-of-stock' | 'low-stock' | 'in-stock'>('all');
+  const [filterAvailability, setFilterAvailability] = useState<'all' | 'ready' | 'restock' | 'critical' | 'out' | 'issues' | 'reserved'>('all');
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [showRestockDialog, setShowRestockDialog] = useState(false);
   const [selectedAssetForHistory, setSelectedAssetForHistory] = useState<Asset | null>(null);
   const [showRestockHistoryDialog, setShowRestockHistoryDialog] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>({
+    criticalStock: false,
+    lowStock: false,
+    outOfStock: false,
+    hasDamaged: false,
+    hasMissing: false,
+    isReserved: false,
+    searchTerm: '',
+    specificLocation: 'all',
+    recentlyUpdated: 'all'
+  });
 
-  const getStockStatus = (quantity: number): number => {
-    if (quantity === 0) return 0; // Out of Stock
-    if (quantity < 10) return 1; // Low Stock
-    return 2; // In Stock
+  // FIXED: Use asset-specific thresholds instead of hardcoded values
+  const getStockStatus = (asset: Asset): number => {
+    if (asset.quantity === 0) return 0; // Out of Stock
+    if (asset.quantity <= asset.criticalStockLevel) return 1; // Critical Stock
+    if (asset.quantity <= asset.lowStockLevel) return 2; // Low Stock
+    return 3; // In Stock
   };
+
+  const siteMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    (sites || []).forEach(s => map[s.id] = s.name);
+    return map;
+  }, [sites]);
+
+  const assetLocations = useMemo(() => {
+    const locations = new Set<string>();
+    assets.forEach(asset => {
+      if (asset.location) locations.add(asset.location);
+    });
+    return Array.from(locations).filter(Boolean).sort();
+  }, [assets]);
 
   const filteredAndSortedAssets = useMemo(() => {
     let filtered = assets.filter(asset => {
-      // Only show office assets (no siteId)
-      if (asset.siteId) return false;
-
-      const matchesSearch = asset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        asset.location?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        asset.service?.toLowerCase().includes(searchTerm.toLowerCase());
+      // ENHANCED SEARCH: Search across name, description, location, service, category, type
+      const combinedSearchTerm = searchTerm || advancedFilters.searchTerm;
+      const matchesSearch = !combinedSearchTerm || (
+        asset.name.toLowerCase().includes(combinedSearchTerm.toLowerCase()) ||
+        asset.description?.toLowerCase().includes(combinedSearchTerm.toLowerCase()) ||
+        asset.location?.toLowerCase().includes(combinedSearchTerm.toLowerCase()) ||
+        asset.service?.toLowerCase().includes(combinedSearchTerm.toLowerCase()) ||
+        asset.category.toLowerCase().includes(combinedSearchTerm.toLowerCase()) ||
+        asset.type.toLowerCase().includes(combinedSearchTerm.toLowerCase())
+      );
 
       const matchesCategory = filterCategory === 'all' || asset.category === filterCategory;
       const matchesType = filterType === 'all' || asset.type === filterType;
 
-      let matchesStatus = filterStatus === 'all';
-      if (!matchesStatus) {
-        if (['active', 'damaged', 'missing', 'maintenance'].includes(filterStatus)) {
-          matchesStatus = (asset.status || 'active') === filterStatus;
-        } else if (filterStatus === 'out-of-stock') {
-          matchesStatus = asset.quantity === 0;
-        } else if (filterStatus === 'low-stock') {
-          matchesStatus = asset.quantity > 0 && asset.quantity < 10;
-        } else if (filterStatus === 'in-stock') {
-          matchesStatus = asset.quantity >= 10;
+      // NEW AVAILABILITY FILTER (Smart, practical filtering)
+      let matchesAvailability = filterAvailability === 'all';
+      if (!matchesAvailability) {
+        const availableQty = asset.availableQuantity || 0;
+        const status = asset.status || 'active';
+        const hasDamage = (asset.damagedCount || 0) > 0;
+        const hasMissing = (asset.missingCount || 0) > 0;
+        const isReserved = (asset.reservedQuantity || 0) > 0;
+
+        switch (filterAvailability) {
+          case 'ready':
+            // Ready to Use: Available > 0 AND status = active
+            matchesAvailability = availableQty > 0 && status === 'active';
+            break;
+          case 'restock':
+            // Needs Restock: qty <= lowStockLevel (uses ACTUAL threshold)
+            matchesAvailability = asset.quantity <= asset.lowStockLevel;
+            break;
+          case 'critical':
+            // Critical Stock: qty <= criticalStockLevel (uses ACTUAL threshold)
+            matchesAvailability = asset.quantity <= asset.criticalStockLevel;
+            break;
+          case 'out':
+            // Out of Stock: qty = 0
+            matchesAvailability = asset.quantity === 0;
+            break;
+          case 'issues':
+            // Issues: damaged OR missing OR maintenance OR has damage/missing counts
+            matchesAvailability = status === 'damaged' || status === 'missing' || status === 'maintenance' || hasDamage || hasMissing;
+            break;
+          case 'reserved':
+            // Checked Out: reservedQuantity > 0
+            matchesAvailability = isReserved;
+            break;
         }
       }
 
-      return matchesSearch && matchesCategory && matchesType && matchesStatus;
+      // ADVANCED FILTERS
+      let matchesAdvanced = true;
+
+      // Stock Health Filters
+      if (advancedFilters.criticalStock && asset.quantity > asset.criticalStockLevel) matchesAdvanced = false;
+      if (advancedFilters.lowStock && asset.quantity > asset.lowStockLevel) matchesAdvanced = false;
+      if (advancedFilters.outOfStock && asset.quantity !== 0) matchesAdvanced = false;
+      if (advancedFilters.hasDamaged && (asset.damagedCount || 0) === 0) matchesAdvanced = false;
+      if (advancedFilters.hasMissing && (asset.missingCount || 0) === 0) matchesAdvanced = false;
+      if (advancedFilters.isReserved && (asset.reservedQuantity || 0) === 0) matchesAdvanced = false;
+
+
+      // Location Filter
+      if (advancedFilters.specificLocation && advancedFilters.specificLocation !== 'all') {
+        if (advancedFilters.specificLocation === 'Office') {
+          if (asset.siteId) matchesAdvanced = false;
+        } else {
+          // Check if it matches a site name
+          const siteMatch = asset.siteId ? siteMap[asset.siteId] === advancedFilters.specificLocation : false;
+          // Check if it matches the free-text location
+          const locationMatch = asset.location === advancedFilters.specificLocation;
+
+          if (!siteMatch && !locationMatch) matchesAdvanced = false;
+        }
+      }
+
+      // Time-based Filter
+      if (advancedFilters.recentlyUpdated !== 'all') {
+        const now = new Date();
+        const updatedAt = new Date(asset.updatedAt);
+        const diffInMs = now.getTime() - updatedAt.getTime();
+        const diffInDays = diffInMs / (1000 * 3600 * 24);
+
+        if (advancedFilters.recentlyUpdated === 'today' && diffInDays > 1) matchesAdvanced = false;
+        if (advancedFilters.recentlyUpdated === 'week' && diffInDays > 7) matchesAdvanced = false;
+        if (advancedFilters.recentlyUpdated === 'month' && diffInDays > 30) matchesAdvanced = false;
+      }
+
+      return matchesSearch && matchesCategory && matchesType && matchesAvailability && matchesAdvanced;
     });
 
     // Sort the filtered assets
@@ -113,8 +209,9 @@ export const AssetTable = ({ assets, onEdit, onDelete, onUpdateAsset, onViewAnal
       let bValue: any = b[sortField];
 
       if (sortField === 'stockStatus') {
-        aValue = getStockStatus(a.quantity);
-        bValue = getStockStatus(b.quantity);
+        // FIXED: Use asset-specific thresholds for sorting
+        aValue = getStockStatus(a);
+        bValue = getStockStatus(b);
       }
 
       // Handle undefined/null values
@@ -141,7 +238,36 @@ export const AssetTable = ({ assets, onEdit, onDelete, onUpdateAsset, onViewAnal
     });
 
     return filtered;
-  }, [assets, searchTerm, filterCategory, filterType, filterStatus, sortField, sortDirection, getStockStatus]);
+  }, [assets, searchTerm, filterCategory, filterType, filterAvailability, sortField, sortDirection, advancedFilters, sites, siteMap]);
+
+  // Count active advanced filters
+  const activeAdvancedFilterCount = useMemo(() => {
+    let count = 0;
+    if (advancedFilters.criticalStock) count++;
+    if (advancedFilters.lowStock) count++;
+    if (advancedFilters.outOfStock) count++;
+    if (advancedFilters.hasDamaged) count++;
+    if (advancedFilters.hasMissing) count++;
+    if (advancedFilters.isReserved) count++;
+    if (advancedFilters.searchTerm) count++;
+    if (advancedFilters.specificLocation && advancedFilters.specificLocation !== 'all') count++;
+    if (advancedFilters.recentlyUpdated !== 'all') count++;
+    return count;
+  }, [advancedFilters]);
+
+  const handleClearAdvancedFilters = () => {
+    setAdvancedFilters({
+      criticalStock: false,
+      lowStock: false,
+      outOfStock: false,
+      hasDamaged: false,
+      hasMissing: false,
+      isReserved: false,
+      searchTerm: '',
+      specificLocation: 'all',
+      recentlyUpdated: 'all'
+    });
+  };
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -169,7 +295,9 @@ export const AssetTable = ({ assets, onEdit, onDelete, onUpdateAsset, onViewAnal
     );
   };
 
-  const getStockBadge = (quantity: number, lowStockLevel: number, criticalStockLevel: number) => {
+  const getStockBadge = (asset: Asset) => {
+    const { quantity, lowStockLevel, criticalStockLevel } = asset;
+
     if (quantity === 0) {
       return <Badge variant="destructive">Out of Stock</Badge>;
     } else if (quantity <= criticalStockLevel) {
@@ -275,24 +403,50 @@ export const AssetTable = ({ assets, onEdit, onDelete, onUpdateAsset, onViewAnal
               </SelectContent>
             </Select>
 
-            <Select value={filterStatus} onValueChange={(value: any) => setFilterStatus(value)}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Status" />
+            <Select value={filterAvailability} onValueChange={(value: any) => setFilterAvailability(value)}>
+              <SelectTrigger className="w-44">
+                <SelectValue placeholder="Availability" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="damaged">Damaged</SelectItem>
-                <SelectItem value="missing">Missing</SelectItem>
-                <SelectItem value="maintenance">Maintenance</SelectItem>
-                <SelectItem value="out-of-stock">Out of Stock</SelectItem>
-                <SelectItem value="low-stock">Low Stock</SelectItem>
-                <SelectItem value="in-stock">In Stock</SelectItem>
+                <SelectItem value="all">All Availability</SelectItem>
+                <SelectItem value="ready">✅ Ready to Use</SelectItem>
+                <SelectItem value="restock">📦 Needs Restock</SelectItem>
+                <SelectItem value="critical">🚨 Critical Stock</SelectItem>
+                <SelectItem value="out">❌ Out of Stock</SelectItem>
+                <SelectItem value="issues">⚠️ Has Issues</SelectItem>
+                <SelectItem value="reserved">🔒 Checked Out</SelectItem>
               </SelectContent>
             </Select>
+
+            <Button
+              variant="outline"
+              onClick={() => setShowAdvancedFilters(true)}
+              className="gap-2 relative"
+            >
+              <Filter className="h-4 w-4" />
+              More Filters
+              {activeAdvancedFilterCount > 0 && (
+                <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-xs">
+                  {activeAdvancedFilterCount}
+                </Badge>
+              )}
+            </Button>
           </div>
         </div>
       </div>
+
+      {/* Advanced Filter Sheet */}
+      <AdvancedFilterSheet
+        open={showAdvancedFilters}
+        onOpenChange={setShowAdvancedFilters}
+        filters={advancedFilters}
+        onFiltersChange={setAdvancedFilters}
+        onApply={() => setShowAdvancedFilters(false)}
+        onClear={handleClearAdvancedFilters}
+        activeFilterCount={activeAdvancedFilterCount}
+        sites={sites || []}
+        assetLocations={assetLocations}
+      />
 
       {/* Table */}
       <div className="bg-card border-0 shadow-soft rounded-lg overflow-hidden">
@@ -363,10 +517,10 @@ export const AssetTable = ({ assets, onEdit, onDelete, onUpdateAsset, onViewAnal
                   )}
 
                   <TableCell>
-                    {asset.location || '-'}
+                    {asset.location || (asset.siteId && siteMap[asset.siteId]) || '-'}
                   </TableCell>
 
-                  <TableCell>{getStockBadge(asset.quantity, asset.lowStockLevel, asset.criticalStockLevel)}</TableCell>
+                  <TableCell>{getStockBadge(asset)}</TableCell>
 
                   <TableCell>
                     <DropdownMenu>
@@ -477,7 +631,7 @@ export const AssetTable = ({ assets, onEdit, onDelete, onUpdateAsset, onViewAnal
             <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">No assets found</h3>
             <p className="text-muted-foreground">
-              {searchTerm || filterCategory !== 'all' || filterType !== 'all' || filterStatus !== 'all'
+              {searchTerm || filterCategory !== 'all' || filterType !== 'all' || filterAvailability !== 'all' || activeAdvancedFilterCount > 0
                 ? "Try adjusting your search or filters"
                 : "Start by adding your first asset"}
             </p>

@@ -1420,6 +1420,7 @@ const Index = () => {
       case "assets":
         return <AssetTable
           assets={assets}
+          sites={sites}
           onEdit={isAuthenticated ? handleEditAsset : undefined}
           onDelete={isAuthenticated ? handleDeleteAsset : undefined}
           onUpdateAsset={(updatedAsset) => {
