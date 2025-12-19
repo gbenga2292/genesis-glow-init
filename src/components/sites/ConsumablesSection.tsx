@@ -61,27 +61,28 @@ export const ConsumablesSection = ({
     notes: ""
   });
 
-  // Filter consumables at the site (INCLUDING depleted/zero and historical via waybills/logs)
+  // Filter consumables and non-consumables at the site (INCLUDING depleted/zero and historical via waybills/logs)
   const siteConsumables = assets.filter(asset => {
-    if (asset.type !== 'consumable') return false;
+    // Include both consumable and non-consumable types
+    if (asset.type !== 'consumable' && asset.type !== 'non-consumable') return false;
 
-    // Check if consumable has usage logs at this site
+    // Check if item has usage logs at this site
     const hasLogs = consumableLogs.some(log =>
       log.consumableId === asset.id &&
       log.siteId === site.id
     );
 
-    // Check if consumable currently has quantity at this site (including 0)
+    // Check if item currently has quantity at this site (including 0)
     const hasSiteQuantity = asset.siteQuantities && asset.siteQuantities[site.id] !== undefined;
 
-    // Check if consumable was ever sent to this site via waybill
+    // Check if item was ever sent to this site via waybill
     const hasWaybillHistory = waybills.some(wb =>
       wb.siteId === site.id &&
       wb.items.some(item => item.assetId === asset.id)
     );
 
-    // Show consumable if it has logs, current site quantity, OR waybill history
-    // This ensures consumables remain visible even if fully consumed/returned
+    // Show item if it has logs, current site quantity, OR waybill history
+    // This ensures items remain visible even if fully consumed/returned
     return hasLogs || hasSiteQuantity || hasWaybillHistory;
   });
 
@@ -283,7 +284,8 @@ export const ConsumablesSection = ({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Package2 className="h-5 w-5" />
-          <h3 className="text-lg font-semibold">Consumables Tracking</h3>
+          <h3 className="text-lg font-semibold">Materials Tracking</h3>
+          <Badge variant="outline" className="text-xs">Consumables & Non-Consumables</Badge>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -305,7 +307,7 @@ export const ConsumablesSection = ({
 
       <CollapsibleContent className="space-y-4">
         {siteConsumables.length === 0 ? (
-          <p className="text-muted-foreground">No consumables at this site.</p>
+          <p className="text-muted-foreground">No materials at this site.</p>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {siteConsumables.map((consumable) => {
