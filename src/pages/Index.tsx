@@ -1816,16 +1816,32 @@ const Index = () => {
                   // Database already returns transformed data (camelCase), no need to map again
                   setConsumableLogs(logs);
 
-                  // Update asset siteQuantities to reflect consumption
+                  // Update asset siteQuantities and usedCount to reflect consumption
                   const asset = assets.find(a => a.id === log.consumableId);
                   if (asset && asset.siteQuantities) {
                     const updatedSiteQuantities = {
                       ...asset.siteQuantities,
                       [log.siteId]: log.quantityRemaining
                     };
+                    
+                    // Increment usedCount by the quantity consumed
+                    const newUsedCount = (asset.usedCount || 0) + log.quantityUsed;
+                    
+                    // Recalculate available quantity (doesn't include siteQuantities - those are already at sites)
+                    // Available = Total - Reserved - Damaged - Missing - Used
+                    const newAvailable = Math.max(0, 
+                      asset.quantity - 
+                      (asset.reservedQuantity || 0) - 
+                      (asset.damagedCount || 0) - 
+                      (asset.missingCount || 0) - 
+                      newUsedCount
+                    );
+                    
                     const updatedAsset = {
                       ...asset,
                       siteQuantities: updatedSiteQuantities,
+                      usedCount: newUsedCount,
+                      availableQuantity: newAvailable,
                       updatedAt: new Date()
                     };
                     await window.electronAPI.db.updateAsset(asset.id, updatedAsset);
@@ -1860,6 +1876,11 @@ const Index = () => {
 
               if (window.electronAPI && window.electronAPI.db) {
                 try {
+                  // Find the old log to calculate the difference
+                  const oldLog = consumableLogs.find(l => l.id === log.id);
+                  const oldQuantityUsed = oldLog?.quantityUsed || 0;
+                  const quantityDifference = log.quantityUsed - oldQuantityUsed;
+                  
                   const logData = {
                     ...log,
                     consumable_id: log.consumableId,
@@ -1875,8 +1896,40 @@ const Index = () => {
                   };
                   await window.electronAPI.db.updateConsumableLog(log.id, logData);
                   const logs = await window.electronAPI.db.getConsumableLogs();
-                  // Database already returns transformed data (camelCase), no need to map again
                   setConsumableLogs(logs);
+                  
+                  // Update asset usedCount and siteQuantities if quantity changed
+                  if (quantityDifference !== 0) {
+                    const asset = assets.find(a => a.id === log.consumableId);
+                    if (asset && asset.siteQuantities) {
+                      const updatedSiteQuantities = {
+                        ...asset.siteQuantities,
+                        [log.siteId]: log.quantityRemaining
+                      };
+                      
+                      // Adjust usedCount by the difference
+                      const newUsedCount = Math.max(0, (asset.usedCount || 0) + quantityDifference);
+                      
+                      // Recalculate available quantity
+                      const newAvailable = Math.max(0, 
+                        asset.quantity - 
+                        (asset.reservedQuantity || 0) - 
+                        (asset.damagedCount || 0) - 
+                        (asset.missingCount || 0) - 
+                        newUsedCount
+                      );
+                      
+                      const updatedAsset = {
+                        ...asset,
+                        siteQuantities: updatedSiteQuantities,
+                        usedCount: newUsedCount,
+                        availableQuantity: newAvailable,
+                        updatedAt: new Date()
+                      };
+                      await window.electronAPI.db.updateAsset(asset.id, updatedAsset);
+                      setAssets(prev => prev.map(a => a.id === asset.id ? updatedAsset : a));
+                    }
+                  }
                 } catch (error) {
                   logger.error('Failed to update consumable log', error);
                   toast({
