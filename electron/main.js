@@ -7,6 +7,36 @@ import { fileURLToPath } from 'url';
 import log from 'electron-log';
 import { initializeDatabase } from './databaseSetup.js';
 
+// ============= Single Instance Lock =============
+// Prevent multiple instances of the app from running
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  // Another instance is already running, quit this one
+  console.log('Another instance is already running. Quitting...');
+  app.quit();
+} else {
+  // This is the first instance
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    // Someone tried to run a second instance, focus our window instead
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore();
+      }
+      mainWindow.focus();
+      
+      // Show a dialog to inform the user
+      dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: 'App Already Running',
+        message: 'The application is already running.',
+        detail: 'The existing window has been brought to focus.',
+        buttons: ['OK']
+      });
+    }
+  });
+}
+
 // Configure electron-log
 log.initialize();
 log.transports.file.level = 'info';
