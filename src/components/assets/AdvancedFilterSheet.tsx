@@ -340,7 +340,7 @@ export const AdvancedFilterSheet = ({
                                     onCheckedChange={(checked) => updateFilter('isReserved', checked)}
                                 />
                                 <label htmlFor="reserved" className="text-sm cursor-pointer flex-1">
-                                    Currently Checked Out
+                                    Has Reserved Items (Reserved &gt; 0)
                                 </label>
                             </div>
                         </div>
