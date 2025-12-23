@@ -304,6 +304,29 @@ async function main() {
     }
   });
 
+  // Window control handlers
+  ipcMain.handle('window:minimize', () => {
+    if (mainWindow) mainWindow.minimize();
+  });
+
+  ipcMain.handle('window:maximize', () => {
+    if (mainWindow) {
+      if (mainWindow.isMaximized()) {
+        mainWindow.unmaximize();
+      } else {
+        mainWindow.maximize();
+      }
+    }
+  });
+
+  ipcMain.handle('window:close', () => {
+    if (mainWindow) mainWindow.close();
+  });
+
+  ipcMain.handle('window:isMaximized', () => {
+    return mainWindow ? mainWindow.isMaximized() : false;
+  });
+
   console.log('IPC handlers registered.');
 
   // --- Initialize Backup Scheduler ---
@@ -514,6 +537,8 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
+    frame: false,
+    titleBarStyle: 'hidden',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -522,6 +547,9 @@ function createWindow() {
     },
     icon: path.join(__dirname, '../public/favicon.ico')
   });
+
+  // Remove the default menu
+  mainWindow.setMenu(null);
 
   if (process.env.NODE_ENV === 'development') {
     mainWindow.loadURL('http://localhost:8080');

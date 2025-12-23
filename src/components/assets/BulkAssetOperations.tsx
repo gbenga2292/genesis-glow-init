@@ -85,12 +85,12 @@ export const BulkAssetOperations = ({
 
     const handleBulkEdit = async () => {
         // Filter out undefined values
-        const updates = Object.entries(bulkEditData).reduce((acc, [key, value]) => {
+        const updates: Partial<Asset> = {};
+        Object.entries(bulkEditData).forEach(([key, value]) => {
             if (value !== undefined && value !== '') {
-                acc[key as keyof typeof bulkEditData] = value;
+                (updates as Record<string, unknown>)[key] = value;
             }
-            return acc;
-        }, {} as Partial<Asset>);
+        });
 
         if (Object.keys(updates).length === 0) {
             toast({

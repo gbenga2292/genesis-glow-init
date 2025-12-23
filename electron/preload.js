@@ -40,6 +40,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getSyncStatus: () => ipcRenderer.invoke('sync:getStatus'),
     manualSync: () => ipcRenderer.invoke('sync:manualSync'),
 
+    // Window controls
+    window: {
+        minimize: () => ipcRenderer.invoke('window:minimize'),
+        maximize: () => ipcRenderer.invoke('window:maximize'),
+        close: () => ipcRenderer.invoke('window:close'),
+        isMaximized: () => ipcRenderer.invoke('window:isMaximized'),
+    },
+
     // Logging
     log: (level, message, data) => ipcRenderer.send('log-message', { level, message, data }),
 });

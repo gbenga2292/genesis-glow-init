@@ -6,6 +6,7 @@ import { Dashboard } from "@/components/dashboard/Dashboard";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu, Plus, Bot } from "lucide-react";
+import { AppMenuBar } from "@/components/layout/AppMenuBar";
 import { cn } from "@/lib/utils";
 import { AssetTable } from "@/components/assets/AssetTable";
 import { AddAssetForm } from "@/components/assets/AddAssetForm";
@@ -2373,11 +2374,22 @@ const Index = () => {
       vehicles={vehicles}
       onAction={handleAIAction}
     >
-      <div className="flex h-screen bg-background">
-        {/* Desktop Sidebar */}
+      <div className="flex flex-col h-screen bg-background">
+        {/* Custom Menu Bar for Desktop */}
         {!isMobile && (
-          <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+          <AppMenuBar
+            onNewAsset={() => setActiveTab("add-asset")}
+            onRefresh={() => window.location.reload()}
+            onExport={() => {/* handled in InventoryReport */}}
+            onOpenSettings={() => setActiveTab("settings")}
+          />
         )}
+
+        <div className="flex flex-1 overflow-hidden">
+          {/* Desktop Sidebar */}
+          {!isMobile && (
+            <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+          )}
 
         {/* Mobile Header */}
         {isMobile && (
@@ -2631,6 +2643,7 @@ const Index = () => {
             </Button>
           )}
         </main>
+        </div>
       </div>
     </AIAssistantProvider>
   );
