@@ -122,7 +122,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
     const displayAssets = isExpanded ? assets : assets.slice(0, 3);
 
     return (
-      <Card className="border-0 shadow-soft animate-slide-up" style={{ animationDelay: delay }}>
+      <Card className="border-0 shadow-soft">
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -150,7 +150,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
               <div key={asset.id || index} className="flex justify-between items-center">
                 <span className="text-sm">{asset.name}</span>
                 <span className={`text-sm font-medium ${asset.quantity === 0 ? 'text-destructive' :
-                    asset.quantity < 10 ? 'text-warning' : 'text-success'
+                  asset.quantity < 10 ? 'text-warning' : 'text-success'
                   }`}>
                   {asset.quantity} {asset.unitOfMeasurement}
                 </span>
@@ -289,7 +289,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
 
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-8">
       {/* Sync Status Banner */}
       <SyncStatusBanner />
 
@@ -310,8 +310,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
           return (
             <Card
               key={stat.title}
-              className="border-0 shadow-soft hover:shadow-medium transition-all duration-300 animate-slide-up"
-              style={{ animationDelay: `${index * 0.1}s` }}
+              className="border-0 shadow-soft hover:shadow-medium transition-all duration-300"
             >
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -358,7 +357,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
 
       {/* Equipment Requiring Logging */}
       {equipmentRequiringLogging.length > 0 && (
-        <Card className="border-0 shadow-soft animate-slide-up" style={{ animationDelay: '0.8s' }}>
+        <Card className="border-0 shadow-soft">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Wrench className="h-5 w-5 text-primary" />
@@ -432,7 +431,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
       )}
 
       {/* Recent Activity */}
-      <Card className="border-0 shadow-soft animate-slide-up" style={{ animationDelay: '0.9s' }}>
+      <Card className="border-0 shadow-soft">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>

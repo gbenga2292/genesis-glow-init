@@ -32,6 +32,8 @@ import { useToast } from "@/hooks/use-toast";
 import { BulkImportAssets } from "@/components/assets/BulkImportAssets";
 import { InventoryReport } from "@/components/assets/InventoryReport";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { SitesPage } from "@/components/sites/SitesPage";
 import { useAuth } from "@/contexts/AuthContext";
@@ -41,14 +43,21 @@ import { AIAssistantProvider, useAIAssistant } from "@/contexts/AIAssistantConte
 import { AIAssistantChat } from "@/components/ai/AIAssistantChat";
 import { logActivity } from "@/utils/activityLogger";
 import { calculateAvailableQuantity } from "@/utils/assetCalculations";
+import { AuditCharts } from "@/components/reporting/AuditCharts";
 
 const Index = () => {
   const { toast } = useToast();
   const { isAuthenticated, hasPermission, currentUser } = useAuth();
+
   const isMobile = useIsMobile();
   const params = useParams();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("dashboard");
+
+  // Reset scroll on tab change
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [activeTab]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showWaybillDocument, setShowWaybillDocument] = useState<Waybill | null>(null);
   const [showReturnWaybillDocument, setShowReturnWaybillDocument] = useState<Waybill | null>(null);
@@ -61,6 +70,10 @@ const Index = () => {
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [aiPrefillData, setAiPrefillData] = useState<any>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [isGeneratingAudit, setIsGeneratingAudit] = useState(false);
+  const [showAuditDateDialog, setShowAuditDateDialog] = useState(false);
+  const [auditStartDate, setAuditStartDate] = useState<string>(`${new Date().getFullYear()}-01-01`);
+  const [auditEndDate, setAuditEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
   // Load assets from database
   useEffect(() => {
@@ -278,7 +291,7 @@ const Index = () => {
   // Initialize site inventory hook to track materials at each site
   const { siteInventory, getSiteInventory } = useSiteInventory(waybills, assets);
 
-  // Listen for PDF export trigger from AppMenuBar
+  // Listen for PDF/Audit export triggers from AppMenuBar
   // Placed here to ensure all dependencies (assets, companySettings) are initialized (avoid TDZ)
   useEffect(() => {
     const handlePDFExportTrigger = () => {
@@ -302,12 +315,91 @@ const Index = () => {
       });
     };
 
+    const handleAuditExportTrigger = () => {
+      if (!isAuthenticated) {
+        toast({
+          title: "Authentication Required",
+          description: "Please login to export data",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Only admin users can generate audit reports
+      if (currentUser?.role !== 'admin') {
+        toast({
+          title: "Access Denied",
+          description: "Only administrators can generate audit reports",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Show date selection dialog first
+      setShowAuditDateDialog(true);
+    };
+
     window.addEventListener('trigger-pdf-export', handlePDFExportTrigger as EventListener);
+    window.addEventListener('trigger-audit-export', handleAuditExportTrigger as EventListener);
 
     return () => {
       window.removeEventListener('trigger-pdf-export', handlePDFExportTrigger as EventListener);
+      window.removeEventListener('trigger-audit-export', handleAuditExportTrigger as EventListener);
     };
   }, [isAuthenticated, assets, companySettings]);
+
+  // Handle Audit Generation Process (Auto-run when dialog opens)
+  useEffect(() => {
+    if (isGeneratingAudit) {
+      const generate = async () => {
+        try {
+          // Wait for charts to render (Recharts animations need time or a tick)
+          await new Promise(resolve => setTimeout(resolve, 1500));
+
+          const element = document.getElementById('audit-charts-container');
+          let chartImage = undefined;
+
+          if (element) {
+            const html2canvas = (await import('html2canvas')).default;
+            const canvas = await html2canvas(element, { scale: 2 });
+            chartImage = canvas.toDataURL('image/png');
+          }
+
+          const { generateAuditReport } = await import("@/utils/auditReportGenerator");
+          await generateAuditReport({
+            startDate: new Date(auditStartDate),
+            endDate: new Date(auditEndDate),
+            companySettings,
+            assets,
+            waybills,
+            sites,
+            employees,
+            checkouts: quickCheckouts,
+            equipmentLogs,
+            consumableLogs,
+            siteInventory: new Map(),
+            chartImage
+          });
+
+          toast({
+            title: "Operations Audit Generated",
+            description: `Audit report for ${auditStartDate} to ${auditEndDate} has been saved.`
+          });
+        } catch (error) {
+          logger.error("Failed to generate audit report", error);
+          toast({
+            title: "Generation Failed",
+            description: "Failed to generate report visuals.",
+            variant: "destructive"
+          });
+        } finally {
+          setIsGeneratingAudit(false);
+        }
+      };
+
+      generate();
+    }
+  }, [isGeneratingAudit, auditStartDate, auditEndDate, assets, waybills, sites, employees, quickCheckouts, equipmentLogs, consumableLogs, companySettings]);
 
 
 
@@ -2406,68 +2498,56 @@ const Index = () => {
       vehicles={vehicles}
       onAction={handleAIAction}
     >
-      <div className="flex flex-col min-h-screen bg-background">
+      <div className="flex flex-col h-screen overflow-hidden bg-background">
         {/* Custom Menu Bar for Desktop */}
-        {!isMobile && (
-          <AppMenuBar
-            onNewAsset={() => setActiveTab("add-asset")}
-            onRefresh={() => window.location.reload()}
-            onExport={() => {
-              if (isAuthenticated) {
-                import("@/utils/exportUtils").then(({ exportAssetsToExcel }) => {
-                  exportAssetsToExcel(assets, "Full_Inventory_Export");
-                  toast({
-                    title: "Export Initiated",
-                    description: "Your inventory data is being exported to Excel."
-                  });
-                });
-              } else {
+        <AppMenuBar
+          onNewAsset={() => setActiveTab("add-asset")}
+          onRefresh={() => window.location.reload()}
+          onExport={() => {
+            if (isAuthenticated) {
+              import("@/utils/exportUtils").then(({ exportAssetsToExcel }) => {
+                exportAssetsToExcel(assets, "Full_Inventory_Export");
                 toast({
-                  title: "Authentication Required",
-                  description: "Please login to export data",
-                  variant: "destructive"
+                  title: "Export Initiated",
+                  description: "Your inventory data is being exported to Excel."
                 });
-              }
-            }}
-            onOpenSettings={() => setActiveTab("settings")}
-            canCreateAsset={isAuthenticated && hasPermission('write_assets')}
-          />
-        )}
+              });
+            } else {
+              toast({
+                title: "Authentication Required",
+                description: "Please login to export data",
+                variant: "destructive"
+              });
+            }
+          }}
+          onOpenSettings={() => setActiveTab("settings")}
+          canCreateAsset={hasPermission('write_assets')}
+          onMobileMenuClick={isMobile ? () => setMobileMenuOpen(true) : undefined}
+          currentUser={currentUser}
+        />
 
-        <div className="flex flex-1">
+        {/* Mobile Sidebar Sheet */}
+        <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+          <SheetContent side="left" className="w-64 p-0">
+            <Sidebar
+              activeTab={activeTab}
+              onTabChange={(tab) => {
+                setActiveTab(tab);
+                setMobileMenuOpen(false);
+              }}
+              mode="mobile"
+            />
+          </SheetContent>
+        </Sheet>
+
+        <div className="flex flex-1 overflow-hidden">
           {/* Desktop Sidebar */}
           {!isMobile && (
             <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
           )}
 
-          {/* Mobile Header */}
-          {isMobile && (
-            <div className="fixed top-0 left-0 right-0 z-50 bg-background border-b border-border p-4 flex items-center justify-between">
-              <h1 className="text-lg font-bold bg-gradient-primary bg-clip-text text-transparent">
-                DCEL Asset Manager
-              </h1>
-              <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-                <SheetTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    <Menu className="h-5 w-5" />
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="left" className="w-64 p-0">
-                  <Sidebar
-                    activeTab={activeTab}
-                    onTabChange={(tab) => {
-                      setActiveTab(tab);
-                      setMobileMenuOpen(false);
-                    }}
-                  />
-                </SheetContent>
-              </Sheet>
-            </div>
-          )}
-
           <main className={cn(
-            "flex-1 p-4 md:p-6",
-            isMobile && "pt-20"
+            "flex-1 overflow-y-auto p-4 md:p-6"
           )}>
             {isAssetInventoryTab && (
               <div className="flex flex-col space-y-3 md:space-y-0 md:flex-row md:justify-between md:items-center mb-6">
@@ -2694,6 +2774,160 @@ const Index = () => {
           </main>
         </div>
       </div>
+
+      {/* Audit Report Generation Loading Dialog */}
+      {isGeneratingAudit && (
+        <Dialog open={true}>
+          <DialogContent className="max-w-md">
+            <div className="flex flex-col items-center justify-center py-8 gap-6">
+              <div className="relative">
+                <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary/20 border-t-primary"></div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-lg font-bold text-primary">📊</span>
+                </div>
+              </div>
+
+              <div className="text-center space-y-2">
+                <h3 className="text-lg font-semibold">Generating Operations Audit Report</h3>
+                <p className="text-sm text-muted-foreground">
+                  Analyzing data and preparing comprehensive report...
+                </p>
+              </div>
+
+              <div className="w-full space-y-3">
+                <div className="flex items-center gap-3 text-sm">
+                  <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
+                  <span className="text-muted-foreground">Collecting asset data</span>
+                </div>
+                <div className="flex items-center gap-3 text-sm">
+                  <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
+                  <span className="text-muted-foreground">Analyzing equipment performance</span>
+                </div>
+                <div className="flex items-center gap-3 text-sm">
+                  <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
+                  <span className="text-muted-foreground">Processing consumable usage</span>
+                </div>
+                <div className="flex items-center gap-3 text-sm">
+                  <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse"></div>
+                  <span className="text-muted-foreground">Generating PDF document...</span>
+                </div>
+              </div>
+
+              <p className="text-xs text-muted-foreground text-center mt-4">
+                This may take a few seconds depending on data volume.
+              </p>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Audit Date Range Selection Dialog */}
+      <Dialog open={showAuditDateDialog} onOpenChange={setShowAuditDateDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              📊 Generate Operations Audit Report
+            </DialogTitle>
+            <DialogDescription>
+              Select the date range for the audit report. The report will analyze all operations within this period.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="audit-start-date">Start Date</Label>
+                <Input
+                  id="audit-start-date"
+                  type="date"
+                  value={auditStartDate}
+                  onChange={(e) => setAuditStartDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="audit-end-date">End Date</Label>
+                <Input
+                  id="audit-end-date"
+                  type="date"
+                  value={auditEndDate}
+                  onChange={(e) => setAuditEndDate(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const year = new Date().getFullYear();
+                  setAuditStartDate(`${year}-01-01`);
+                  setAuditEndDate(`${year}-12-31`);
+                }}
+              >
+                This Year
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const year = new Date().getFullYear() - 1;
+                  setAuditStartDate(`${year}-01-01`);
+                  setAuditEndDate(`${year}-12-31`);
+                }}
+              >
+                Last Year
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const now = new Date();
+                  const firstDay = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+                  setAuditStartDate(firstDay.toISOString().split('T')[0]);
+                  setAuditEndDate(now.toISOString().split('T')[0]);
+                }}
+              >
+                Last 3 Months
+              </Button>
+            </div>
+
+            <div className="bg-muted p-3 rounded-md text-sm">
+              <p className="font-medium mb-1">Report will include:</p>
+              <ul className="text-muted-foreground text-xs space-y-1">
+                <li>• Financial growth analysis for the period</li>
+                <li>• Site operations and materials deployed</li>
+                <li>• Critical equipment utilization</li>
+                <li>• Consumable usage patterns</li>
+                <li>• Fleet and employee accountability</li>
+              </ul>
+            </div>
+          </div>
+
+          <DialogFooter className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowAuditDateDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                setShowAuditDateDialog(false);
+                setIsGeneratingAudit(true);
+              }}
+              className="bg-gradient-primary"
+            >
+              Generate Report
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Hidden container for chart capture - off-screen */}
+      {isGeneratingAudit && (
+        <div className="fixed -left-[9999px] -top-[9999px]">
+          <AuditCharts assets={assets} equipmentLogs={equipmentLogs} />
+        </div>
+      )}
+
     </AIAssistantProvider>
   );
 };

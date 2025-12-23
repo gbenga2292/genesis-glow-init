@@ -10,7 +10,7 @@ import {
   MenubarCheckboxItem,
 } from "@/components/ui/menubar";
 import { useTheme } from "next-themes";
-import { Minus, Square, X, Maximize2, Keyboard, Info, FileSpreadsheet, FileText } from "lucide-react";
+import { Minus, Square, X, Maximize2, Keyboard, Info, FileSpreadsheet, FileText, Menu } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -26,6 +26,8 @@ interface AppMenuBarProps {
   onExport?: () => void;
   onOpenSettings?: () => void;
   canCreateAsset?: boolean;
+  onMobileMenuClick?: () => void;
+  currentUser?: { role: string; name: string } | null;
 }
 
 export const AppMenuBar = ({
@@ -34,6 +36,8 @@ export const AppMenuBar = ({
   onExport,
   onOpenSettings,
   canCreateAsset = true,
+  onMobileMenuClick,
+  currentUser,
 }: AppMenuBarProps) => {
   const { theme, setTheme } = useTheme();
   const [isMaximized, setIsMaximized] = useState(false);
@@ -126,15 +130,23 @@ export const AppMenuBar = ({
 
   return (
     <>
-      <div className="flex items-center justify-between bg-background/95 backdrop-blur-sm border-b border-border app-drag-region sticky top-0 z-50">
+      <div className="flex items-center justify-between bg-background/95 backdrop-blur-sm border-b border-border app-drag-region sticky top-0 z-50 h-12 pr-[140px]">
         {/* Logo and Menu */}
         <div className="flex items-center app-no-drag">
+          {onMobileMenuClick && (
+            <button
+              onClick={onMobileMenuClick}
+              className="px-3 py-2 hover:bg-accent mr-1 md:hidden text-foreground"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+          )}
           <div className="px-4 py-2 flex items-center gap-2">
             <img src="/favicon.ico" alt="DCEL" className="h-5 w-5" />
             <span className="text-sm font-semibold text-foreground">DCEL</span>
           </div>
 
-          <Menubar className="border-0 bg-transparent h-auto">
+          <Menubar className="border-0 bg-transparent h-auto hidden md:flex">
             <MenubarMenu>
               <MenubarTrigger className="text-xs px-3 py-1.5 font-medium data-[state=open]:bg-accent hover:bg-accent/80 rounded-sm">
                 File
@@ -199,33 +211,12 @@ export const AppMenuBar = ({
           </Menubar>
         </div>
 
-        {/* Window Controls */}
-        <div className="flex items-center app-no-drag">
-          <button
-            onClick={handleMinimize}
-            className="h-8 w-12 flex items-center justify-center hover:bg-muted/80 transition-colors"
-            title="Minimize"
-          >
-            <Minus className="h-3.5 w-3.5 text-muted-foreground" />
-          </button>
-          <button
-            onClick={handleMaximize}
-            className="h-8 w-12 flex items-center justify-center hover:bg-muted/80 transition-colors"
-            title={isMaximized ? "Restore" : "Maximize"}
-          >
-            {isMaximized ? (
-              <Square className="h-3 w-3 text-muted-foreground" />
-            ) : (
-              <Maximize2 className="h-3.5 w-3.5 text-muted-foreground" />
-            )}
-          </button>
-          <button
-            onClick={handleClose}
-            className="h-8 w-12 flex items-center justify-center hover:bg-destructive hover:text-destructive-foreground transition-colors"
-            title="Close"
-          >
-            <X className="h-4 w-4 text-muted-foreground hover:text-destructive-foreground" />
-          </button>
+        {/* Window Controls - Handled naturally by Electron titleBarOverlay on Windows */}
+        <div className="flex items-center app-no-drag w-32">
+          {/* Spacer for native controls if needed, but flex-1 would handle it. 
+              Actually, with justify-between, if we have no right element, the left element stays left.
+              We don't need to put anything here. 
+          */}
         </div>
       </div>
 
@@ -267,6 +258,20 @@ export const AppMenuBar = ({
               <FileText className="h-8 w-8 text-red-600" />
               <span className="font-semibold">Export to PDF</span>
             </Button>
+            {currentUser?.role === 'admin' && (
+              <Button
+                variant="outline"
+                className="h-24 flex flex-col items-center justify-center gap-2 hover:bg-accent/50 hover:border-primary/50 transition-all col-span-2"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('trigger-audit-export'));
+                  setShowExportDialog(false);
+                }}
+              >
+                <FileText className="h-8 w-8 text-blue-600" />
+                <span className="font-semibold">Audit Report</span>
+                <span className="text-xs text-muted-foreground">(Admin Only)</span>
+              </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>

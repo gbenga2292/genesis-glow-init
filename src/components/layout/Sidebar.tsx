@@ -26,6 +26,7 @@ import {
 interface SidebarProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
+  mode?: 'desktop' | 'mobile';
 }
 
 interface SyncStatus {
@@ -38,7 +39,7 @@ interface SyncStatus {
   localExists: boolean;
 }
 
-export const Sidebar = ({ activeTab, onTabChange }: SidebarProps) => {
+export const Sidebar = ({ activeTab, onTabChange, mode = 'desktop' }: SidebarProps) => {
   const { isAuthenticated, logout, hasPermission } = useAuth();
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
@@ -166,10 +167,13 @@ export const Sidebar = ({ activeTab, onTabChange }: SidebarProps) => {
     return hasPermission(permissions);
   };
 
-
-
   return (
-    <div className="w-64 bg-card border-r border-border h-[calc(100vh-3rem)] sticky top-12 shadow-soft flex flex-col">
+    <div className={cn(
+      "bg-card shadow-soft flex flex-col transition-all duration-300",
+      mode === 'desktop'
+        ? "w-64 border-r border-border h-full"
+        : "w-full h-full border-none"
+    )}>
       <div className="p-4 md:p-6 border-b border-border">
         <h1 className="text-lg md:text-xl font-bold bg-gradient-primary bg-clip-text text-transparent">
           DCEL Asset Manager
