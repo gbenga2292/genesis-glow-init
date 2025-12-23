@@ -2406,7 +2406,7 @@ const Index = () => {
       vehicles={vehicles}
       onAction={handleAIAction}
     >
-      <div className="flex flex-col h-screen bg-background">
+      <div className="flex flex-col min-h-screen bg-background">
         {/* Custom Menu Bar for Desktop */}
         {!isMobile && (
           <AppMenuBar
@@ -2434,7 +2434,7 @@ const Index = () => {
           />
         )}
 
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1">
           {/* Desktop Sidebar */}
           {!isMobile && (
             <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
@@ -2466,7 +2466,7 @@ const Index = () => {
           )}
 
           <main className={cn(
-            "flex-1 overflow-y-auto p-4 md:p-6",
+            "flex-1 p-4 md:p-6",
             isMobile && "pt-20"
           )}>
             {isAssetInventoryTab && (

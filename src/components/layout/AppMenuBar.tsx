@@ -126,7 +126,7 @@ export const AppMenuBar = ({
 
   return (
     <>
-      <div className="flex items-center justify-between bg-background/95 backdrop-blur-sm border-b border-border app-drag-region">
+      <div className="flex items-center justify-between bg-background/95 backdrop-blur-sm border-b border-border app-drag-region sticky top-0 z-50">
         {/* Logo and Menu */}
         <div className="flex items-center app-no-drag">
           <div className="px-4 py-2 flex items-center gap-2">

@@ -169,7 +169,7 @@ export const Sidebar = ({ activeTab, onTabChange }: SidebarProps) => {
 
 
   return (
-    <div className="w-64 bg-card border-r border-border h-full shadow-soft flex flex-col">
+    <div className="w-64 bg-card border-r border-border h-[calc(100vh-3rem)] sticky top-12 shadow-soft flex flex-col">
       <div className="p-4 md:p-6 border-b border-border">
         <h1 className="text-lg md:text-xl font-bold bg-gradient-primary bg-clip-text text-transparent">
           DCEL Asset Manager
