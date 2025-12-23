@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Table,
@@ -47,6 +48,7 @@ import { useToast } from "@/hooks/use-toast";
 import { RestockDialog } from "./RestockDialog";
 import { RestockHistoryDialog } from "./RestockHistoryDialog";
 import { AdvancedFilterSheet, AdvancedFilters } from "./AdvancedFilterSheet";
+import { BulkAssetOperations } from "./BulkAssetOperations";
 
 interface AssetTableProps {
   assets: Asset[];
@@ -63,8 +65,13 @@ type SortDirection = 'asc' | 'desc';
 
 export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onViewAnalytics }: AssetTableProps) => {
   const isMobile = useIsMobile();
-  const { isAuthenticated, hasPermission } = useAuth();
+  const { isAuthenticated, hasPermission, currentUser } = useAuth();
   const { toast } = useToast();
+
+  // Bulk operations state (admin only)
+  const [selectedAssetIds, setSelectedAssetIds] = useState<Set<string>>(new Set());
+  const isAdmin = currentUser?.role === 'admin';
+
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState<'all' | 'dewatering' | 'waterproofing' | 'tiling' | 'ppe' | 'office'>('all');
   const [filterType, setFilterType] = useState<'all' | 'consumable' | 'non-consumable' | 'tools' | 'equipment'>('all');
@@ -278,6 +285,86 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
     }
   };
 
+  // Bulk operations handlers (admin only)
+  const handleToggleAssetSelection = (assetId: string) => {
+    const newSelection = new Set(selectedAssetIds);
+    if (newSelection.has(assetId)) {
+      newSelection.delete(assetId);
+    } else {
+      newSelection.add(assetId);
+    }
+    setSelectedAssetIds(newSelection);
+  };
+
+  const handleToggleAllAssets = () => {
+    if (selectedAssetIds.size === filteredAndSortedAssets.length) {
+      setSelectedAssetIds(new Set());
+    } else {
+      setSelectedAssetIds(new Set(filteredAndSortedAssets.map(a => a.id)));
+    }
+  };
+
+  const handleBulkDelete = async (assetIds: string[]) => {
+    if (!window.electronAPI || !window.electronAPI.db) {
+      throw new Error('Database not available');
+    }
+
+    // Delete each asset
+    for (const assetId of assetIds) {
+      await window.electronAPI.db.deleteAsset(assetId);
+    }
+
+    // Reload assets from database
+    const loadedAssets = await window.electronAPI.db.getAssets();
+    const processedAssets = loadedAssets.map((item: any) => ({
+      ...item,
+      createdAt: new Date(item.createdAt),
+      updatedAt: new Date(item.updatedAt),
+      siteQuantities: item.site_quantities ? JSON.parse(item.site_quantities) : {}
+    }));
+
+    // Update parent component
+    window.dispatchEvent(new CustomEvent('refreshAssets', {
+      detail: processedAssets
+    }));
+  };
+
+  const handleBulkUpdate = async (assetIds: string[], updates: Partial<Asset>) => {
+    if (!window.electronAPI || !window.electronAPI.db) {
+      throw new Error('Database not available');
+    }
+
+    // Update each asset
+    for (const assetId of assetIds) {
+      const asset = assets.find(a => a.id === assetId);
+      if (asset) {
+        const updatedAsset = {
+          ...asset,
+          ...updates,
+          updatedAt: new Date()
+        };
+        await window.electronAPI.db.updateAsset(assetId, updatedAsset);
+      }
+    }
+
+    // Reload assets from database
+    const loadedAssets = await window.electronAPI.db.getAssets();
+    const processedAssets = loadedAssets.map((item: any) => ({
+      ...item,
+      createdAt: new Date(item.createdAt),
+      updatedAt: new Date(item.updatedAt),
+      siteQuantities: item.site_quantities ? JSON.parse(item.site_quantities) : {}
+    }));
+
+    // Update parent component
+    window.dispatchEvent(new CustomEvent('refreshAssets', {
+      detail: processedAssets
+    }));
+  };
+
+  const selectedAssets = useMemo(() => {
+    return assets.filter(asset => selectedAssetIds.has(asset.id));
+  }, [assets, selectedAssetIds]);
 
 
   const getStatusBadge = (status: Asset['status']) => {
@@ -454,6 +541,15 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
+                {isAdmin && (
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={selectedAssetIds.size === filteredAndSortedAssets.length && filteredAndSortedAssets.length > 0}
+                      onCheckedChange={handleToggleAllAssets}
+                      aria-label="Select all assets"
+                    />
+                  </TableHead>
+                )}
                 <SortableHeader field="name">Asset Name</SortableHeader>
                 <SortableHeader field="quantity">Total Stock</SortableHeader>
                 {!isMobile && <TableHead>Reserved</TableHead>}
@@ -468,6 +564,15 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
             <TableBody>
               {filteredAndSortedAssets.map((asset) => (
                 <TableRow key={asset.id} className="hover:bg-muted/30 transition-colors">
+                  {isAdmin && (
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedAssetIds.has(asset.id)}
+                        onCheckedChange={() => handleToggleAssetSelection(asset.id)}
+                        aria-label={`Select ${asset.name}`}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell className="font-medium">
                     {asset.name}
                   </TableCell>
@@ -713,6 +818,16 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
         open={showRestockHistoryDialog}
         onOpenChange={setShowRestockHistoryDialog}
       />
+
+      {/* Bulk Operations (Admin Only) */}
+      {isAdmin && (
+        <BulkAssetOperations
+          selectedAssets={selectedAssets}
+          onClearSelection={() => setSelectedAssetIds(new Set())}
+          onBulkDelete={handleBulkDelete}
+          onBulkUpdate={handleBulkUpdate}
+        />
+      )}
     </div>
   );
 };

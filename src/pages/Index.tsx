@@ -83,6 +83,19 @@ const Index = () => {
         }
       }
     })();
+
+    // Listen for asset refresh events from bulk operations
+    const handleRefreshAssets = (event: CustomEvent) => {
+      if (event.detail) {
+        setAssets(event.detail);
+      }
+    };
+
+    window.addEventListener('refreshAssets', handleRefreshAssets as EventListener);
+
+    return () => {
+      window.removeEventListener('refreshAssets', handleRefreshAssets as EventListener);
+    };
   }, []);
 
   const [waybills, setWaybills] = useState<Waybill[]>([]);
