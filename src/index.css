@@ -147,3 +147,12 @@ All colors MUST be HSL.
 .animate-slide-up {
   animation: slide-up 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* Electron window drag regions */
+.app-drag-region {
+  -webkit-app-region: drag;
+}
+
+.app-no-drag {
+  -webkit-app-region: no-drag;
+}

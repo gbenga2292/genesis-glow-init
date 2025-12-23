@@ -11,7 +11,7 @@ interface PDFGenerationOptions {
 }
 
 const defaultCompanySettings: CompanySettings = {
-  companyName: "Dewatering Construction Etc Limited",
+  companyName: "DCEL",
   logo: "/logo.png",
   address: "7 Musiliu Smith St, formerly Panti Street, Adekunle, Lagos 101212, Lagos",
   phone: "+2349030002182",

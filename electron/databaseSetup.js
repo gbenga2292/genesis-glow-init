@@ -311,10 +311,10 @@ async function initializeDatabase(dbPath) {
 
     // Seed default company settings
     await db('company_settings').insert({
-      company_name: 'Genesis Glow',
-      address: '123 Glow Street, Suite 100',
-      phone: '555-123-4567',
-      email: 'contact@genesisglow.com',
+      company_name: 'DCEL',
+      address: '7 Musiliu Smith St, formerly Panti Street, Adekunle, Lagos 101212, Lagos',
+      phone: '+2349030002182',
+      email: 'info@dewaterconstruct.com',
     });
     console.log('Seeded default company settings.');
 

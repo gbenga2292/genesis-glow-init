@@ -86,9 +86,16 @@ interface Window {
       restoreJsonBackup: (backupData: any, selectedSections: string[]) => Promise<{ success: boolean; errors?: any[]; message?: string; error?: string }>;
       createDatabaseBackup: (destinationPath: string) => Promise<{ success: boolean; path?: string; size?: number; message?: string; error?: string }>;
       restoreDatabaseBackup: (sourcePath: string, targetPath: string) => Promise<{ success: boolean; message?: string; error?: string }>;
+      clearTable: (tableName: string) => Promise<{ success: boolean; error?: string }>;
     };
     getSyncStatus: () => Promise<any>;
     manualSync: () => Promise<any>;
+    window: {
+      minimize: () => Promise<void>;
+      maximize: () => Promise<void>;
+      close: () => Promise<void>;
+      isMaximized: () => Promise<boolean>;
+    };
   };
   backupScheduler?: {
     getStatus: () => Promise<{

@@ -42,7 +42,7 @@ const config = {
   localPath: null,
 
   // Database filename (do not change unless you know what you're doing)
-  databaseFilename: 'genesis-glow.sqlite',
+  databaseFilename: 'dcel.sqlite',
   
   // Lock file for preventing concurrent access (do not change)
   lockFilename: 'db.lock',
