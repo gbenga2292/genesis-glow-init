@@ -26,7 +26,7 @@ const USE_DEFAULT_APP_DATA = false;
 
 const config = {
   ...apiKeys,
-  
+
   // Choose which database path to use:
   // 'network' - Use network/NAS storage (NETWORK_DB_PATH)
   // 'local' - Use custom local path (LOCAL_DB_PATH)
@@ -43,7 +43,7 @@ const config = {
 
   // Database filename (do not change unless you know what you're doing)
   databaseFilename: 'dcel.sqlite',
-  
+
   // Lock file for preventing concurrent access (do not change)
   lockFilename: 'db.lock',
 

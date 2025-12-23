@@ -51,7 +51,7 @@ export const Sidebar = ({ activeTab, onTabChange }: SidebarProps) => {
       if (window.electronAPI?.getSyncStatus) {
         setIsElectron(true);
         loadSyncStatus();
-        
+
         // Refresh status every 30 seconds
         const interval = setInterval(loadSyncStatus, 30000);
         return () => clearInterval(interval);
@@ -72,11 +72,11 @@ export const Sidebar = ({ activeTab, onTabChange }: SidebarProps) => {
 
   const handleManualSync = async () => {
     if (!window.electronAPI?.manualSync) return;
-    
+
     setIsSyncing(true);
     try {
       const result = await window.electronAPI.manualSync();
-      
+
       if (result.success) {
         toast.success("Database synced successfully");
         await loadSyncStatus();
@@ -93,7 +93,7 @@ export const Sidebar = ({ activeTab, onTabChange }: SidebarProps) => {
       setIsSyncing(false);
     }
   };
-  
+
   const authenticatedMenuItems = [
     {
       id: "dashboard",
@@ -150,7 +150,7 @@ export const Sidebar = ({ activeTab, onTabChange }: SidebarProps) => {
       case 'sites':
         return 'read_sites';
       case 'settings':
-        return ['edit_company_info', 'change_theme', 'manage_users', 'view_activity_log'];
+        return null; // Accessible to all authenticated users so they can update profile/theme
       default:
         return null;
     }
@@ -178,7 +178,7 @@ export const Sidebar = ({ activeTab, onTabChange }: SidebarProps) => {
           Inventory & Logistics
         </p>
       </div>
-      
+
       <nav className="p-3 md:p-4 space-y-1 md:space-y-2 flex-1 overflow-y-auto">
         {menuItems.map((item) => {
           const hasAccessToItem = hasAccess(item.id);

@@ -278,6 +278,38 @@ const Index = () => {
   // Initialize site inventory hook to track materials at each site
   const { siteInventory, getSiteInventory } = useSiteInventory(waybills, assets);
 
+  // Listen for PDF export trigger from AppMenuBar
+  // Placed here to ensure all dependencies (assets, companySettings) are initialized (avoid TDZ)
+  useEffect(() => {
+    const handlePDFExportTrigger = () => {
+      if (!isAuthenticated) {
+        toast({
+          title: "Authentication Required",
+          description: "Please login to export data",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Dynamically import to keep bundle size efficient if not used often
+      import("@/components/assets/InventoryReport").then(({ exportAssetsToPDF }) => {
+        exportAssetsToPDF(assets, companySettings, "Full Inventory Report").then(() => {
+          toast({
+            title: "Export Complete",
+            description: "Inventory report has been generated as PDF."
+          });
+        });
+      });
+    };
+
+    window.addEventListener('trigger-pdf-export', handlePDFExportTrigger as EventListener);
+
+    return () => {
+      window.removeEventListener('trigger-pdf-export', handlePDFExportTrigger as EventListener);
+    };
+  }, [isAuthenticated, assets, companySettings]);
+
+
 
 
 
@@ -2380,7 +2412,23 @@ const Index = () => {
           <AppMenuBar
             onNewAsset={() => setActiveTab("add-asset")}
             onRefresh={() => window.location.reload()}
-            onExport={() => {/* handled in InventoryReport */}}
+            onExport={() => {
+              if (isAuthenticated) {
+                import("@/utils/exportUtils").then(({ exportAssetsToExcel }) => {
+                  exportAssetsToExcel(assets, "Full_Inventory_Export");
+                  toast({
+                    title: "Export Initiated",
+                    description: "Your inventory data is being exported to Excel."
+                  });
+                });
+              } else {
+                toast({
+                  title: "Authentication Required",
+                  description: "Please login to export data",
+                  variant: "destructive"
+                });
+              }
+            }}
             onOpenSettings={() => setActiveTab("settings")}
           />
         )}
@@ -2391,258 +2439,258 @@ const Index = () => {
             <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
           )}
 
-        {/* Mobile Header */}
-        {isMobile && (
-          <div className="fixed top-0 left-0 right-0 z-50 bg-background border-b border-border p-4 flex items-center justify-between">
-            <h1 className="text-lg font-bold bg-gradient-primary bg-clip-text text-transparent">
-              DCEL Asset Manager
-            </h1>
-            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <Menu className="h-5 w-5" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="w-64 p-0">
-                <Sidebar
-                  activeTab={activeTab}
-                  onTabChange={(tab) => {
-                    setActiveTab(tab);
-                    setMobileMenuOpen(false);
-                  }}
-                />
-              </SheetContent>
-            </Sheet>
-          </div>
-        )}
-
-        <main className={cn(
-          "flex-1 overflow-y-auto p-4 md:p-6",
-          isMobile && "pt-20"
-        )}>
-          {isAssetInventoryTab && (
-            <div className="flex flex-col space-y-3 md:space-y-0 md:flex-row md:justify-between md:items-center mb-6">
-              <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
-                {isAuthenticated && hasPermission('write_assets') && (
-                  <Button
-                    variant="default"
-                    onClick={() => setActiveTab("add-asset")}
-                    className="w-full sm:w-auto bg-gradient-primary"
-                    size={isMobile ? "lg" : "default"}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Asset
+          {/* Mobile Header */}
+          {isMobile && (
+            <div className="fixed top-0 left-0 right-0 z-50 bg-background border-b border-border p-4 flex items-center justify-between">
+              <h1 className="text-lg font-bold bg-gradient-primary bg-clip-text text-transparent">
+                DCEL Asset Manager
+              </h1>
+              <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <Menu className="h-5 w-5" />
                   </Button>
-                )}
-                {isAuthenticated && hasPermission('write_assets') && currentUser?.role !== 'staff' && <BulkImportAssets onImport={handleImport} />}
-                <InventoryReport assets={assets} companySettings={companySettings} />
-
-              </div>
-
+                </SheetTrigger>
+                <SheetContent side="left" className="w-64 p-0">
+                  <Sidebar
+                    activeTab={activeTab}
+                    onTabChange={(tab) => {
+                      setActiveTab(tab);
+                      setMobileMenuOpen(false);
+                    }}
+                  />
+                </SheetContent>
+              </Sheet>
             </div>
           )}
-          {processingReturnWaybill && (
-            <ReturnProcessingDialog
-              waybill={processingReturnWaybill}
-              onClose={() => setProcessingReturnWaybill(null)}
-              onSubmit={(returnData) => {
-                setProcessingReturnWaybill(null);
-                handleProcessReturn(returnData);
-              }}
-            />
-          )}
 
-          {renderContent()}
+          <main className={cn(
+            "flex-1 overflow-y-auto p-4 md:p-6",
+            isMobile && "pt-20"
+          )}>
+            {isAssetInventoryTab && (
+              <div className="flex flex-col space-y-3 md:space-y-0 md:flex-row md:justify-between md:items-center mb-6">
+                <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
+                  {isAuthenticated && hasPermission('write_assets') && (
+                    <Button
+                      variant="default"
+                      onClick={() => setActiveTab("add-asset")}
+                      className="w-full sm:w-auto bg-gradient-primary"
+                      size={isMobile ? "lg" : "default"}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Asset
+                    </Button>
+                  )}
+                  {isAuthenticated && hasPermission('write_assets') && currentUser?.role !== 'staff' && <BulkImportAssets onImport={handleImport} />}
+                  <InventoryReport assets={assets} companySettings={companySettings} />
 
-          {/* Edit Dialog */}
-          <Dialog open={!!editingAsset} onOpenChange={open => !open && setEditingAsset(null)}>
-            <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>Edit Asset</DialogHeader>
-              {editingAsset && (
-                <AddAssetForm
-                  asset={editingAsset}
-                  onSave={handleSaveAsset}
-                  onCancel={() => setEditingAsset(null)}
-                  sites={sites}
-                  existingAssets={assets}
-                />
-              )}
-            </DialogContent>
-          </Dialog>
+                </div>
 
-          {/* Delete Confirmation Dialog */}
-          <Dialog open={!!deletingAsset} onOpenChange={open => !open && setDeletingAsset(null)}>
-            <DialogContent>
-              <DialogHeader>
-                Are you sure you want to delete this asset?
-              </DialogHeader>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setDeletingAsset(null)}>
-                  Cancel
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={confirmDeleteAsset}
-                >
-                  Yes, Delete
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+              </div>
+            )}
+            {processingReturnWaybill && (
+              <ReturnProcessingDialog
+                waybill={processingReturnWaybill}
+                onClose={() => setProcessingReturnWaybill(null)}
+                onSubmit={(returnData) => {
+                  setProcessingReturnWaybill(null);
+                  handleProcessReturn(returnData);
+                }}
+              />
+            )}
+
+            {renderContent()}
+
+            {/* Edit Dialog */}
+            <Dialog open={!!editingAsset} onOpenChange={open => !open && setEditingAsset(null)}>
+              <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>Edit Asset</DialogHeader>
+                {editingAsset && (
+                  <AddAssetForm
+                    asset={editingAsset}
+                    onSave={handleSaveAsset}
+                    onCancel={() => setEditingAsset(null)}
+                    sites={sites}
+                    existingAssets={assets}
+                  />
+                )}
+              </DialogContent>
+            </Dialog>
+
+            {/* Delete Confirmation Dialog */}
+            <Dialog open={!!deletingAsset} onOpenChange={open => !open && setDeletingAsset(null)}>
+              <DialogContent>
+                <DialogHeader>
+                  Are you sure you want to delete this asset?
+                </DialogHeader>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setDeletingAsset(null)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={confirmDeleteAsset}
+                  >
+                    Yes, Delete
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
 
 
-          {/* Waybill Document Modal */}
-          {showWaybillDocument && (
-            <WaybillDocument
-              waybill={showWaybillDocument}
-              sites={sites}
-              companySettings={companySettings}
-              onClose={() => setShowWaybillDocument(null)}
-            />
-          )}
+            {/* Waybill Document Modal */}
+            {showWaybillDocument && (
+              <WaybillDocument
+                waybill={showWaybillDocument}
+                sites={sites}
+                companySettings={companySettings}
+                onClose={() => setShowWaybillDocument(null)}
+              />
+            )}
 
-          {/* Return Form Modal */}
-          {showReturnForm && (
-            <ReturnForm
-              waybill={showReturnForm}
-              onSubmit={handleProcessReturn}
-              onClose={() => setShowReturnForm(null)}
-            />
-          )}
+            {/* Return Form Modal */}
+            {showReturnForm && (
+              <ReturnForm
+                waybill={showReturnForm}
+                onSubmit={handleProcessReturn}
+                onClose={() => setShowReturnForm(null)}
+              />
+            )}
 
-          {/* Return Waybill Document Modal */}
-          {showReturnWaybillDocument && (
-            <ReturnWaybillDocument
-              waybill={showReturnWaybillDocument}
-              sites={sites}
-              companySettings={companySettings}
-              onClose={() => setShowReturnWaybillDocument(null)}
-            />
-          )}
+            {/* Return Waybill Document Modal */}
+            {showReturnWaybillDocument && (
+              <ReturnWaybillDocument
+                waybill={showReturnWaybillDocument}
+                sites={sites}
+                companySettings={companySettings}
+                onClose={() => setShowReturnWaybillDocument(null)}
+              />
+            )}
 
-          {/* Edit Waybill Dialog */}
-          <Dialog open={!!editingWaybill} onOpenChange={open => !open && setEditingWaybill(null)}>
-            <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Edit Waybill {editingWaybill?.id}</DialogTitle>
-              </DialogHeader>
-              {editingWaybill && (
-                <EditWaybillForm
-                  waybill={editingWaybill}
-                  assets={assets}
-                  sites={sites}
-                  employees={employees}
-                  vehicles={vehicles}
-                  onUpdate={async (updatedWaybill) => {
-                    if (!(window.electronAPI && window.electronAPI.db)) return;
+            {/* Edit Waybill Dialog */}
+            <Dialog open={!!editingWaybill} onOpenChange={open => !open && setEditingWaybill(null)}>
+              <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Edit Waybill {editingWaybill?.id}</DialogTitle>
+                </DialogHeader>
+                {editingWaybill && (
+                  <EditWaybillForm
+                    waybill={editingWaybill}
+                    assets={assets}
+                    sites={sites}
+                    employees={employees}
+                    vehicles={vehicles}
+                    onUpdate={async (updatedWaybill) => {
+                      if (!(window.electronAPI && window.electronAPI.db)) return;
 
-                    try {
-                      const result = await window.electronAPI.db.updateWaybillWithTransaction(
-                        updatedWaybill.id as string,
-                        updatedWaybill
-                      );
+                      try {
+                        const result = await window.electronAPI.db.updateWaybillWithTransaction(
+                          updatedWaybill.id as string,
+                          updatedWaybill
+                        );
 
-                      if (!result.success) {
-                        throw new Error(result.error || 'Failed to update waybill');
-                      }
+                        if (!result.success) {
+                          throw new Error(result.error || 'Failed to update waybill');
+                        }
 
-                      // Reload assets to reflect reserved quantity changes
-                      const loadedAssets = await window.electronAPI.db.getAssets();
-                      const processedAssets = loadedAssets.map((item: any) => {
-                        const asset = {
+                        // Reload assets to reflect reserved quantity changes
+                        const loadedAssets = await window.electronAPI.db.getAssets();
+                        const processedAssets = loadedAssets.map((item: any) => {
+                          const asset = {
+                            ...item,
+                            siteQuantities: typeof item.siteQuantities === 'string' ? JSON.parse(item.siteQuantities || '{}') : (item.siteQuantities || {}),
+                            purchaseDate: item.purchaseDate ? new Date(item.purchaseDate) : undefined,
+                            createdAt: new Date(item.createdAt),
+                            updatedAt: new Date(item.updatedAt)
+                          };
+                          return asset;
+                        });
+                        setAssets(processedAssets);
+
+                        // Reload waybills to reflect changes
+                        const loadedWaybills = await window.electronAPI.db.getWaybills();
+                        setWaybills(loadedWaybills.map((item: any) => ({
                           ...item,
-                          siteQuantities: typeof item.siteQuantities === 'string' ? JSON.parse(item.siteQuantities || '{}') : (item.siteQuantities || {}),
-                          purchaseDate: item.purchaseDate ? new Date(item.purchaseDate) : undefined,
+                          issueDate: new Date(item.issueDate),
+                          expectedReturnDate: item.expectedReturnDate ? new Date(item.expectedReturnDate) : undefined,
+                          sentToSiteDate: item.sentToSiteDate ? new Date(item.sentToSiteDate) : undefined,
                           createdAt: new Date(item.createdAt),
                           updatedAt: new Date(item.updatedAt)
-                        };
-                        return asset;
-                      });
-                      setAssets(processedAssets);
+                        })));
 
-                      // Reload waybills to reflect changes
-                      const loadedWaybills = await window.electronAPI.db.getWaybills();
-                      setWaybills(loadedWaybills.map((item: any) => ({
-                        ...item,
-                        issueDate: new Date(item.issueDate),
-                        expectedReturnDate: item.expectedReturnDate ? new Date(item.expectedReturnDate) : undefined,
-                        sentToSiteDate: item.sentToSiteDate ? new Date(item.sentToSiteDate) : undefined,
-                        createdAt: new Date(item.createdAt),
-                        updatedAt: new Date(item.updatedAt)
-                      })));
+                        setEditingWaybill(null);
+                        toast({
+                          title: "Waybill Updated",
+                          description: `Waybill ${updatedWaybill.id} updated successfully. Reserved quantities adjusted.`
+                        });
+                      } catch (error) {
+                        console.error('Failed to update waybill:', error);
+                        toast({
+                          title: "Error",
+                          description: `Failed to update waybill: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                          variant: "destructive"
+                        });
+                      }
+                    }}
+                    onCancel={() => setEditingWaybill(null)}
+                  />
+                )}
+              </DialogContent>
+            </Dialog>
 
-                      setEditingWaybill(null);
-                      toast({
-                        title: "Waybill Updated",
-                        description: `Waybill ${updatedWaybill.id} updated successfully. Reserved quantities adjusted.`
-                      });
-                    } catch (error) {
-                      console.error('Failed to update waybill:', error);
-                      toast({
-                        title: "Error",
-                        description: `Failed to update waybill: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                        variant: "destructive"
-                      });
-                    }
-                  }}
-                  onCancel={() => setEditingWaybill(null)}
-                />
-              )}
-            </DialogContent>
-          </Dialog>
+            {/* Edit Return Waybill Dialog */}
+            <Dialog open={!!editingReturnWaybill} onOpenChange={open => !open && setEditingReturnWaybill(null)}>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Edit Return Waybill</DialogTitle>
+                </DialogHeader>
+                {editingReturnWaybill ? (
+                  <ReturnWaybillForm
+                    site={sites.find(s => s.id === editingReturnWaybill.siteId) || { id: editingReturnWaybill.siteId, name: 'Unknown Site', location: '', description: '', contactPerson: '', phone: '', status: 'active', createdAt: new Date(), updatedAt: new Date() } as Site}
+                    sites={sites}
+                    assets={assets}
+                    employees={employees}
+                    vehicles={vehicles}
+                    siteInventory={getSiteInventory(editingReturnWaybill.siteId)}
+                    initialWaybill={editingReturnWaybill}
+                    isEditMode={true}
+                    onCreateReturnWaybill={handleCreateReturnWaybill}
+                    onUpdateReturnWaybill={handleUpdateReturnWaybill}
+                    onCancel={() => setEditingReturnWaybill(null)}
+                  />
+                ) : null}
+              </DialogContent>
+            </Dialog>
 
-          {/* Edit Return Waybill Dialog */}
-          <Dialog open={!!editingReturnWaybill} onOpenChange={open => !open && setEditingReturnWaybill(null)}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Edit Return Waybill</DialogTitle>
-              </DialogHeader>
-              {editingReturnWaybill ? (
-                <ReturnWaybillForm
-                  site={sites.find(s => s.id === editingReturnWaybill.siteId) || { id: editingReturnWaybill.siteId, name: 'Unknown Site', location: '', description: '', contactPerson: '', phone: '', status: 'active', createdAt: new Date(), updatedAt: new Date() } as Site}
-                  sites={sites}
-                  assets={assets}
-                  employees={employees}
-                  vehicles={vehicles}
-                  siteInventory={getSiteInventory(editingReturnWaybill.siteId)}
-                  initialWaybill={editingReturnWaybill}
-                  isEditMode={true}
-                  onCreateReturnWaybill={handleCreateReturnWaybill}
-                  onUpdateReturnWaybill={handleUpdateReturnWaybill}
-                  onCancel={() => setEditingReturnWaybill(null)}
-                />
-              ) : null}
-            </DialogContent>
-          </Dialog>
+            {/* Asset Analytics Dialog */}
+            <AssetAnalyticsDialog
+              asset={selectedAssetForAnalytics}
+              open={showAnalyticsDialog}
+              onOpenChange={setShowAnalyticsDialog}
+              quickCheckouts={quickCheckouts}
+              sites={sites}
+            />
 
-          {/* Asset Analytics Dialog */}
-          <AssetAnalyticsDialog
-            asset={selectedAssetForAnalytics}
-            open={showAnalyticsDialog}
-            onOpenChange={setShowAnalyticsDialog}
-            quickCheckouts={quickCheckouts}
-            sites={sites}
-          />
+            {/* AI Assistant Dialog */}
+            <Dialog open={showAIAssistant} onOpenChange={setShowAIAssistant}>
+              <DialogContent className="max-w-2xl h-[80vh] p-0">
+                <AIAssistantChat />
+              </DialogContent>
+            </Dialog>
 
-          {/* AI Assistant Dialog */}
-          <Dialog open={showAIAssistant} onOpenChange={setShowAIAssistant}>
-            <DialogContent className="max-w-2xl h-[80vh] p-0">
-              <AIAssistantChat />
-            </DialogContent>
-          </Dialog>
-
-          {/* Floating AI Assistant Button - Only shown when AI is enabled */}
-          {isAIEnabled && (
-            <Button
-              onClick={() => setShowAIAssistant(true)}
-              className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 z-50 bg-gradient-primary"
-              size="icon"
-            >
-              <Bot className="h-6 w-6" />
-            </Button>
-          )}
-        </main>
+            {/* Floating AI Assistant Button - Only shown when AI is enabled */}
+            {isAIEnabled && (
+              <Button
+                onClick={() => setShowAIAssistant(true)}
+                className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 z-50 bg-gradient-primary"
+                size="icon"
+              >
+                <Bot className="h-6 w-6" />
+              </Button>
+            )}
+          </main>
         </div>
       </div>
     </AIAssistantProvider>

@@ -24,7 +24,7 @@ if (!gotTheLock) {
         mainWindow.restore();
       }
       mainWindow.focus();
-      
+
       // Show a dialog to inform the user
       dialog.showMessageBox(mainWindow, {
         type: 'info',
@@ -86,7 +86,7 @@ let syncManager;
 
 async function main() {
   // Initialize sync manager
-  syncManager = new SyncManager(APP_DATA_PATH, masterDbPath, localDbPath);
+  syncManager = new SyncManager(APP_DATA_PATH, masterDbPath, localDbPath, db);
 
   // Ensure the database directory exists
   if (!fs.existsSync(DB_PATH)) {
@@ -191,9 +191,9 @@ async function main() {
   };
 
   // Sync local working copy back to master storage
-  const syncLocalToMaster = () => {
+  const syncLocalToMaster = async () => {
     if (syncManager) {
-      const result = syncManager.syncToMaster();
+      const result = await syncManager.syncToMaster();
       if (!result.success) {
         console.error('Failed to sync database back to master:', result.error);
       }
@@ -207,7 +207,7 @@ async function main() {
           const result = await db[functionName](...args);
           if (isMutatingOperation(functionName)) {
             // Persist changes immediately to master storage
-            syncLocalToMaster();
+            await syncLocalToMaster();
           }
           return result;
         } catch (error) {
@@ -282,7 +282,7 @@ async function main() {
 
     try {
       syncManager.markSyncStarted();
-      const result = syncManager.syncToMaster();
+      const result = await syncManager.syncToMaster();
 
       if (result.success) {
         return {
@@ -603,14 +603,10 @@ app.on('before-quit', (event) => {
   }
 
   // Sync database back to master
+  // Note: Sync is now handled async during mutations. We skip explicit sync here to avoid hanging shutdown.
+  // If needed, implement properly using app.preventDefault() to wait for async operations.
   if (syncManager) {
-    const syncResult = syncManager.syncToMaster();
-    if (!syncResult.success) {
-      console.error('CRITICAL: Failed to copy database back!', syncResult.error);
-      dialog.showErrorBox('Sync Error', `Failed to save changes back to the database location. Your local changes are safe at: ${localDbPath}\n\nError: ${syncResult.error}`);
-    } else {
-      console.log('✓ Database successfully synced back to:', DB_PATH);
-    }
+    console.log('Check-in: Sync handled by mutation events.');
   }
 
   // Release lock if locking is enabled
@@ -626,14 +622,8 @@ app.on('before-quit', (event) => {
 
 // Also attempt a sync on will-quit for extra safety
 app.on('will-quit', () => {
-  if (syncManager) {
-    const syncResult = syncManager.syncToMaster();
-    if (syncResult.success) {
-      console.log('✓ Database synced on will-quit.');
-    } else {
-      console.error('Failed to sync database on will-quit:', syncResult.error);
-    }
-  }
+  // Cleanup or final logs
+  console.log('App is quitting...');
 });
 
 

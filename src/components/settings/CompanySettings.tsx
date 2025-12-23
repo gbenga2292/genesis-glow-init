@@ -2215,22 +2215,26 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
               Users
             </TabsTrigger>
           )}
-          <TabsTrigger value="employees" className="flex items-center gap-2">
-            <UserPlus className="h-4 w-4" />
-            Employees
-          </TabsTrigger>
-          <TabsTrigger value="vehicles" className="flex items-center gap-2">
-            <Car className="h-4 w-4" />
-            Vehicles
-          </TabsTrigger>
-          <TabsTrigger value="ai" className="flex items-center gap-2">
-            <Bot className="h-4 w-4" />
-            AI Assistant
-          </TabsTrigger>
-          <TabsTrigger value="data" className="flex items-center gap-2">
-            <Database className="h-4 w-4" />
-            Data
-          </TabsTrigger>
+          {currentUser?.role !== 'staff' && (
+            <>
+              <TabsTrigger value="employees" className="flex items-center gap-2">
+                <UserPlus className="h-4 w-4" />
+                Employees
+              </TabsTrigger>
+              <TabsTrigger value="vehicles" className="flex items-center gap-2">
+                <Car className="h-4 w-4" />
+                Vehicles
+              </TabsTrigger>
+              <TabsTrigger value="ai" className="flex items-center gap-2">
+                <Bot className="h-4 w-4" />
+                AI Assistant
+              </TabsTrigger>
+              <TabsTrigger value="data" className="flex items-center gap-2">
+                <Database className="h-4 w-4" />
+                Data
+              </TabsTrigger>
+            </>
+          )}
           <TabsTrigger value="sync" className="flex items-center gap-2">
             <Database className="h-4 w-4" />
             Sync

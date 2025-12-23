@@ -162,6 +162,9 @@ const clearTable = (tableName) => async () => {
   return db(tableName).del();
 }
 
+
+
+
 // Declare all functions as constants before exporting
 const getUsers = getAll('users');
 const getSites = () => {
@@ -1341,59 +1344,25 @@ const createDatabaseBackup = async (destinationPath) => {
     const fs = await import('fs/promises');
     const path = await import('path');
 
-    // Get the current database file path from Knex config
-    const dbPath = db.client.config.connection.filename;
-
-    if (!dbPath) {
-      throw new Error('Database path not found in configuration');
-    }
-
     // Ensure destination directory exists
     const destDir = path.dirname(destinationPath);
     await fs.mkdir(destDir, { recursive: true });
 
-    // Checkpoint the WAL file to ensure all data is in the main database file
-    // This is important for SQLite databases using WAL mode
+    // VACUUM INTO requires the file to NOT exist
     try {
-      await db.raw('PRAGMA wal_checkpoint(TRUNCATE)');
-      console.log('✓ WAL checkpoint completed');
-    } catch (err) {
-      console.warn('WAL checkpoint failed (database might not be in WAL mode):', err.message);
+      await fs.unlink(destinationPath);
+    } catch (e) {
+      if (e.code !== 'ENOENT') throw e;
     }
 
-    // Copy the database file
-    await fs.copyFile(dbPath, destinationPath);
-
-    // Also copy WAL and SHM files if they exist (for safety)
-    try {
-      const walPath = `${dbPath}-wal`;
-      const shmPath = `${dbPath}-shm`;
-
-      // Check if WAL file exists
-      try {
-        await fs.access(walPath);
-        await fs.copyFile(walPath, `${destinationPath}-wal`);
-        console.log('✓ WAL file copied');
-      } catch (err) {
-        // WAL file doesn't exist, that's okay
-      }
-
-      // Check if SHM file exists
-      try {
-        await fs.access(shmPath);
-        await fs.copyFile(shmPath, `${destinationPath}-shm`);
-        console.log('✓ SHM file copied');
-      } catch (err) {
-        // SHM file doesn't exist, that's okay
-      }
-    } catch (err) {
-      console.warn('Could not copy WAL/SHM files:', err.message);
-    }
+    // Use VACUUM INTO for a safe, consistent backup even while online
+    const sanitizedPath = destinationPath.replace(/'/g, "''");
+    await db.raw(`VACUUM INTO '${sanitizedPath}'`);
 
     // Verify backup file was created
     const stats = await fs.stat(destinationPath);
 
-    console.log(`✓ Database backup created: ${destinationPath} (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
+    console.log(`✓ Database backup created (VACUUM INTO): ${destinationPath} (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
 
     return {
       success: true,

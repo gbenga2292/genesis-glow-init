@@ -28,13 +28,71 @@ const defaultCompanySettings: CompanySettings = {
   },
 };
 
+
+// Exporting for external usage
+export const exportAssetsToPDF = async (
+  assets: Asset[],
+  companySettings: CompanySettings = defaultCompanySettings,
+  title: string = "Inventory Report"
+) => {
+  // Merge provided companySettings with defaults
+  const effectiveCompanySettings: CompanySettings = {
+    ...defaultCompanySettings,
+    ...(companySettings ? Object.fromEntries(
+      Object.entries(companySettings).filter(([_, v]) => v !== undefined && v !== null && v !== '')
+    ) : {})
+  };
+
+  // Calculate summary statistics
+  const totalAssets = assets.length;
+  const totalQuantity = assets.reduce((sum, asset) => sum + asset.quantity, 0);
+  const totalValue = assets.reduce((sum, asset) => sum + (asset.cost * asset.quantity), 0);
+  const activeAssets = assets.filter(a => a.status === 'active').length;
+  const equipmentCount = assets.filter(a => a.type === 'equipment').length;
+  const consumablesCount = assets.filter(a => a.type === 'consumable').length;
+
+  // Transform data for unified generator
+  const reportData = assets.map(asset => ({
+    name: asset.name,
+    quantity: asset.quantity,
+    unit: asset.unitOfMeasurement,
+    category: asset.category,
+    type: asset.type,
+    location: asset.location || '-'
+  }));
+
+  await generateUnifiedReport({
+    title: 'Inventory Report',
+    subtitle: title,
+    reportType: 'INVENTORY',
+    companySettings: effectiveCompanySettings,
+    columns: [
+      { header: 'Name', dataKey: 'name', width: 45 },
+      { header: 'Qty', dataKey: 'quantity', width: 18 },
+      { header: 'Unit', dataKey: 'unit', width: 18 },
+      { header: 'Category', dataKey: 'category', width: 30 },
+      { header: 'Type', dataKey: 'type', width: 30 },
+      { header: 'Location', dataKey: 'location', width: 35 }
+    ],
+    data: reportData,
+    summaryStats: [
+      { label: 'Total Assets', value: totalAssets },
+      { label: 'Total Quantity', value: totalQuantity },
+      { label: 'Total Value', value: `NGN ${totalValue.toFixed(2)}` },
+      { label: 'Active Assets', value: activeAssets },
+      { label: 'Equipment Items', value: equipmentCount },
+      { label: 'Consumables', value: consumablesCount }
+    ]
+  });
+};
+
 export const InventoryReport = ({ assets, companySettings }: InventoryReportProps) => {
   const [loading, setLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState("all");
   const [previewData, setPreviewData] = useState<{ assets: Asset[]; title: string } | null>(null);
 
-  // Merge provided companySettings with defaults, only using non-empty values from database
+  // Merge provided companySettings with defaults
   const effectiveCompanySettings: CompanySettings = {
     ...defaultCompanySettings,
     ...(companySettings ? Object.fromEntries(
@@ -44,49 +102,7 @@ export const InventoryReport = ({ assets, companySettings }: InventoryReportProp
 
   const generateReport = async (filteredAssets: Asset[], title: string) => {
     setLoading(true);
-
-    // Calculate summary statistics
-    const totalAssets = filteredAssets.length;
-    const totalQuantity = filteredAssets.reduce((sum, asset) => sum + asset.quantity, 0);
-    const totalValue = filteredAssets.reduce((sum, asset) => sum + (asset.cost * asset.quantity), 0);
-    const activeAssets = filteredAssets.filter(a => a.status === 'active').length;
-    const equipmentCount = filteredAssets.filter(a => a.type === 'equipment').length;
-    const consumablesCount = filteredAssets.filter(a => a.type === 'consumable').length;
-
-    // Transform data for unified generator
-    const reportData = filteredAssets.map(asset => ({
-      name: asset.name,
-      quantity: asset.quantity,
-      unit: asset.unitOfMeasurement,
-      category: asset.category,
-      type: asset.type,
-      location: asset.location || '-'
-    }));
-
-    await generateUnifiedReport({
-      title: 'Inventory Report',
-      subtitle: title,
-      reportType: 'INVENTORY',
-      companySettings: effectiveCompanySettings,
-      columns: [
-        { header: 'Name', dataKey: 'name', width: 45 },
-        { header: 'Qty', dataKey: 'quantity', width: 18 },
-        { header: 'Unit', dataKey: 'unit', width: 18 },
-        { header: 'Category', dataKey: 'category', width: 30 },
-        { header: 'Type', dataKey: 'type', width: 30 },
-        { header: 'Location', dataKey: 'location', width: 35 }
-      ],
-      data: reportData,
-      summaryStats: [
-        { label: 'Total Assets', value: totalAssets },
-        { label: 'Total Quantity', value: totalQuantity },
-        { label: 'Total Value', value: `NGN ${totalValue.toFixed(2)}` },
-        { label: 'Active Assets', value: activeAssets },
-        { label: 'Equipment Items', value: equipmentCount },
-        { label: 'Consumables', value: consumablesCount }
-      ]
-    });
-
+    await exportAssetsToPDF(filteredAssets, effectiveCompanySettings, title);
     setLoading(false);
   };
 
@@ -112,11 +128,11 @@ export const InventoryReport = ({ assets, companySettings }: InventoryReportProp
     const ws = XLSX.utils.aoa_to_sheet(excelData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Assets');
-    
+
     // Generate filename with date
     const date = new Date().toISOString().split('T')[0];
     const filename = `${title.replace(/\s+/g, '_')}_${date}.xlsx`;
-    
+
     XLSX.writeFile(wb, filename);
   };
 
@@ -206,9 +222,9 @@ export const InventoryReport = ({ assets, companySettings }: InventoryReportProp
                 </TableBody>
               </Table>
               <div className="flex justify-end gap-2">
-                <Button 
+                <Button
                   variant="outline"
-                  onClick={() => { exportToExcel(previewData.assets, previewData.title); }} 
+                  onClick={() => { exportToExcel(previewData.assets, previewData.title); }}
                   disabled={loading}
                 >
                   <FileSpreadsheet className="h-4 w-4 mr-2" />
