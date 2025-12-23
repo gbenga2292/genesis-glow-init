@@ -25,6 +25,7 @@ interface AppMenuBarProps {
   onRefresh?: () => void;
   onExport?: () => void;
   onOpenSettings?: () => void;
+  canCreateAsset?: boolean;
 }
 
 export const AppMenuBar = ({
@@ -32,6 +33,7 @@ export const AppMenuBar = ({
   onRefresh,
   onExport,
   onOpenSettings,
+  canCreateAsset = true,
 }: AppMenuBarProps) => {
   const { theme, setTheme } = useTheme();
   const [isMaximized, setIsMaximized] = useState(false);
@@ -80,7 +82,9 @@ export const AppMenuBar = ({
       // Ctrl+N: New Asset
       if (e.ctrlKey && e.key === 'n') {
         e.preventDefault();
-        onNewAsset?.();
+        if (canCreateAsset) {
+          onNewAsset?.();
+        }
       }
       // Ctrl+E: Export
       if (e.ctrlKey && e.key === 'e') {
@@ -114,7 +118,7 @@ export const AppMenuBar = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onNewAsset, onExport, onOpenSettings, onRefresh]);
+  }, [onNewAsset, onExport, onOpenSettings, onRefresh, canCreateAsset]);
 
 
   /* Export Dialog State */
@@ -136,7 +140,7 @@ export const AppMenuBar = ({
                 File
               </MenubarTrigger>
               <MenubarContent className="bg-popover border-border">
-                <MenubarItem onClick={onNewAsset}>
+                <MenubarItem onClick={onNewAsset} disabled={!canCreateAsset}>
                   New Asset <MenubarShortcut>Ctrl+N</MenubarShortcut>
                 </MenubarItem>
                 <MenubarItem onClick={() => setShowExportDialog(true)}>

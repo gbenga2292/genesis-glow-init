@@ -2430,6 +2430,7 @@ const Index = () => {
               }
             }}
             onOpenSettings={() => setActiveTab("settings")}
+            canCreateAsset={isAuthenticated && hasPermission('write_assets')}
           />
         )}
 
