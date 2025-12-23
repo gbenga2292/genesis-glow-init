@@ -2924,7 +2924,13 @@ const Index = () => {
       {/* Hidden container for chart capture - off-screen */}
       {isGeneratingAudit && (
         <div className="fixed -left-[9999px] -top-[9999px]">
-          <AuditCharts assets={assets} equipmentLogs={equipmentLogs} />
+          <AuditCharts
+            assets={assets}
+            equipmentLogs={equipmentLogs}
+            consumableLogs={consumableLogs}
+            startDate={new Date(auditStartDate)}
+            endDate={new Date(auditEndDate)}
+          />
         </div>
       )}
 

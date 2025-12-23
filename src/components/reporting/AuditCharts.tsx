@@ -1,18 +1,33 @@
 import { useMemo } from 'react';
 import {
-    PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+    PieChart, Pie, Cell, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
-import { Asset, EquipmentLog } from '@/types/asset';
+import { Asset } from '@/types/asset';
+import { EquipmentLog } from '@/types/equipment';
+import { ConsumableUsageLog } from '@/types/consumable';
 
 interface AuditChartsProps {
     assets: Asset[];
     equipmentLogs: EquipmentLog[];
+    consumableLogs: ConsumableUsageLog[];
+    startDate: Date;
+    endDate: Date;
 }
 
-const COLORS = ['#3498db', '#2ecc71', '#f39c12', '#e74c3c', '#9b59b6', '#1abc9c', '#34495e'];
+const COLORS = ['#2980b9', '#27ae60', '#f39c12', '#c0392b', '#8e44ad', '#16a085', '#2c3e50'];
+// Custom colors for health
+const HEALTH_COLORS: Record<string, string> = {
+    'Active': '#27ae60',
+    'Damaged': '#c0392b',
+    'Missing': '#e67e22',
+    'Maintenance': '#f1c40f'
+};
 
-export const AuditCharts = ({ assets, equipmentLogs }: AuditChartsProps) => {
-    // 1. Asset Value Distribution by Category (Pie)
+const formatNGN = (value: number) => `NGN ${value.toLocaleString()}`;
+
+export const AuditCharts = ({ assets, equipmentLogs, consumableLogs, startDate, endDate }: AuditChartsProps) => {
+
+    // 1. Asset Value Distribution by Category (Values - Snapshot)
     const categoryValueData = useMemo(() => {
         const catMap = new Map<string, number>();
         assets.forEach(a => {
@@ -29,7 +44,7 @@ export const AuditCharts = ({ assets, equipmentLogs }: AuditChartsProps) => {
             .sort((a, b) => b.value - a.value);
     }, [assets]);
 
-    // 2. Asset Condition Status (Pie)
+    // 2. Asset Condition Status (Snapshot)
     const statusData = useMemo(() => {
         const statusCounts = { active: 0, damaged: 0, missing: 0, maintenance: 0 };
         assets.forEach(a => {
@@ -38,10 +53,65 @@ export const AuditCharts = ({ assets, equipmentLogs }: AuditChartsProps) => {
         });
         return Object.entries(statusCounts)
             .filter(([_, value]) => value > 0)
-            .map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value }));
+            .map(([name, value]) => ({
+                name: name.charAt(0).toUpperCase() + name.slice(1),
+                value
+            }));
     }, [assets]);
 
-    // 3. Top 10 Most Valuable Assets (Bar)
+    // 3. Equipment Utilization (Date Range Aware - Flow)
+    const equipmentData = useMemo(() => {
+        const daysInRange = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+        const usage = new Map<string, number>();
+
+        // Filter logs within range
+        const validLogs = equipmentLogs.filter(l => {
+            const d = new Date(l.date);
+            return d >= startDate && d <= endDate;
+        });
+
+        validLogs.forEach(log => {
+            if (log.active) usage.set(log.equipmentName, (usage.get(log.equipmentName) || 0) + 1);
+        });
+
+        return Array.from(usage.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 8)
+            .map(([name, days]) => ({
+                name: name.length > 18 ? name.substring(0, 18) + '...' : name,
+                days,
+                utilization: Math.min(100, Math.round((days / daysInRange) * 100))
+            }));
+    }, [equipmentLogs, startDate, endDate]);
+
+    // 4. Consumable Usage Cost (Date Range Aware - Flow)
+    const consumableData = useMemo(() => {
+        const costMap = new Map<string, number>();
+
+        // Filter logs
+        const validLogs = consumableLogs.filter(l => {
+            const d = new Date(l.date);
+            return d >= startDate && d <= endDate;
+        });
+
+        validLogs.forEach(log => {
+            const asset = assets.find(a => a.id === log.consumableId);
+            const cost = (asset?.cost || 0) * log.quantityUsed;
+            if (cost > 0) {
+                costMap.set(log.consumableName, (costMap.get(log.consumableName) || 0) + cost);
+            }
+        });
+
+        return Array.from(costMap.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 6)
+            .map(([name, value]) => ({
+                name: name.length > 20 ? name.substring(0, 20) + '...' : name,
+                value
+            }));
+    }, [consumableLogs, assets, startDate, endDate]);
+
+    // 5. Top 10 High Value Assets (Snapshot)
     const topAssetsData = useMemo(() => {
         return assets
             .map(a => ({
@@ -53,65 +123,35 @@ export const AuditCharts = ({ assets, equipmentLogs }: AuditChartsProps) => {
             .slice(0, 10);
     }, [assets]);
 
-    // 4. Equipment Utilization Rate (Bar - Top 8)
-    const equipmentData = useMemo(() => {
-        const usage = new Map<string, number>();
-        equipmentLogs.forEach(log => {
-            if (log.active) usage.set(log.equipmentName, (usage.get(log.equipmentName) || 0) + 1);
-        });
-        return Array.from(usage.entries())
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 8)
-            .map(([name, days]) => ({
-                name: name.length > 18 ? name.substring(0, 18) + '...' : name,
-                days,
-                utilization: Math.round((days / 365) * 100)
-            }));
-    }, [equipmentLogs]);
-
-    // 5. Asset Type Distribution (Pie)
-    const typeData = useMemo(() => {
-        const typeMap = new Map<string, number>();
-        assets.forEach(a => {
-            typeMap.set(a.type, (typeMap.get(a.type) || 0) + 1);
-        });
-        return Array.from(typeMap.entries())
-            .map(([name, value]) => ({
-                name: name.charAt(0).toUpperCase() + name.slice(1),
-                value
-            }));
-    }, [assets]);
-
     return (
         <div className="w-[900px] bg-white p-6" id="audit-charts-container">
             <div className="grid grid-cols-2 gap-6">
-                {/* Chart 1: Asset Value by Category */}
-                <div className="h-[280px] flex flex-col border rounded-lg p-4 bg-gradient-to-br from-blue-50 to-white">
-                    <h3 className="text-sm font-bold mb-2 text-slate-800 text-center">Asset Value Distribution by Category</h3>
+                {/* 1. Asset Value by Category (Donut) */}
+                <div className="h-[280px] flex flex-col border rounded-lg p-4 bg-gradient-to-br from-slate-50 to-white shadow-sm">
+                    <h3 className="text-sm font-bold mb-2 text-slate-800 text-center">Portfolio Value by Category</h3>
                     <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                             <Pie
                                 data={categoryValueData}
                                 cx="50%"
                                 cy="50%"
-                                labelLine={false}
-                                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                                outerRadius={70}
-                                fill="#8884d8"
+                                innerRadius={60}
+                                outerRadius={80}
+                                paddingAngle={2}
                                 dataKey="value"
-                                isAnimationActive={false}
                             >
                                 {categoryValueData.map((entry, index) => (
                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                 ))}
                             </Pie>
-                            <Tooltip formatter={(value: number) => `NGN ${value.toLocaleString()}`} />
+                            <Tooltip formatter={(value: number) => formatNGN(value)} />
+                            <Legend verticalAlign="bottom" height={36} iconSize={10} wrapperStyle={{ fontSize: '11px' }} />
                         </PieChart>
                     </ResponsiveContainer>
                 </div>
 
-                {/* Chart 2: Asset Health Status */}
-                <div className="h-[280px] flex flex-col border rounded-lg p-4 bg-gradient-to-br from-green-50 to-white">
+                {/* 2. Asset Health (Donut) */}
+                <div className="h-[280px] flex flex-col border rounded-lg p-4 bg-gradient-to-br from-slate-50 to-white shadow-sm">
                     <h3 className="text-sm font-bold mb-2 text-slate-800 text-center">Asset Health Status</h3>
                     <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
@@ -119,87 +159,86 @@ export const AuditCharts = ({ assets, equipmentLogs }: AuditChartsProps) => {
                                 data={statusData}
                                 cx="50%"
                                 cy="50%"
-                                labelLine={false}
-                                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                                outerRadius={70}
-                                fill="#8884d8"
+                                innerRadius={60}
+                                outerRadius={80}
+                                paddingAngle={2}
                                 dataKey="value"
-                                isAnimationActive={false}
                             >
                                 {statusData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    <Cell key={`cell-${index}`} fill={HEALTH_COLORS[entry.name] || COLORS[index % COLORS.length]} />
                                 ))}
                             </Pie>
                             <Tooltip />
-                            <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '11px' }} />
+                            <Legend verticalAlign="bottom" height={36} iconSize={10} wrapperStyle={{ fontSize: '11px' }} />
                         </PieChart>
                     </ResponsiveContainer>
                 </div>
 
-                {/* Chart 3: Top 10 Most Valuable Assets */}
-                <div className="h-[280px] flex flex-col border rounded-lg p-4 bg-gradient-to-br from-orange-50 to-white">
-                    <h3 className="text-sm font-bold mb-2 text-slate-800 text-center">Top 10 Most Valuable Assets</h3>
+                {/* 3. Top Consumables by Cost (Bar) */}
+                <div className="h-[280px] flex flex-col border rounded-lg p-4 bg-gradient-to-br from-slate-50 to-white shadow-sm">
+                    <h3 className="text-sm font-bold mb-2 text-slate-800 text-center">Top Consumable Costs (OpEx)</h3>
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart
-                            data={topAssetsData}
+                            data={consumableData}
                             layout="vertical"
-                            margin={{ top: 5, right: 20, left: 80, bottom: 5 }}
+                            margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
                         >
-                            <CartesianGrid strokeDasharray="3 3" />
+                            <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
                             <XAxis type="number" hide />
-                            <YAxis type="category" dataKey="name" width={75} style={{ fontSize: '9px' }} />
-                            <Tooltip formatter={(value: number) => `NGN ${value.toLocaleString()}`} />
-                            <Bar dataKey="value" fill="#f39c12" isAnimationActive={false} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-
-                {/* Chart 4: Equipment Utilization */}
-                <div className="h-[280px] flex flex-col border rounded-lg p-4 bg-gradient-to-br from-purple-50 to-white">
-                    <h3 className="text-sm font-bold mb-2 text-slate-800 text-center">Equipment Utilization Rate (%)</h3>
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart
-                            data={equipmentData}
-                            margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
-                        >
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} style={{ fontSize: '9px' }} />
-                            <YAxis />
-                            <Tooltip />
-                            <Bar dataKey="utilization" name="Utilization %" fill="#9b59b6" isAnimationActive={false} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-
-                {/* Chart 5: Asset Type Distribution */}
-                <div className="h-[280px] flex flex-col border rounded-lg p-4 bg-gradient-to-br from-teal-50 to-white col-span-2">
-                    <h3 className="text-sm font-bold mb-2 text-slate-800 text-center">Asset Type Distribution</h3>
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart
-                            data={typeData}
-                            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                        >
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="name" />
-                            <YAxis />
-                            <Tooltip />
-                            <Legend />
-                            <Bar dataKey="value" name="Count" fill="#1abc9c" isAnimationActive={false}>
-                                {typeData.map((entry, index) => (
+                            <YAxis type="category" dataKey="name" width={100} style={{ fontSize: '10px' }} />
+                            <Tooltip formatter={(value: number) => formatNGN(value)} />
+                            <Bar dataKey="value" fill="#e74c3c" radius={[0, 4, 4, 0]}>
+                                {consumableData.map((_, index) => (
                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                 ))}
                             </Bar>
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
+
+                {/* 4. Equipment Utilization (Bar) */}
+                <div className="h-[280px] flex flex-col border rounded-lg p-4 bg-gradient-to-br from-slate-50 to-white shadow-sm">
+                    <h3 className="text-sm font-bold mb-2 text-slate-800 text-center">Equipment Utilization (%)</h3>
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                            data={equipmentData}
+                            margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+                        >
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                            <XAxis dataKey="name" angle={-45} textAnchor="end" height={60} style={{ fontSize: '10px' }} />
+                            <YAxis />
+                            <Tooltip formatter={(val: number) => `${val}%`} />
+                            <Bar dataKey="utilization" fill="#8e44ad" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+
+                {/* 5. Top 10 Value Assets (Bar - Full Width) */}
+                <div className="h-[260px] flex flex-col border rounded-lg p-4 bg-gradient-to-br from-slate-50 to-white shadow-sm col-span-2">
+                    <h3 className="text-sm font-bold mb-2 text-slate-800 text-center">Top 10 High Value Assets (CapEx)</h3>
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                            data={topAssetsData}
+                            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                        >
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                            <XAxis dataKey="name" style={{ fontSize: '10px' }} />
+                            <YAxis style={{ fontSize: '10px' }} />
+                            <Tooltip formatter={(value: number) => formatNGN(value)} />
+                            <Bar dataKey="value" fill="#2980b9" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
             </div>
 
             {/* Summary Footer */}
-            <div className="mt-4 p-3 bg-slate-100 rounded text-center">
-                <p className="text-xs text-slate-600">
-                    <strong>Total Assets:</strong> {assets.length} |
-                    <strong className="ml-3">Total Value:</strong> NGN {assets.reduce((sum, a) => sum + (a.cost * a.quantity), 0).toLocaleString()} |
-                    <strong className="ml-3">Active Equipment:</strong> {equipmentData.length}
+            <div className="mt-4 p-3 bg-slate-100 rounded text-center border border-slate-200">
+                <p className="text-xs text-slate-600 font-medium">
+                    Analysis Period: {startDate.toLocaleDateString()} - {endDate.toLocaleDateString()}
+                    <span className="mx-3 text-slate-300">|</span>
+                    Total OpEx (Consumables): {formatNGN(consumableData.reduce((sum, c) => sum + c.value, 0))}
+                    <span className="mx-3 text-slate-300">|</span>
+                    Active Equipment: {equipmentData.length} units
                 </p>
             </div>
         </div>
