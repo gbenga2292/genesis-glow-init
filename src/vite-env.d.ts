@@ -95,6 +95,7 @@ interface Window {
       maximize: () => Promise<void>;
       close: () => Promise<void>;
       isMaximized: () => Promise<boolean>;
+      toggleDevTools: () => Promise<void>;
     };
   };
   backupScheduler?: {
