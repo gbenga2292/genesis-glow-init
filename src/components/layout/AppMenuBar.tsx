@@ -104,6 +104,13 @@ export const AppMenuBar = ({
               <MenubarItem onClick={handleMaximize}>
                 {isMaximized ? "Restore" : "Maximize"} <MenubarShortcut>F11</MenubarShortcut>
               </MenubarItem>
+              <MenubarItem onClick={() => {
+                if (window.electronAPI?.window?.toggleDevTools) {
+                  window.electronAPI.window.toggleDevTools();
+                }
+              }}>
+                Toggle Developer Tools <MenubarShortcut>F12</MenubarShortcut>
+              </MenubarItem>
             </MenubarContent>
           </MenubarMenu>
 

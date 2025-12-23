@@ -53,7 +53,7 @@ interface CompanySettingsProps {
 
 export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange, vehicles, onVehiclesChange, assets, onAssetsChange, waybills, onWaybillsChange, quickCheckouts, onQuickCheckoutsChange, sites, onSitesChange, siteTransactions, onSiteTransactionsChange, onUpdateCheckoutStatus, equipmentLogs = [], onEquipmentLogsChange, consumableLogs = [], onConsumableLogsChange, activities: activitiesFromProps = [], onActivitiesChange, onResetAllData }: CompanySettingsProps) => {
   const defaultSettings: CompanySettingsType = {
-    companyName: "DCEL",
+    companyName: "Dewatering Construction Etc Limited",
     logo: undefined,
     address: "7 Musiliu Smith St, formerly Panti Street, Adekunle, Lagos 101212, Lagos",
     phone: "+2349030002182",

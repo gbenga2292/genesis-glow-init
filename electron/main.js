@@ -327,6 +327,10 @@ async function main() {
     return mainWindow ? mainWindow.isMaximized() : false;
   });
 
+  ipcMain.handle('window:toggleDevTools', () => {
+    if (mainWindow) mainWindow.webContents.toggleDevTools();
+  });
+
   console.log('IPC handlers registered.');
 
   // --- Initialize Backup Scheduler ---
