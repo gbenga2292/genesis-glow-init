@@ -553,7 +553,9 @@ function createWindow() {
       webSecurity: false,
       preload: path.join(__dirname, 'preload.js')
     },
-    icon: path.join(__dirname, '../public/favicon.ico')
+    icon: process.env.NODE_ENV === 'development'
+      ? path.join(__dirname, '../public/favicon.ico')
+      : path.join(__dirname, '../dist/favicon.ico')
   });
 
   // Remove the default menu
