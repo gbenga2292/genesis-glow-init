@@ -79,6 +79,7 @@ console.log('Locking Enabled:', config.enableLocking);
 console.log('============================');
 
 let mainWindow;
+let splashWindow;
 // LLM manager instance is created during main() but we keep a module-scoped reference
 // so shutdown handlers outside main() can access it.
 let llmManager;
@@ -537,10 +538,36 @@ async function main() {
   createWindow();
 }
 
+function createSplashWindow() {
+  splashWindow = new BrowserWindow({
+    width: 500,
+    height: 400,
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    resizable: false,
+    center: true,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true
+    },
+    icon: process.env.NODE_ENV === 'development'
+      ? path.join(__dirname, '../public/favicon.ico')
+      : path.join(__dirname, '../dist/favicon.ico')
+  });
+
+  if (process.env.NODE_ENV === 'development') {
+    splashWindow.loadFile(path.join(__dirname, '../public/splash.html'));
+  } else {
+    splashWindow.loadFile(path.join(__dirname, '../dist/splash.html'));
+  }
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
+    show: false, // Don't show until ready-to-show
     titleBarStyle: 'hidden',
     titleBarOverlay: {
       color: '#00000000',
@@ -566,9 +593,22 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
+
+  // When the main window is ready to show, close the splash screen
+  mainWindow.once('ready-to-show', () => {
+    setTimeout(() => {
+      if (splashWindow && !splashWindow.isDestroyed()) {
+        splashWindow.close();
+      }
+      mainWindow.show();
+    }, 1000); // Small extra delay for smooth transition
+  });
 }
 
-app.whenReady().then(main);
+app.whenReady().then(() => {
+  createSplashWindow();
+  main();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

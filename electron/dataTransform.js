@@ -25,6 +25,11 @@ export function transformAssetFromDB(dbAsset) {
     damagedCount: dbAsset.damaged_count || 0,
     missingCount: dbAsset.missing_count || 0,
     usedCount: dbAsset.used_count || 0,
+    // Machine fields
+    model: dbAsset.model,
+    serialNumber: dbAsset.serial_number,
+    serviceInterval: dbAsset.service_interval,
+    deploymentDate: dbAsset.deployment_date ? new Date(dbAsset.deployment_date) : undefined,
   };
 }
 
@@ -59,6 +64,11 @@ export function transformAssetToDB(asset) {
     reserved_quantity: asset.reservedQuantity || asset.reserved_quantity,
     available_quantity: asset.availableQuantity || asset.available_quantity,
     site_quantities: asset.siteQuantities ? JSON.stringify(asset.siteQuantities) : (typeof asset.site_quantities === 'string' ? asset.site_quantities : JSON.stringify(asset.site_quantities || {})),
+    // Machine fields
+    model: asset.model,
+    serial_number: asset.serialNumber,
+    service_interval: asset.serviceInterval,
+    deployment_date: asset.deploymentDate instanceof Date ? asset.deploymentDate.toISOString() : asset.deploymentDate,
   };
   if (asset.id) data.id = asset.id;
   return data;
@@ -404,4 +414,58 @@ export function transformQuickCheckoutToDB(checkout) {
   if (checkout.id) dbData.id = checkout.id;
 
   return dbData;
+}
+
+/**
+ * Transform maintenance log from database format to frontend format
+ */
+export function transformMaintenanceLogFromDB(dbLog) {
+  return {
+    id: String(dbLog.id),
+    assetId: String(dbLog.machine_id),
+    machineId: String(dbLog.machine_id),
+    maintenanceType: dbLog.maintenance_type,
+    reason: dbLog.reason,
+    dateStarted: new Date(dbLog.date_started),
+    dateCompleted: dbLog.date_completed ? new Date(dbLog.date_completed) : undefined,
+    machineActiveAtTime: Boolean(dbLog.machine_active_at_time),
+    downtime: dbLog.downtime,
+    workDone: dbLog.work_done,
+    partsReplaced: dbLog.parts_replaced,
+    technician: dbLog.technician,
+    cost: dbLog.cost,
+    location: dbLog.location,
+    remarks: dbLog.remarks,
+    serviceReset: Boolean(dbLog.service_reset),
+    nextServiceDue: dbLog.next_service_due ? new Date(dbLog.next_service_due) : undefined,
+    createdAt: new Date(dbLog.created_at),
+    updatedAt: new Date(dbLog.updated_at),
+  };
+}
+
+/**
+ * Transform maintenance log from frontend format to database format
+ */
+export function transformMaintenanceLogToDB(log) {
+  const assetId = log.machineId || log.assetId;
+  return {
+    id: log.id,
+    machine_id: assetId,
+    maintenance_type: log.maintenanceType,
+    reason: log.reason,
+    date_started: log.dateStarted instanceof Date ? log.dateStarted.toISOString() : log.dateStarted,
+    date_completed: log.dateCompleted ? (log.dateCompleted instanceof Date ? log.dateCompleted.toISOString() : log.dateCompleted) : null,
+    machine_active_at_time: log.machineActiveAtTime ? 1 : 0,
+    downtime: log.downtime,
+    work_done: log.workDone,
+    parts_replaced: log.partsReplaced,
+    technician: log.technician,
+    cost: log.cost,
+    location: log.location,
+    remarks: log.remarks,
+    service_reset: log.serviceReset ? 1 : 0,
+    next_service_due: log.nextServiceDue ? (log.nextServiceDue instanceof Date ? log.nextServiceDue.toISOString() : log.nextServiceDue) : null,
+    created_at: log.createdAt instanceof Date ? log.createdAt.toISOString() : log.createdAt,
+    updated_at: log.updatedAt instanceof Date ? log.updatedAt.toISOString() : log.updatedAt,
+  };
 }

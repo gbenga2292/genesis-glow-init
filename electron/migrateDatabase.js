@@ -273,6 +273,67 @@ async function migrateDatabase(dbPath) {
       });
     }
 
+    // --- MAINTENANCE MIGRATIONS ---
+
+    // 1. Add maintenance columns to assets table
+    const hasModel = await db.schema.hasColumn('assets', 'model');
+    if (!hasModel) {
+      console.log('Adding model column to assets table...');
+      await db.schema.alterTable('assets', (table) => {
+        table.string('model');
+      });
+    }
+
+    const hasSerialNumber = await db.schema.hasColumn('assets', 'serial_number');
+    if (!hasSerialNumber) {
+      console.log('Adding serial_number column to assets table...');
+      await db.schema.alterTable('assets', (table) => {
+        table.string('serial_number');
+      });
+    }
+
+    const hasServiceInterval = await db.schema.hasColumn('assets', 'service_interval');
+    if (!hasServiceInterval) {
+      console.log('Adding service_interval column to assets table...');
+      await db.schema.alterTable('assets', (table) => {
+        table.integer('service_interval').defaultTo(2); // Default to 2 months
+      });
+    }
+
+    const hasDeploymentDate = await db.schema.hasColumn('assets', 'deployment_date');
+    if (!hasDeploymentDate) {
+      console.log('Adding deployment_date column to assets table...');
+      await db.schema.alterTable('assets', (table) => {
+        table.date('deployment_date');
+      });
+    }
+
+    // 2. Create maintenance_logs table
+    const hasMaintenanceLogsTable = await db.schema.hasTable('maintenance_logs');
+    if (!hasMaintenanceLogsTable) {
+      console.log('Creating maintenance_logs table...');
+      await db.schema.createTable('maintenance_logs', (table) => {
+        table.string('id').primary();
+        table.integer('machine_id').unsigned().notNullable().references('id').inTable('assets').onDelete('CASCADE');
+        table.string('maintenance_type').notNullable(); // scheduled, unscheduled, emergency
+        table.string('reason').defaultTo('Routine');
+        table.dateTime('date_started').notNullable();
+        table.dateTime('date_completed');
+        table.boolean('machine_active_at_time').defaultTo(false);
+        table.decimal('downtime', 10, 2); // in hours
+        table.text('work_done').notNullable();
+        table.text('parts_replaced');
+        table.string('technician').notNullable();
+        table.decimal('cost', 10, 2);
+        table.string('location');
+        table.text('remarks');
+        table.boolean('service_reset').defaultTo(false);
+        table.date('next_service_due');
+        table.timestamps(true, true);
+      });
+      console.log('Created maintenance_logs table.');
+    }
+
     // Recalculate all asset available quantities to fix any corruption
     console.log('Recalculating asset available quantities...');
     const assets = await db('assets').select('*');

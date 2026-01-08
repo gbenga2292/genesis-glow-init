@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Asset, QuickCheckout, Site } from "@/types/asset";
 import { EquipmentLog } from "@/types/equipment";
+import { MaintenanceLog } from "@/types/maintenance";
 import { BarChart, TrendingUp, Clock, AlertTriangle, Package, Wrench, Zap, MapPin, User, Building, CheckCircle2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppData } from "@/contexts/AppDataContext";
@@ -21,9 +22,10 @@ interface AssetAnalyticsDialogProps {
   onOpenChange: (open: boolean) => void;
   quickCheckouts?: QuickCheckout[];
   sites?: Site[];
+  maintenanceLogs?: MaintenanceLog[];
 }
 
-export const AssetAnalyticsDialog = ({ asset, open, onOpenChange, quickCheckouts = [], sites = [] }: AssetAnalyticsDialogProps) => {
+export const AssetAnalyticsDialog = ({ asset, open, onOpenChange, quickCheckouts = [], sites = [], maintenanceLogs = [] }: AssetAnalyticsDialogProps) => {
   const { companySettings } = useAppData();
   const [analytics, setAnalytics] = useState<any>(null);
   const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLog[]>([]);
@@ -565,9 +567,42 @@ export const AssetAnalyticsDialog = ({ asset, open, onOpenChange, quickCheckouts
         <Tabs defaultValue="overview">
           <TabsList className="mb-4">
             <TabsTrigger value="overview">Overview & Stats</TabsTrigger>
+            {asset.type === 'equipment' && asset.requiresLogging && (
+              <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
+            )}
             <TabsTrigger value="locations">Current Locations</TabsTrigger>
             <TabsTrigger value="usage">Usage History</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="maintenance">
+            <div className="space-y-6">
+              <h3 className="text-md font-semibold mb-3 flex items-center gap-2">
+                <Wrench className="h-4 w-4 text-orange-500" />
+                Maintenance History
+              </h3>
+              {maintenanceLogs.filter(l => l.machineId === asset.id).length > 0 ? (
+                <div className="grid gap-3">
+                  {maintenanceLogs
+                    .filter(l => l.machineId === asset.id)
+                    .sort((a, b) => new Date(b.dateCompleted || b.dateStarted).getTime() - new Date(a.dateCompleted || a.dateStarted).getTime())
+                    .map(log => (
+                      <div key={log.id} className="flex items-center justify-between p-3 border rounded-lg bg-card shadow-sm hover:bg-muted/50 transition-colors">
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold">{log.maintenanceType.toUpperCase()}</span>
+                            <Badge variant="outline">{new Date(log.dateCompleted || log.dateStarted).toLocaleDateString()}</Badge>
+                          </div>
+                          <div className="text-sm">{log.reason || log.workDone}</div>
+                          <div className="text-xs text-muted-foreground">Tech: {log.technician} | Replaced: {log.partsReplaced || 'None'}</div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              ) : (
+                <p className="text-muted-foreground p-4 text-center">No maintenance logs found.</p>
+              )}
+            </div>
+          </TabsContent>
 
           <TabsContent value="overview">
             <div className="space-y-6">

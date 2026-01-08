@@ -44,6 +44,10 @@ import { AIAssistantChat } from "@/components/ai/AIAssistantChat";
 import { logActivity } from "@/utils/activityLogger";
 import { calculateAvailableQuantity } from "@/utils/assetCalculations";
 import { AuditCharts } from "@/components/reporting/AuditCharts";
+import { MachineMaintenancePage } from "@/components/maintenance/MachineMaintenancePage";
+import { Machine, MaintenanceLog } from "@/types/maintenance";
+import { exportAssetsToExcel } from "../utils/exportUtils";
+
 
 const Index = () => {
   const { toast } = useToast();
@@ -288,8 +292,34 @@ const Index = () => {
     })();
   }, []);
 
+  const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLog[]>([]);
+
+  // Load maintenance logs from database
+  useEffect(() => {
+    (async () => {
+      if (window.electronAPI && window.electronAPI.db) {
+        try {
+          const loadedLogs = await (window.electronAPI.db as any).getMaintenanceLogs?.();
+          if (loadedLogs) {
+            setMaintenanceLogs(loadedLogs.map((item: any) => ({
+              ...item,
+              dateStarted: new Date(item.dateStarted || item.date_started),
+              dateCompleted: item.dateCompleted ? new Date(item.dateCompleted) : undefined,
+              nextServiceDue: item.nextServiceDue ? new Date(item.nextServiceDue) : undefined,
+              createdAt: new Date(item.createdAt || item.created_at),
+              updatedAt: new Date(item.updatedAt || item.updated_at)
+            })));
+          }
+        } catch (error) {
+          logger.error('Failed to load maintenance logs from database', error);
+        }
+      }
+    })();
+  }, []);
+
   // Initialize site inventory hook to track materials at each site
   const { siteInventory, getSiteInventory } = useSiteInventory(waybills, assets);
+
 
   // Listen for PDF/Audit export triggers from AppMenuBar
   // Placed here to ensure all dependencies (assets, companySettings) are initialized (avoid TDZ)
@@ -1514,6 +1544,127 @@ const Index = () => {
     }
   };
 
+  // Derive machines from assets for maintenance view
+  const machines: Machine[] = assets
+    .filter(a => a.type === 'equipment' && a.requiresLogging)
+    .map(asset => {
+      const site = sites.find(s => s.id === asset.siteId);
+      const isWarehouse = site
+        ? /warehouse|store|depot|head office/i.test(site.name)
+        : /warehouse|store|depot|cupboard/i.test(asset.location || '');
+
+      let status: 'active' | 'maintenance' | 'retired' | 'standby' | 'missing' | 'idle' = 'active';
+      if (asset.status === 'maintenance') status = 'maintenance';
+      else if (asset.status === 'damaged') status = 'maintenance'; // severe damage implies maintenance
+      else if (asset.status === 'missing') status = 'missing';
+      else if (isWarehouse) status = 'idle';
+      else if (asset.status === 'active') status = 'active';
+
+      // Calculate deployment date
+      let deploymentDate = asset.deploymentDate;
+
+      // If active on a site, try to find the actual date it was sent there from waybills
+      if (status === 'active' && site) {
+        // Find latest waybill sending this asset to this site
+        const relevantWaybill = waybills
+          .filter(w => w.siteId === site.id && w.items && w.items.some(i => i.assetId === asset.id))
+          .sort((a, b) => {
+            const dateA = a.sentToSiteDate ? new Date(a.sentToSiteDate).getTime() : 0;
+            const dateB = b.sentToSiteDate ? new Date(b.sentToSiteDate).getTime() : 0;
+            return dateB - dateA;
+          })[0];
+
+        if (relevantWaybill && relevantWaybill.sentToSiteDate) {
+          deploymentDate = relevantWaybill.sentToSiteDate;
+        }
+      }
+
+      // Fallback
+      if (!deploymentDate) {
+        deploymentDate = asset.purchaseDate || asset.createdAt;
+      }
+
+      return {
+        id: asset.id,
+        name: asset.name,
+        model: asset.model || 'N/A',
+        serialNumber: (status === 'idle') ? undefined : (asset.serialNumber || 'N/A'), // Hide S/N if in warehouse/idle
+        site: site ? site.name : (asset.location || 'Depot'),
+        deploymentDate: deploymentDate instanceof Date ? deploymentDate : new Date(deploymentDate),
+        status,
+        operatingPattern: '24/7', // Default as per requirements
+        serviceInterval: asset.serviceInterval || 2, // Default 2 months
+        responsibleSupervisor: 'Unassigned',
+        notes: asset.description || '',
+        createdAt: asset.createdAt,
+        updatedAt: asset.updatedAt
+      };
+    });
+
+  const handleSubmitMaintenance = async (entries: any[]) => {
+    if (!isAuthenticated) {
+      toast({
+        title: "Authentication Required",
+        description: "Please login to log maintenance",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!window.electronAPI || !window.electronAPI.db) {
+      toast({
+        title: "Database Not Available",
+        description: "Cannot save maintenance logs without database connection.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      for (const entry of entries) {
+        const log: MaintenanceLog = {
+          ...entry,
+          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+          createdAt: new Date(),
+          updatedAt: new Date()
+        } as MaintenanceLog;
+
+        await (window.electronAPI.db as any).createMaintenanceLog?.(log);
+      }
+
+      // Reload maintenance logs
+      const loadedLogs = await (window.electronAPI.db as any).getMaintenanceLogs?.();
+      if (loadedLogs) {
+        setMaintenanceLogs(loadedLogs.map((item: any) => ({
+          ...item,
+          dateStarted: new Date(item.dateStarted || item.date_started),
+          dateCompleted: item.dateCompleted ? new Date(item.dateCompleted) : undefined,
+          nextServiceDue: item.nextServiceDue ? new Date(item.nextServiceDue) : undefined,
+          createdAt: new Date(item.createdAt || item.created_at),
+          updatedAt: new Date(item.updatedAt || item.updated_at)
+        })));
+      }
+
+      await logActivity({
+        action: 'create',
+        entity: 'maintenance',
+        details: `Logged maintenance for ${entries.length} machine(s)`
+      });
+
+      toast({
+        title: "Maintenance Logged",
+        description: `Successfully logged maintenance for ${entries.length} machine(s)`
+      });
+    } catch (error) {
+      logger.error('Failed to save maintenance logs', error);
+      toast({
+        title: "Error",
+        description: "Failed to save maintenance logs to database",
+        variant: "destructive"
+      });
+    }
+  };
+
   function renderContent() {
     switch (activeTab) {
       case "dashboard":
@@ -1690,6 +1841,15 @@ const Index = () => {
           quickCheckouts={quickCheckouts}
           onBack={() => setActiveTab("quick-checkout")}
         />;
+
+      case "machine-maintenance":
+        return (
+          <MachineMaintenancePage
+            machines={machines}
+            maintenanceLogs={maintenanceLogs}
+            onSubmitMaintenance={handleSubmitMaintenance}
+          />
+        );
 
       case "settings":
         return (
@@ -2505,12 +2665,10 @@ const Index = () => {
           onRefresh={() => window.location.reload()}
           onExport={() => {
             if (isAuthenticated) {
-              import("@/utils/exportUtils").then(({ exportAssetsToExcel }) => {
-                exportAssetsToExcel(assets, "Full_Inventory_Export");
-                toast({
-                  title: "Export Initiated",
-                  description: "Your inventory data is being exported to Excel."
-                });
+              exportAssetsToExcel(assets, "Full_Inventory_Export");
+              toast({
+                title: "Export Initiated",
+                description: "Your inventory data is being exported to Excel."
               });
             } else {
               toast({
@@ -2752,6 +2910,7 @@ const Index = () => {
               onOpenChange={setShowAnalyticsDialog}
               quickCheckouts={quickCheckouts}
               sites={sites}
+              maintenanceLogs={maintenanceLogs}
             />
 
             {/* AI Assistant Dialog */}

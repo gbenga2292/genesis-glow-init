@@ -122,6 +122,11 @@ export const Sidebar = ({ activeTab, onTabChange, mode = 'desktop' }: SidebarPro
       icon: ShoppingCart
     },
     {
+      id: "machine-maintenance",
+      label: "Machine Maintenance",
+      icon: Activity
+    },
+    {
       id: "sites",
       label: "Sites",
       icon: MapPin
@@ -132,6 +137,7 @@ export const Sidebar = ({ activeTab, onTabChange, mode = 'desktop' }: SidebarPro
       icon: Settings
     }
   ];
+
 
   const menuItems = authenticatedMenuItems;
 
@@ -148,6 +154,8 @@ export const Sidebar = ({ activeTab, onTabChange, mode = 'desktop' }: SidebarPro
         return 'read_returns';
       case 'quick-checkout':
         return 'read_quick_checkouts';
+      case 'machine-maintenance':
+        return 'read_maintenance'; // New permission for machine maintenance
       case 'sites':
         return 'read_sites';
       case 'settings':
@@ -156,6 +164,7 @@ export const Sidebar = ({ activeTab, onTabChange, mode = 'desktop' }: SidebarPro
         return null;
     }
   };
+
 
   const hasAccess = (itemId: string) => {
     if (!isAuthenticated) return false;

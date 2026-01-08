@@ -22,7 +22,9 @@ import {
   transformActivityFromDB,
   transformActivityToDB,
   transformQuickCheckoutFromDB,
-  transformQuickCheckoutToDB
+  transformQuickCheckoutToDB,
+  transformMaintenanceLogFromDB,
+  transformMaintenanceLogToDB
 } from './dataTransform.js';
 import { calculateAvailableQuantity } from './utils/assetCalculations.js';
 
@@ -481,6 +483,34 @@ const updateConsumableLog = (id, data) => {
 }
 
 const deleteConsumableLog = remove('consumable_logs');
+
+// --- MAINTENANCE LOGS ---
+const getMaintenanceLogs = () => {
+  if (!db) throw new Error('Database not connected');
+  return db('maintenance_logs').select('*').orderBy('date_started', 'desc').then(logs => logs.map(transformMaintenanceLogFromDB));
+}
+
+const createMaintenanceLog = (data) => {
+  if (!db) throw new Error('Database not connected');
+  const dbData = transformMaintenanceLogToDB(data);
+  // Remove created_at and updated_at for creation if relying on defaults, but frontend usually sends them.
+  // We'll keep them if provided, or remove if we want DB default.
+  // Frontend sends ID, so we keep it.
+
+  return db('maintenance_logs').insert(dbData).returning('*').then(rows => rows.map(transformMaintenanceLogFromDB));
+}
+
+const updateMaintenanceLog = (id, data) => {
+  if (!db) throw new Error('Database not connected');
+  const dbData = transformMaintenanceLogToDB(data);
+  delete dbData.id;
+  delete dbData.created_at;
+  if (!dbData.updated_at) dbData.updated_at = new Date().toISOString();
+
+  return db('maintenance_logs').where({ id }).update(dbData).returning('*').then(rows => rows.map(transformMaintenanceLogFromDB));
+}
+
+const deleteMaintenanceLog = remove('maintenance_logs');
 
 const getCompanySettings = () => {
   if (!db) throw new Error('Database not connected');
@@ -1472,6 +1502,10 @@ export {
   createConsumableLog,
   updateConsumableLog,
   deleteConsumableLog,
+  getMaintenanceLogs,
+  createMaintenanceLog,
+  updateMaintenanceLog,
+  deleteMaintenanceLog,
   getCompanySettings,
   createCompanySettings,
   updateCompanySettings,

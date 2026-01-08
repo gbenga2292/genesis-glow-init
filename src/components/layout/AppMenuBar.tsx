@@ -142,7 +142,7 @@ export const AppMenuBar = ({
             </button>
           )}
           <div className="px-4 py-2 flex items-center gap-2">
-            <img src="/favicon.ico" alt="DCEL" className="h-5 w-5" />
+            <img src="favicon.ico" alt="DCEL" className="h-5 w-5" />
             <span className="text-sm font-semibold text-foreground">DCEL</span>
           </div>
 
@@ -287,7 +287,7 @@ export const AppMenuBar = ({
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="flex flex-col items-center justify-center p-4 bg-muted/30 rounded-lg">
-              <img src="/logo.png" alt="DCEL Logo" className="h-16 w-16 mb-2" />
+              <img src="logo.png" alt="DCEL Logo" className="h-16 w-16 mb-2" />
               <h3 className="text-lg font-bold">DCEL Asset Manager</h3>
               <p className="text-sm text-muted-foreground">Version 1.0.0</p>
             </div>
