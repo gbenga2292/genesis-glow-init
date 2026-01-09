@@ -586,14 +586,36 @@ export const AssetAnalyticsDialog = ({ asset, open, onOpenChange, quickCheckouts
                     .filter(l => l.machineId === asset.id)
                     .sort((a, b) => new Date(b.dateCompleted || b.dateStarted).getTime() - new Date(a.dateCompleted || a.dateStarted).getTime())
                     .map(log => (
-                      <div key={log.id} className="flex items-center justify-between p-3 border rounded-lg bg-card shadow-sm hover:bg-muted/50 transition-colors">
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold">{log.maintenanceType.toUpperCase()}</span>
-                            <Badge variant="outline">{new Date(log.dateCompleted || log.dateStarted).toLocaleDateString()}</Badge>
-                          </div>
-                          <div className="text-sm">{log.reason || log.workDone}</div>
-                          <div className="text-xs text-muted-foreground">Tech: {log.technician} | Replaced: {log.partsReplaced || 'None'}</div>
+                      <div key={log.id} className="flex items-center gap-3 p-2 border rounded-lg bg-card hover:bg-muted/50 transition-colors text-sm">
+                        <div className="flex items-center gap-2 min-w-[100px]">
+                          <Wrench className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">{new Date(log.dateCompleted || log.dateStarted).toLocaleDateString()}</span>
+                        </div>
+                        <Badge variant="outline" className="text-xs">{log.maintenanceType}</Badge>
+                        <div className="flex-1 truncate text-sm">{log.reason || log.workDone}</div>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <User className="h-3 w-3" />
+                            {log.technician}
+                          </span>
+                          {log.partsReplaced && log.partsReplaced !== 'None' && (
+                            <span className="flex items-center gap-1">
+                              <Package className="h-3 w-3" />
+                              {log.partsReplaced}
+                            </span>
+                          )}
+                          {log.location && (
+                            <span className="flex items-center gap-1">
+                              <MapPin className="h-3 w-3" />
+                              {log.location}
+                            </span>
+                          )}
+                          {log.machineActiveAtTime && (
+                            <Badge variant="default" className="text-xs h-5">Active</Badge>
+                          )}
+                          {log.serviceReset && (
+                            <Badge variant="secondary" className="text-xs h-5">Service Cycle Reset</Badge>
+                          )}
                         </div>
                       </div>
                     ))}

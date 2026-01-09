@@ -1847,6 +1847,9 @@ const Index = () => {
           <MachineMaintenancePage
             machines={machines}
             maintenanceLogs={maintenanceLogs}
+            assets={assets}
+            sites={sites}
+            employees={employees}
             onSubmitMaintenance={handleSubmitMaintenance}
           />
         );

@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Machine, MaintenanceLog, MaintenanceDashboard } from "@/types/maintenance";
-// import { MaintenanceEntryForm } from "./MaintenanceEntryForm";
+import { Asset, Site, Employee } from "@/types/asset";
+import { MaintenanceEntryForm } from "./MaintenanceEntryForm";
 import { MachineCard } from "./MachineCard";
 import { MachineDetailsDialog } from "./MachineDetailsDialog";
 import { Plus, Search, Wrench, AlertCircle, Clock, CheckCircle, TrendingUp, DollarSign, Download, FileSpreadsheet, FileText, ChevronDown } from "lucide-react";
@@ -23,6 +24,9 @@ import { useAppData } from "@/contexts/AppDataContext";
 interface MachineMaintenancePageProps {
     machines: Machine[];
     maintenanceLogs: MaintenanceLog[];
+    assets: Asset[];
+    sites: Site[];
+    employees: Employee[];
     onAddMachine?: () => void;
     onSubmitMaintenance: (entries: Partial<MaintenanceLog>[]) => Promise<void>;
 }
@@ -30,6 +34,9 @@ interface MachineMaintenancePageProps {
 export const MachineMaintenancePage = ({
     machines,
     maintenanceLogs,
+    assets,
+    sites,
+    employees,
     onAddMachine,
     onSubmitMaintenance
 }: MachineMaintenancePageProps) => {
@@ -358,19 +365,17 @@ export const MachineMaintenancePage = ({
 
                 {/* Maintenance Entry Tab */}
                 <TabsContent value="entry">
-                    {/*
                     <MaintenanceEntryForm
                         machines={machines}
+                        assets={assets}
+                        sites={sites}
+                        employees={employees}
                         onSubmit={async (entries) => {
                             await onSubmitMaintenance(entries);
                             setActiveTab('machines');
                         }}
                         onCancel={() => setActiveTab('machines')}
                     />
-                    */}
-                    <div className="p-8 text-center text-muted-foreground border rounded-lg border-dashed">
-                        Maintenance Entry Form is currently disabled.
-                    </div>
                 </TabsContent>
             </Tabs>
 
