@@ -53,9 +53,9 @@ export const MachineCard = ({ machine, maintenanceLogs, onViewDetails }: Machine
     };
 
     const serviceStatusConfig = {
-        'ok': { icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50', label: 'OK' },
-        'due-soon': { icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-50', label: 'Due Soon' },
-        'overdue': { icon: AlertCircle, color: 'text-red-600', bg: 'bg-red-50', label: 'Overdue' }
+        'ok': { icon: CheckCircle, color: 'text-green-700 dark:text-green-600', bg: 'bg-green-50 dark:bg-green-950/50', label: 'OK' },
+        'due-soon': { icon: Clock, color: 'text-yellow-700 dark:text-yellow-500', bg: 'bg-yellow-50 dark:bg-yellow-950/50', label: 'Due Soon' },
+        'overdue': { icon: AlertCircle, color: 'text-red-700 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/50', label: 'Overdue' }
     };
 
     const statusConfig = serviceStatusConfig[serviceStatus];

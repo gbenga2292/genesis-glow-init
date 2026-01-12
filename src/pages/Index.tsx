@@ -58,6 +58,7 @@ const Index = () => {
   const params = useParams();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeAvailabilityFilter, setActiveAvailabilityFilter] = useState<'all' | 'ready' | 'restock' | 'critical' | 'out' | 'issues' | 'reserved'>('all');
 
   // Reset scroll on tab change
   useEffect(() => {
@@ -1747,11 +1748,17 @@ const Index = () => {
           } else {
             setEquipmentLogs(prev => [...prev, log]);
           }
-        }} onNavigate={setActiveTab} />;
+        }} onNavigate={(tab, params) => {
+          setActiveTab(tab);
+          if (tab === 'assets' && params?.availability) {
+            setActiveAvailabilityFilter(params.availability);
+          }
+        }} />;
       case "assets":
         return <AssetTable
           assets={assets}
           sites={sites}
+          activeAvailabilityFilter={activeAvailabilityFilter}
           onEdit={isAuthenticated ? handleEditAsset : undefined}
           onDelete={isAuthenticated ? handleDeleteAsset : undefined}
           onUpdateAsset={(updatedAsset) => {
@@ -1894,6 +1901,7 @@ const Index = () => {
             assets={assets}
             sites={sites}
             employees={employees}
+            vehicles={vehicles}
             onSubmitMaintenance={handleSubmitMaintenance}
           />
         );

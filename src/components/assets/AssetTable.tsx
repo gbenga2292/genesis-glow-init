@@ -57,13 +57,14 @@ interface AssetTableProps {
   onDelete: (asset: Asset) => void;
   onUpdateAsset: (asset: Asset) => void;
   onViewAnalytics?: (asset: Asset) => void;
+  activeAvailabilityFilter?: 'all' | 'ready' | 'restock' | 'critical' | 'out' | 'issues' | 'reserved';
 }
 
 type SortField = 'name' | 'quantity' | 'location' | 'stockStatus';
 
 type SortDirection = 'asc' | 'desc';
 
-export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onViewAnalytics }: AssetTableProps) => {
+export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onViewAnalytics, activeAvailabilityFilter }: AssetTableProps) => {
   const isMobile = useIsMobile();
   const { isAuthenticated, hasPermission, currentUser } = useAuth();
   const { toast } = useToast();
@@ -76,6 +77,14 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
   const [filterCategory, setFilterCategory] = useState<'all' | 'dewatering' | 'waterproofing' | 'tiling' | 'ppe' | 'office'>('all');
   const [filterType, setFilterType] = useState<'all' | 'consumable' | 'non-consumable' | 'tools' | 'equipment'>('all');
   const [filterAvailability, setFilterAvailability] = useState<'all' | 'ready' | 'restock' | 'critical' | 'out' | 'issues' | 'reserved'>('all');
+
+  // Sync active filter from props
+  useEffect(() => {
+    if (activeAvailabilityFilter && activeAvailabilityFilter !== 'all') {
+      setFilterAvailability(activeAvailabilityFilter);
+    }
+  }, [activeAvailabilityFilter]);
+
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [showRestockDialog, setShowRestockDialog] = useState(false);
@@ -397,7 +406,7 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
     if (quantity === 0) {
       return <Badge variant="destructive">Out of Stock</Badge>;
     } else if (quantity <= criticalStockLevel) {
-      return <Badge variant="destructive">Critical Stock</Badge>;
+      return <Badge className="bg-orange-500 hover:bg-orange-600 text-white border-transparent">Critical Stock</Badge>;
     } else if (quantity <= lowStockLevel) {
       return <Badge className="bg-gradient-warning text-warning-foreground">Low Stock</Badge>;
     } else {
@@ -587,7 +596,7 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
                   </TableCell>
 
                   <TableCell>
-                    <span className="font-semibold text-primary">{asset.quantity}</span>
+                    <span className="font-semibold text-primary">{asset.quantity} {asset.unitOfMeasurement}</span>
                   </TableCell>
 
                   {!isMobile && (

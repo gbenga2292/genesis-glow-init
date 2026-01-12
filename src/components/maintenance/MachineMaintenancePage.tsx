@@ -5,12 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Machine, MaintenanceLog, MaintenanceDashboard } from "@/types/maintenance";
-import { Asset, Site, Employee } from "@/types/asset";
+import { Asset, Site, Employee, Vehicle } from "@/types/asset";
 // Maintenance Entry Form Component
 import { MaintenanceEntryForm } from "./MaintenanceEntryForm";
 import { MachineCard } from "./MachineCard";
 import { MachineDetailsDialog } from "./MachineDetailsDialog";
-import { Plus, Search, Wrench, AlertCircle, Clock, CheckCircle, TrendingUp, DollarSign, Download, FileSpreadsheet, FileText, ChevronDown } from "lucide-react";
+import { Plus, Search, Wrench, AlertCircle, Clock, CheckCircle, TrendingUp, DollarSign, Download, FileSpreadsheet, FileText, ChevronDown, Truck } from "lucide-react";
 import { addMonths, differenceInDays, startOfMonth, endOfMonth } from "date-fns";
 import { cn } from "@/lib/utils";
 import { exportMaintenanceLogsToExcel, exportMaintenanceLogsToPDF } from "@/utils/exportUtils";
@@ -28,6 +28,7 @@ interface MachineMaintenancePageProps {
     assets: Asset[];
     sites: Site[];
     employees: Employee[];
+    vehicles: Vehicle[];
     onAddMachine?: () => void;
     onSubmitMaintenance: (entries: Partial<MaintenanceLog>[]) => Promise<void>;
 }
@@ -38,21 +39,53 @@ export const MachineMaintenancePage = ({
     assets,
     sites,
     employees,
+    vehicles,
     onAddMachine,
     onSubmitMaintenance
 }: MachineMaintenancePageProps) => {
     const { companySettings } = useAppData();
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'machines' | 'entry'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'machines' | 'vehicles' | 'entry'>('dashboard');
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
     const [filterStatus, setFilterStatus] = useState<'all' | 'ok' | 'due-soon' | 'overdue'>('all');
+
+    // Convert vehicles to machine format for unified handling
+    const vehiclesAsMachines: Machine[] = useMemo(() => {
+        return vehicles.map(vehicle => ({
+            id: `vehicle-${vehicle.id}`,
+            name: vehicle.name,
+            model: vehicle.type || 'N/A',
+            serialNumber: vehicle.registration_number || 'N/A',
+            site: 'Fleet', // Vehicles are part of the fleet
+            deploymentDate: vehicle.createdAt,
+            status: vehicle.status === 'active' ? 'active' : 'idle' as 'active' | 'idle',
+            operatingPattern: '24/7',
+            serviceInterval: 2, // Default 2 months for vehicles
+            responsibleSupervisor: 'Fleet Manager',
+            notes: `Vehicle - ${vehicle.type || 'General'}`,
+            createdAt: vehicle.createdAt,
+            updatedAt: vehicle.updatedAt,
+            isVehicle: true // Flag to identify vehicles
+        } as Machine & { isVehicle?: boolean }));
+    }, [vehicles]);
+
+    // Combine machines and vehicles based on active tab
+    const allMachines = useMemo(() => {
+        if (activeTab === 'vehicles') {
+            return vehiclesAsMachines;
+        } else if (activeTab === 'machines') {
+            return machines;
+        }
+        // For dashboard and entry, show all
+        return [...machines, ...vehiclesAsMachines];
+    }, [machines, vehiclesAsMachines, activeTab]);
 
     // Memoize logs map: Map<MachineID, { lastServiceLog: MaintenanceLog | undefined, allServiceLogs: MaintenanceLog[] }>
     const machineMaintenanceData = useMemo(() => {
         const map = new Map<string, { lastServiceLog: MaintenanceLog | undefined, serviceLogs: MaintenanceLog[], allLogs: MaintenanceLog[] }>();
 
-        // Initialize map for all machines
-        machines.forEach(m => {
+        // Initialize map for all machines (including vehicles)
+        allMachines.forEach(m => {
             map.set(m.id, { lastServiceLog: undefined, serviceLogs: [], allLogs: [] });
         });
 
@@ -74,7 +107,7 @@ export const MachineMaintenancePage = ({
         });
 
         return map;
-    }, [machines, maintenanceLogs]);
+    }, [allMachines, maintenanceLogs]);
 
     // Calculate dashboard metrics using the memoized map
     const dashboard = useMemo((): MaintenanceDashboard => {
@@ -82,7 +115,7 @@ export const MachineMaintenancePage = ({
         const monthStart = startOfMonth(now);
         const monthEnd = endOfMonth(now);
 
-        const activeMachines = machines.filter(m => m.status === 'active');
+        const activeMachines = allMachines.filter(m => m.status === 'active');
 
         let machinesDueSoon = 0;
         let overdueMachines = 0;
@@ -124,7 +157,7 @@ export const MachineMaintenancePage = ({
         }, 0);
 
         return {
-            totalMachines: machines.length,
+            totalMachines: allMachines.length,
             activeMachines: activeMachines.length,
             machinesDueSoon,
             overdueMachines,
@@ -132,12 +165,12 @@ export const MachineMaintenancePage = ({
             unscheduledMaintenanceCount,
             maintenanceCostThisMonth
         };
-    }, [machines, maintenanceLogs, machineMaintenanceData]);
+    }, [allMachines, maintenanceLogs, machineMaintenanceData]);
 
 
     // Filter machines using memoized data
     const filteredMachines = useMemo(() => {
-        return machines.filter(machine => {
+        return allMachines.filter(machine => {
             const matchesSearch = machine.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 machine.id.toLowerCase().includes(searchQuery.toLowerCase());
 
@@ -165,7 +198,7 @@ export const MachineMaintenancePage = ({
 
             return true;
         });
-    }, [machines, searchQuery, filterStatus, machineMaintenanceData]);
+    }, [allMachines, searchQuery, filterStatus, machineMaintenanceData]);
 
     return (
         <div className="space-y-6 p-6">
@@ -189,6 +222,10 @@ export const MachineMaintenancePage = ({
                     <TabsList>
                         <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
                         <TabsTrigger value="machines">Machines ({machines.length})</TabsTrigger>
+                        <TabsTrigger value="vehicles">
+                            <Truck className="h-4 w-4 mr-2" />
+                            Vehicles ({vehicles.length})
+                        </TabsTrigger>
                         <TabsTrigger value="entry">
                             <Wrench className="h-4 w-4 mr-2" />
                             Log Maintenance
@@ -203,11 +240,11 @@ export const MachineMaintenancePage = ({
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => exportMaintenanceLogsToExcel(maintenanceLogs, machines)}>
+                            <DropdownMenuItem onClick={() => exportMaintenanceLogsToExcel(maintenanceLogs, allMachines)}>
                                 <FileSpreadsheet className="mr-2 h-4 w-4" />
                                 Export to Excel
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => exportMaintenanceLogsToPDF(maintenanceLogs, machines, companySettings)}>
+                            <DropdownMenuItem onClick={() => exportMaintenanceLogsToPDF(maintenanceLogs, allMachines, companySettings)}>
                                 <FileText className="mr-2 h-4 w-4" />
                                 Export to PDF
                             </DropdownMenuItem>
@@ -394,10 +431,76 @@ export const MachineMaintenancePage = ({
                     )}
                 </TabsContent>
 
+                {/* Vehicles Tab */}
+                <TabsContent value="vehicles" className="space-y-4">
+                    {/* Search and Filter */}
+                    <div className="flex flex-col md:flex-row gap-4">
+                        <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="Search vehicles..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-10"
+                            />
+                        </div>
+                        <div className="flex gap-2">
+                            <Button
+                                variant={filterStatus === 'all' ? 'default' : 'outline'}
+                                onClick={() => setFilterStatus('all')}
+                                size="sm"
+                            >
+                                All
+                            </Button>
+                            <Button
+                                variant={filterStatus === 'ok' ? 'default' : 'outline'}
+                                onClick={() => setFilterStatus('ok')}
+                                size="sm"
+                            >
+                                OK
+                            </Button>
+                            <Button
+                                variant={filterStatus === 'due-soon' ? 'default' : 'outline'}
+                                onClick={() => setFilterStatus('due-soon')}
+                                size="sm"
+                            >
+                                Due Soon
+                            </Button>
+                            <Button
+                                variant={filterStatus === 'overdue' ? 'default' : 'outline'}
+                                onClick={() => setFilterStatus('overdue')}
+                                size="sm"
+                            >
+                                Overdue
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* Vehicle Grid */}
+                    {filteredMachines.length === 0 ? (
+                        <Card>
+                            <CardContent className="py-12 text-center text-muted-foreground">
+                                {searchQuery ? 'No vehicles found matching your search.' : 'No vehicles available.'}
+                            </CardContent>
+                        </Card>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {filteredMachines.map(machine => (
+                                <MachineCard
+                                    key={machine.id}
+                                    machine={machine}
+                                    maintenanceLogs={machineMaintenanceData.get(machine.id)?.allLogs || []}
+                                    onViewDetails={setSelectedMachine}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </TabsContent>
+
                 {/* Maintenance Entry Tab */}
                 <TabsContent value="entry">
                     <MaintenanceEntryForm
-                        machines={machines}
+                        machines={allMachines}
                         assets={assets}
                         sites={sites}
                         employees={employees}

@@ -25,7 +25,7 @@ interface DashboardProps {
   equipmentLogs: EquipmentLog[];
   employees: Employee[];
   onQuickLogEquipment: (log: EquipmentLog) => void;
-  onNavigate: (tab: string) => void;
+  onNavigate: (tab: string, params?: { availability: 'out' | 'restock' }) => void;
 }
 
 export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLogs, employees, onQuickLogEquipment, onNavigate }: DashboardProps) => {
@@ -336,13 +336,27 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
             {(outOfStockCount > 0 || lowStockCount > 0) && (
               <div className="mt-4 flex gap-3">
                 {outOfStockCount > 0 && (
-                  <Badge variant="destructive" className="flex gap-1 items-center">
+                  <Badge
+                    variant="destructive"
+                    className="flex gap-1 items-center hover:bg-destructive/80 transition-colors z-10 relative"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onNavigate('assets', { availability: 'out' });
+                    }}
+                  >
                     <AlertTriangle className="h-3 w-3" />
                     {outOfStockCount} Out of Stock
                   </Badge>
                 )}
                 {lowStockCount > 0 && (
-                  <Badge variant="outline" className="text-warning border-warning flex gap-1 items-center">
+                  <Badge
+                    variant="outline"
+                    className="text-warning border-warning flex gap-1 items-center hover:bg-warning/10 transition-colors z-10 relative"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onNavigate('assets', { availability: 'restock' });
+                    }}
+                  >
                     <TrendingDown className="h-3 w-3" />
                     {lowStockCount} Low Stock
                   </Badge>

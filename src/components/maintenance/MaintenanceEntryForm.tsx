@@ -30,6 +30,7 @@ interface MachineEntry {
     machineId: string;
     partsReplaced: string;
     selectedParts: { id: string; name: string; quantity: number }[];
+    customParts: { name: string; quantity: number; cost: number }[]; // Parts not in inventory
     maintenanceDone: string;
     active: boolean;
     location: string;
@@ -53,6 +54,10 @@ export const MaintenanceEntryForm = ({ machines, assets, sites, employees, onSub
     const [generalRemark, setGeneralRemark] = useState("");
     const [partSearch, setPartSearch] = useState("");
     const [validationErrors, setValidationErrors] = useState<string[]>([]);
+    const [customPartDialogOpen, setCustomPartDialogOpen] = useState(false);
+    const [customPartName, setCustomPartName] = useState("");
+    const [customPartQuantity, setCustomPartQuantity] = useState(1);
+    const [customPartCost, setCustomPartCost] = useState(0);
 
     const handleToggleMachineSelection = (machineId: string) => {
         setTempSelectedMachineIds(prev =>
@@ -72,6 +77,7 @@ export const MaintenanceEntryForm = ({ machines, assets, sites, employees, onSub
                     machineId: machine.id,
                     partsReplaced: "",
                     selectedParts: [],
+                    customParts: [],
                     maintenanceDone: "",
                     active: machine.status === 'active',
                     location: machine.site || 'Warehouse',
@@ -79,7 +85,7 @@ export const MaintenanceEntryForm = ({ machines, assets, sites, employees, onSub
                     nextMaintenanceDate: addMonths(new Date(), machine.serviceInterval || 2)
                 };
             })
-            .filter((entry): entry is MachineEntry => entry !== null);
+            .filter(entry => entry !== null) as MachineEntry[];
 
         setSelectedMachines([...selectedMachines, ...newEntries]);
         setMachineSearchOpen(false);
@@ -120,6 +126,26 @@ export const MaintenanceEntryForm = ({ machines, assets, sites, employees, onSub
             return {
                 ...e,
                 selectedParts: e.selectedParts.filter(p => p.id !== partId)
+            };
+        }));
+    };
+
+    const handleAddCustomPart = (machineId: string, partName: string, quantity: number, cost: number) => {
+        setSelectedMachines(prev => prev.map(e => {
+            if (e.machineId !== machineId) return e;
+            return {
+                ...e,
+                customParts: [...e.customParts, { name: partName, quantity, cost }]
+            };
+        }));
+    };
+
+    const handleRemoveCustomPart = (machineId: string, index: number) => {
+        setSelectedMachines(prev => prev.map(e => {
+            if (e.machineId !== machineId) return e;
+            return {
+                ...e,
+                customParts: e.customParts.filter((_, i) => i !== index)
             };
         }));
     };
@@ -172,6 +198,15 @@ export const MaintenanceEntryForm = ({ machines, assets, sites, employees, onSub
                 downtime = Math.max(0, (end.getTime() - start.getTime()) / (1000 * 60 * 60));
             }
 
+            // Calculate total cost from custom parts
+            const customPartsCost = e.customParts.reduce((sum, part) => sum + (part.cost * part.quantity), 0);
+
+            // Combine inventory parts and custom parts for display
+            const allPartsString = [
+                ...e.selectedParts.map(p => `${p.name} (x${p.quantity})`),
+                ...e.customParts.map(p => `${p.name} (x${p.quantity}) - ₦${p.cost.toLocaleString()}`)
+            ].join(", ");
+
             return {
                 machineId: e.machineId,
                 maintenanceType: maintenanceType,
@@ -180,13 +215,14 @@ export const MaintenanceEntryForm = ({ machines, assets, sites, employees, onSub
                 technician: technician,
                 reason: e.maintenanceDone || 'Routine Maintenance',
                 workDone: e.maintenanceDone,
-                partsReplaced: e.selectedParts.map(p => `${p.name} (x${p.quantity})`).join(", "),
+                partsReplaced: allPartsString,
                 rawParts: e.selectedParts,
+                customParts: e.customParts,
                 location: e.location,
                 remarks: e.machineRemark || generalRemark,
                 machineActiveAtTime: e.active,
                 serviceReset: e.active,
-                cost: 0,
+                cost: customPartsCost,
                 downtime: downtime,
                 nextServiceDue: e.nextMaintenanceDate
             };
@@ -267,8 +303,8 @@ export const MaintenanceEntryForm = ({ machines, assets, sites, employees, onSub
                                     {employees.filter(e => e.status === 'active').map(emp => (
                                         <SelectItem key={emp.id} value={emp.name}>{emp.name}</SelectItem>
                                     ))}
-                                    <SelectItem value="manual_entry" className="font-semibold text-muted-foreground border-t mt-1 pt-1">
-                                        + Manual Entry
+                                    <SelectItem value="manual_entry" className="font-semibold text-primary border-t mt-1 pt-1">
+                                        + Custom Technician
                                     </SelectItem>
                                 </SelectContent>
                             </Select>
@@ -405,6 +441,7 @@ export const MaintenanceEntryForm = ({ machines, assets, sites, employees, onSub
                         {selectedMachines.map(entry => {
                             const machine = machines.find(m => m.id === entry.machineId);
                             if (!machine) return null;
+                            const isVehicle = (machine as any).isVehicle === true;
 
                             return (
                                 <Card key={entry.machineId} className="border-primary/50">
@@ -449,101 +486,106 @@ export const MaintenanceEntryForm = ({ machines, assets, sites, employees, onSub
                                                     />
                                                 </div>
 
-                                                <div className="space-y-2">
-                                                    <Label className="text-sm font-medium">Location</Label>
-                                                    <Select
-                                                        value={entry.location}
-                                                        onValueChange={(val) => handleEntryChange(entry.machineId, 'location', val)}
-                                                    >
-                                                        <SelectTrigger>
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {locations.map(loc => (
-                                                                <SelectItem key={loc} value={loc}>{loc}</SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-
-                                                <div className="space-y-4">
-                                                    <div className="flex items-center gap-2">
-                                                        <Checkbox
-                                                            checked={!entry.active}
-                                                            onCheckedChange={(checked) => handleEntryChange(entry.machineId, 'active', !checked)}
-                                                        />
-                                                        <Label className="text-sm font-medium cursor-pointer">
-                                                            Record Shutdown / Downtime
-                                                        </Label>
+                                                {!isVehicle && (
+                                                    <div className="space-y-2">
+                                                        <Label className="text-sm font-medium">Location</Label>
+                                                        <Select
+                                                            value={entry.location}
+                                                            onValueChange={(val) => handleEntryChange(entry.machineId, 'location', val)}
+                                                        >
+                                                            <SelectTrigger>
+                                                                <SelectValue />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {locations.map(loc => (
+                                                                    <SelectItem key={loc} value={loc}>{loc}</SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
                                                     </div>
-                                                    <p className="text-xs text-muted-foreground pl-6 -mt-3">
-                                                        Check this if the machine was shut down for maintenance
-                                                    </p>
+                                                )}
 
-                                                    {!entry.active && (
-                                                        <div className="pl-6 space-y-4 border-l-2 ml-2 animate-accordion-down">
-                                                            <div className="grid grid-cols-2 gap-4">
-                                                                <div className="space-y-2">
-                                                                    <Label className="text-sm text-destructive font-medium">Shutdown Time *</Label>
-                                                                    <input
-                                                                        type="datetime-local"
-                                                                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                                                                        value={entry.shutdownTime || ''}
-                                                                        onChange={(e) => handleEntryChange(entry.machineId, 'shutdownTime', e.target.value)}
-                                                                    />
-                                                                </div>
-                                                                <div className="space-y-2">
-                                                                    <Label className="text-sm text-green-600 font-medium">Restored Time *</Label>
-                                                                    <input
-                                                                        type="datetime-local"
-                                                                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                                                                        value={entry.restartTime || ''}
-                                                                        onChange={(e) => handleEntryChange(entry.machineId, 'restartTime', e.target.value)}
-                                                                    />
-                                                                </div>
-                                                            </div>
-                                                            {entry.shutdownTime && entry.restartTime && (
-                                                                <div className="text-sm">
-                                                                    <span className="text-muted-foreground">Calculated Downtime: </span>
-                                                                    {(() => {
-                                                                        const start = new Date(entry.shutdownTime);
-                                                                        const end = new Date(entry.restartTime);
-                                                                        if (end <= start) return <span className="text-destructive font-semibold">Invalid Time Range</span>;
-                                                                        const diff = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-                                                                        return <Badge variant={diff > 24 ? "destructive" : "secondary"}>{diff.toFixed(2)} hours</Badge>;
-                                                                    })()}
-                                                                </div>
-                                                            )}
+                                                {!isVehicle && (
+                                                    <div className="space-y-4">
+                                                        <div className="flex items-center gap-2">
+                                                            <Checkbox
+                                                                checked={!entry.active}
+                                                                onCheckedChange={(checked) => handleEntryChange(entry.machineId, 'active', !checked)}
+                                                            />
+                                                            <Label className="text-sm font-medium cursor-pointer">
+                                                                Record Shutdown / Downtime
+                                                            </Label>
                                                         </div>
-                                                    )}
-
-                                                    <div className="space-y-2 pt-2">
-                                                        <Label className="text-sm font-medium">Next Maintenance Date</Label>
-                                                        <Popover>
-                                                            <PopoverTrigger asChild>
-                                                                <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !entry.nextMaintenanceDate && "text-muted-foreground")}>
-                                                                    <CalendarIcon className="mr-2 h-4 w-4" />
-                                                                    {entry.nextMaintenanceDate ? format(entry.nextMaintenanceDate, "PPP") : <span>Pick a date</span>}
-                                                                </Button>
-                                                            </PopoverTrigger>
-                                                            <PopoverContent className="w-auto p-0">
-                                                                <Calendar
-                                                                    mode="single"
-                                                                    selected={entry.nextMaintenanceDate}
-                                                                    onSelect={(d) => d && handleEntryChange(entry.machineId, 'nextMaintenanceDate', d)}
-                                                                    initialFocus
-                                                                />
-                                                            </PopoverContent>
-                                                        </Popover>
-                                                        <p className="text-xs text-muted-foreground">
-                                                            Defaults to standard cycle, but you can override it here.
+                                                        <p className="text-xs text-muted-foreground pl-6 -mt-3">
+                                                            Check this if the machine was shut down for maintenance
                                                         </p>
+
+                                                        {!entry.active && (
+                                                            <div className="pl-6 space-y-4 border-l-2 ml-2 animate-accordion-down">
+                                                                <div className="grid grid-cols-2 gap-4">
+                                                                    <div className="space-y-2">
+                                                                        <Label className="text-sm text-destructive font-medium">Shutdown Time *</Label>
+                                                                        <input
+                                                                            type="datetime-local"
+                                                                            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                                                            value={entry.shutdownTime || ''}
+                                                                            onChange={(e) => handleEntryChange(entry.machineId, 'shutdownTime', e.target.value)}
+                                                                        />
+                                                                    </div>
+                                                                    <div className="space-y-2">
+                                                                        <Label className="text-sm text-green-600 font-medium">Restored Time *</Label>
+                                                                        <input
+                                                                            type="datetime-local"
+                                                                            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                                                            value={entry.restartTime || ''}
+                                                                            onChange={(e) => handleEntryChange(entry.machineId, 'restartTime', e.target.value)}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                                {entry.shutdownTime && entry.restartTime && (
+                                                                    <div className="text-sm">
+                                                                        <span className="text-muted-foreground">Calculated Downtime: </span>
+                                                                        {(() => {
+                                                                            const start = new Date(entry.shutdownTime);
+                                                                            const end = new Date(entry.restartTime);
+                                                                            if (end <= start) return <span className="text-destructive font-semibold">Invalid Time Range</span>;
+                                                                            const diff = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+                                                                            return <Badge variant={diff > 24 ? "destructive" : "secondary"}>{diff.toFixed(2)} hours</Badge>;
+                                                                        })()}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
                                                     </div>
+                                                )}
+
+                                                <div className="space-y-2 pt-2">
+                                                    <Label className="text-sm font-medium">Next Maintenance Date</Label>
+                                                    <Popover>
+                                                        <PopoverTrigger asChild>
+                                                            <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !entry.nextMaintenanceDate && "text-muted-foreground")}>
+                                                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                                                {entry.nextMaintenanceDate ? format(entry.nextMaintenanceDate, "PPP") : <span>Pick a date</span>}
+                                                            </Button>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent className="w-auto p-0">
+                                                            <Calendar
+                                                                mode="single"
+                                                                selected={entry.nextMaintenanceDate}
+                                                                onSelect={(d) => d && handleEntryChange(entry.machineId, 'nextMaintenanceDate', d)}
+                                                                initialFocus
+                                                            />
+                                                        </PopoverContent>
+                                                    </Popover>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Defaults to standard cycle, but you can override it here.
+                                                    </p>
                                                 </div>
 
                                                 <div className="space-y-2 md:col-span-2">
                                                     <Label className="text-sm font-medium">Parts Replaced</Label>
                                                     <div className="flex flex-wrap gap-2 min-h-[40px] p-2 border rounded-md bg-background">
+                                                        {/* Inventory Parts */}
                                                         {entry.selectedParts.map(part => (
                                                             <Badge key={part.id} variant="secondary" className="flex items-center gap-1 px-2 py-1">
                                                                 {part.name} (x{part.quantity})
@@ -553,6 +595,19 @@ export const MaintenanceEntryForm = ({ machines, assets, sites, employees, onSub
                                                                 />
                                                             </Badge>
                                                         ))}
+
+                                                        {/* Custom Parts */}
+                                                        {entry.customParts.map((part, index) => (
+                                                            <Badge key={`custom-${index}`} variant="outline" className="flex items-center gap-1 px-2 py-1 border-orange-500 text-orange-700">
+                                                                {part.name} (x{part.quantity}) - ₦{(part.cost * part.quantity).toLocaleString()}
+                                                                <X
+                                                                    className="h-3 w-3 cursor-pointer hover:text-destructive"
+                                                                    onClick={() => handleRemoveCustomPart(entry.machineId, index)}
+                                                                />
+                                                            </Badge>
+                                                        ))}
+
+                                                        {/* Add from Inventory Button */}
                                                         <Dialog open={partSelectionOpen && activeMachineId === entry.machineId} onOpenChange={(open) => {
                                                             setPartSelectionOpen(open);
                                                             if (!open) setActiveMachineId(null);
@@ -567,12 +622,12 @@ export const MaintenanceEntryForm = ({ machines, assets, sites, employees, onSub
                                                                         setPartSelectionOpen(true);
                                                                     }}
                                                                 >
-                                                                    <Plus className="h-3 w-3 mr-1" /> Add Part
+                                                                    <Plus className="h-3 w-3 mr-1" /> From Inventory
                                                                 </Button>
                                                             </DialogTrigger>
                                                             <DialogContent>
                                                                 <DialogHeader>
-                                                                    <DialogTitle>Select Part for {machine.name}</DialogTitle>
+                                                                    <DialogTitle>Select Part from Inventory</DialogTitle>
                                                                 </DialogHeader>
                                                                 <div className="space-y-4">
                                                                     <div className="relative">
@@ -602,7 +657,7 @@ export const MaintenanceEntryForm = ({ machines, assets, sites, employees, onSub
                                                                                         <div>
                                                                                             <div className="font-medium">{asset.name}</div>
                                                                                             <div className="text-xs text-muted-foreground">
-                                                                                                Available: {asset.availableQuantity} • Type: {asset.type}
+                                                                                                Available: {asset.availableQuantity}
                                                                                             </div>
                                                                                         </div>
                                                                                         <Badge variant="outline">Add</Badge>
@@ -615,6 +670,89 @@ export const MaintenanceEntryForm = ({ machines, assets, sites, employees, onSub
                                                                         </div>
                                                                     </ScrollArea>
                                                                 </div>
+                                                            </DialogContent>
+                                                        </Dialog>
+
+                                                        {/* Add Custom Part Button */}
+                                                        <Dialog open={customPartDialogOpen && activeMachineId === entry.machineId} onOpenChange={(open) => {
+                                                            setCustomPartDialogOpen(open);
+                                                            if (!open) {
+                                                                setActiveMachineId(null);
+                                                                setCustomPartName("");
+                                                                setCustomPartQuantity(1);
+                                                                setCustomPartCost(0);
+                                                            }
+                                                        }}>
+                                                            <DialogTrigger asChild>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    className="h-7 px-2 text-xs text-orange-600 hover:text-orange-700"
+                                                                    onClick={() => {
+                                                                        setActiveMachineId(entry.machineId);
+                                                                        setCustomPartDialogOpen(true);
+                                                                    }}
+                                                                >
+                                                                    <Plus className="h-3 w-3 mr-1" /> Custom Part
+                                                                </Button>
+                                                            </DialogTrigger>
+                                                            <DialogContent>
+                                                                <DialogHeader>
+                                                                    <DialogTitle>Add Custom Part (Not in Inventory)</DialogTitle>
+                                                                </DialogHeader>
+                                                                <div className="space-y-4">
+                                                                    <div className="space-y-2">
+                                                                        <Label>Part Name *</Label>
+                                                                        <Input
+                                                                            value={customPartName}
+                                                                            onChange={(e) => setCustomPartName(e.target.value)}
+                                                                            placeholder="e.g., Brake Pads, Oil Filter"
+                                                                        />
+                                                                    </div>
+                                                                    <div className="grid grid-cols-2 gap-4">
+                                                                        <div className="space-y-2">
+                                                                            <Label>Quantity *</Label>
+                                                                            <Input
+                                                                                type="number"
+                                                                                min="1"
+                                                                                value={customPartQuantity}
+                                                                                onChange={(e) => setCustomPartQuantity(parseInt(e.target.value) || 1)}
+                                                                            />
+                                                                        </div>
+                                                                        <div className="space-y-2">
+                                                                            <Label>Cost (₦) *</Label>
+                                                                            <Input
+                                                                                type="number"
+                                                                                min="0"
+                                                                                value={customPartCost}
+                                                                                onChange={(e) => setCustomPartCost(parseFloat(e.target.value) || 0)}
+                                                                                placeholder="Per unit cost"
+                                                                            />
+                                                                        </div>
+                                                                    </div>
+                                                                    {customPartCost > 0 && customPartQuantity > 0 && (
+                                                                        <div className="text-sm text-muted-foreground">
+                                                                            Total: ₦{(customPartCost * customPartQuantity).toLocaleString()}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                <DialogFooter>
+                                                                    <Button
+                                                                        onClick={() => {
+                                                                            if (customPartName && customPartQuantity > 0 && customPartCost >= 0 && activeMachineId) {
+                                                                                handleAddCustomPart(activeMachineId, customPartName, customPartQuantity, customPartCost);
+                                                                                setCustomPartDialogOpen(false);
+                                                                                setActiveMachineId(null);
+                                                                                setCustomPartName("");
+                                                                                setCustomPartQuantity(1);
+                                                                                setCustomPartCost(0);
+                                                                            }
+                                                                        }}
+                                                                        disabled={!customPartName || customPartQuantity <= 0}
+                                                                    >
+                                                                        Add Part
+                                                                    </Button>
+                                                                </DialogFooter>
                                                             </DialogContent>
                                                         </Dialog>
                                                     </div>

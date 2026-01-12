@@ -63,8 +63,8 @@ export const ConsumablesSection = ({
 
   // Filter consumables and non-consumables at the site (INCLUDING depleted/zero and historical via waybills/logs)
   const siteConsumables = assets.filter(asset => {
-    // Include both consumable and non-consumable types
-    if (asset.type !== 'consumable' && asset.type !== 'non-consumable') return false;
+    // Include only consumable types (no reuseables/non-consumables)
+    if (asset.type !== 'consumable') return false;
 
     // Check if item has usage logs at this site
     const hasLogs = consumableLogs.some(log =>
@@ -284,8 +284,8 @@ export const ConsumablesSection = ({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Package2 className="h-5 w-5" />
-          <h3 className="text-lg font-semibold">Materials Tracking</h3>
-          <Badge variant="outline" className="text-xs">Consumables & Reuseables</Badge>
+          <h3 className="text-lg font-semibold">Consumables Tracking</h3>
+          <Badge variant="outline" className="text-xs">Consumables Only</Badge>
         </div>
         <div className="flex items-center gap-2">
           <Button
