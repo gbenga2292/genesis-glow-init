@@ -285,7 +285,7 @@ export const ConsumablesSection = ({
         <div className="flex items-center gap-2">
           <Package2 className="h-5 w-5" />
           <h3 className="text-lg font-semibold">Materials Tracking</h3>
-          <Badge variant="outline" className="text-xs">Consumables & Non-Consumables</Badge>
+          <Badge variant="outline" className="text-xs">Consumables & Reuseables</Badge>
         </div>
         <div className="flex items-center gap-2">
           <Button

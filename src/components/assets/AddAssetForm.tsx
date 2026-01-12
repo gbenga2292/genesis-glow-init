@@ -68,7 +68,7 @@ export const AddAssetForm = ({ onAddAsset, asset, onSave, onCancel, sites, exist
     // Check for duplicate asset name
     const trimmedName = formData.name.trim();
     const isDuplicate = existingAssets.some(
-      existingAsset => 
+      existingAsset =>
         existingAsset.name.toLowerCase() === trimmedName.toLowerCase() &&
         existingAsset.id !== asset?.id // Allow same name when editing the same asset
     );
@@ -156,7 +156,7 @@ export const AddAssetForm = ({ onAddAsset, asset, onSave, onCancel, sites, exist
                   id="name"
                   value={formData.name}
                   onChange={(e) => {
-                    setFormData({...formData, name: e.target.value});
+                    setFormData({ ...formData, name: e.target.value });
                     setNameError(''); // Clear error when user types
                   }}
                   placeholder="Enter asset name"
@@ -173,45 +173,45 @@ export const AddAssetForm = ({ onAddAsset, asset, onSave, onCancel, sites, exist
             </div>
 
             <div className="space-y-2">
-                <Label htmlFor="unitOfMeasurement">Unit of Measurement *</Label>
-                <Combobox
-                  options={[
-                    { value: 'pcs', label: 'pcs - Pieces' },
-                    { value: 'set', label: 'set - Set' },
-                    { value: 'pair', label: 'pair - Pair' },
-                    { value: 'box', label: 'box - Box' },
-                    { value: 'bag', label: 'bag - Bag' },
-                    { value: 'roll', label: 'roll - Roll' },
-                    { value: 'drum', label: 'drum - Drum' },
-                    { value: 'can', label: 'can - Can' },
-                    { value: 'bottle', label: 'bottle - Bottle' },
-                    { value: 'pkt', label: 'pkt - Packet' },
-                    { value: 'litre', label: 'litre - Litre' },
-                    { value: 'gallon', label: 'gallon - Gallon' },
-                    { value: 'kg', label: 'kg - Kilogram' },
-                    { value: 'ton', label: 'ton - Ton' },
-                    { value: 'meter', label: 'meter - Meter' },
-                    { value: 'feet', label: 'feet - Feet' },
-                    { value: 'sqm', label: 'sqm - Square Meter' },
-                    { value: 'sqft', label: 'sqft - Square Feet' },
-                    { value: 'unit', label: 'unit - Unit' }
-                  ]}
-                  value={formData.unitOfMeasurement}
-                  onValueChange={(value) => setFormData({...formData, unitOfMeasurement: value})}
-                  placeholder="Select or type unit of measurement"
-                  className="border-0 bg-muted/50 focus:bg-background transition-all duration-300"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  💡 You can select from the list or type a custom unit
-                </p>
-              </div>
+              <Label htmlFor="unitOfMeasurement">Unit of Measurement *</Label>
+              <Combobox
+                options={[
+                  { value: 'pcs', label: 'pcs - Pieces' },
+                  { value: 'set', label: 'set - Set' },
+                  { value: 'pair', label: 'pair - Pair' },
+                  { value: 'box', label: 'box - Box' },
+                  { value: 'bag', label: 'bag - Bag' },
+                  { value: 'roll', label: 'roll - Roll' },
+                  { value: 'drum', label: 'drum - Drum' },
+                  { value: 'can', label: 'can - Can' },
+                  { value: 'bottle', label: 'bottle - Bottle' },
+                  { value: 'pkt', label: 'pkt - Packet' },
+                  { value: 'litre', label: 'litre - Litre' },
+                  { value: 'gallon', label: 'gallon - Gallon' },
+                  { value: 'kg', label: 'kg - Kilogram' },
+                  { value: 'ton', label: 'ton - Ton' },
+                  { value: 'meter', label: 'meter - Meter' },
+                  { value: 'feet', label: 'feet - Feet' },
+                  { value: 'sqm', label: 'sqm - Square Meter' },
+                  { value: 'sqft', label: 'sqft - Square Feet' },
+                  { value: 'unit', label: 'unit - Unit' }
+                ]}
+                value={formData.unitOfMeasurement}
+                onValueChange={(value) => setFormData({ ...formData, unitOfMeasurement: value })}
+                placeholder="Select or type unit of measurement"
+                className="border-0 bg-muted/50 focus:bg-background transition-all duration-300"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                💡 You can select from the list or type a custom unit
+              </p>
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
               <Textarea
                 id="description"
                 value={formData.description}
-                onChange={(e) => setFormData({...formData, description: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 placeholder="Enter asset description"
                 className="border-0 bg-muted/50 focus:bg-background transition-all duration-300"
                 rows={3}
@@ -226,7 +226,7 @@ export const AddAssetForm = ({ onAddAsset, asset, onSave, onCancel, sites, exist
                   type="number"
                   min="0"
                   value={formData.quantity}
-                  onChange={(e) => setFormData({...formData, quantity: parseInt(e.target.value) || 0})}
+                  onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 0 })}
                   className="border-0 bg-muted/50 focus:bg-background transition-all duration-300"
                 />
               </div>
@@ -239,7 +239,7 @@ export const AddAssetForm = ({ onAddAsset, asset, onSave, onCancel, sites, exist
                   min="0"
                   step="0.01"
                   value={formData.cost}
-                  onChange={(e) => setFormData({...formData, cost: parseFloat(e.target.value) || 0})}
+                  onChange={(e) => setFormData({ ...formData, cost: parseFloat(e.target.value) || 0 })}
                   className="border-0 bg-muted/50 focus:bg-background transition-all duration-300"
                 />
               </div>
@@ -249,7 +249,7 @@ export const AddAssetForm = ({ onAddAsset, asset, onSave, onCancel, sites, exist
                 <Select
                   value={formData.category}
                   onValueChange={(value: 'dewatering' | 'waterproofing' | 'tiling' | 'ppe' | 'office') =>
-                    setFormData({...formData, category: value})
+                    setFormData({ ...formData, category: value })
                   }
                 >
                   <SelectTrigger className="border-0 bg-muted/50 focus:bg-background transition-all duration-300">
@@ -274,7 +274,7 @@ export const AddAssetForm = ({ onAddAsset, asset, onSave, onCancel, sites, exist
                   type="number"
                   min="0"
                   value={formData.lowStockLevel}
-                  onChange={(e) => setFormData({...formData, lowStockLevel: parseInt(e.target.value) || 0})}
+                  onChange={(e) => setFormData({ ...formData, lowStockLevel: parseInt(e.target.value) || 0 })}
                   className="border-0 bg-muted/50 focus:bg-background transition-all duration-300"
                 />
               </div>
@@ -286,7 +286,7 @@ export const AddAssetForm = ({ onAddAsset, asset, onSave, onCancel, sites, exist
                   type="number"
                   min="0"
                   value={formData.criticalStockLevel}
-                  onChange={(e) => setFormData({...formData, criticalStockLevel: parseInt(e.target.value) || 0})}
+                  onChange={(e) => setFormData({ ...formData, criticalStockLevel: parseInt(e.target.value) || 0 })}
                   className="border-0 bg-muted/50 focus:bg-background transition-all duration-300"
                 />
 
@@ -297,7 +297,7 @@ export const AddAssetForm = ({ onAddAsset, asset, onSave, onCancel, sites, exist
                 <Select
                   value={formData.type}
                   onValueChange={(value: 'consumable' | 'non-consumable' | 'tools' | 'equipment') =>
-                    setFormData({...formData, type: value})
+                    setFormData({ ...formData, type: value })
                   }
                 >
                   <SelectTrigger className="border-0 bg-muted/50 focus:bg-background transition-all duration-300">
@@ -307,7 +307,7 @@ export const AddAssetForm = ({ onAddAsset, asset, onSave, onCancel, sites, exist
                     <SelectItem value="equipment">Equipment</SelectItem>
                     <SelectItem value="tools">Tools</SelectItem>
                     <SelectItem value="consumable">Consumable</SelectItem>
-                    <SelectItem value="non-consumable">Non-Consumable</SelectItem>
+                    <SelectItem value="non-consumable">Reuseables</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -320,9 +320,9 @@ export const AddAssetForm = ({ onAddAsset, asset, onSave, onCancel, sites, exist
                 onValueChange={(value) => {
                   setSelectValue(value);
                   if (value === "custom") {
-                    setFormData({...formData, location: customLocation});
+                    setFormData({ ...formData, location: customLocation });
                   } else {
-                    setFormData({...formData, location: value});
+                    setFormData({ ...formData, location: value });
                   }
                 }}
               >
@@ -342,7 +342,7 @@ export const AddAssetForm = ({ onAddAsset, asset, onSave, onCancel, sites, exist
                   value={customLocation}
                   onChange={(e) => {
                     setCustomLocation(e.target.value);
-                    setFormData({...formData, location: e.target.value});
+                    setFormData({ ...formData, location: e.target.value });
                   }}
                   placeholder="Enter custom location"
                   className="border-0 bg-muted/50 focus:bg-background transition-all duration-300 mt-2"
@@ -364,7 +364,7 @@ export const AddAssetForm = ({ onAddAsset, asset, onSave, onCancel, sites, exist
                     <Select
                       value={formData.powerSource || ''}
                       onValueChange={(value: 'fuel' | 'electricity' | 'hybrid' | 'manual') =>
-                        setFormData({...formData, powerSource: value})
+                        setFormData({ ...formData, powerSource: value })
                       }
                     >
                       <SelectTrigger className="border-0 bg-muted/50 focus:bg-background transition-all duration-300">
@@ -383,7 +383,7 @@ export const AddAssetForm = ({ onAddAsset, asset, onSave, onCancel, sites, exist
                     <Label htmlFor="requiresLogging">Requires Daily Logging</Label>
                     <Select
                       value={formData.requiresLogging ? 'yes' : 'no'}
-                      onValueChange={(value) => setFormData({...formData, requiresLogging: value === 'yes'})}
+                      onValueChange={(value) => setFormData({ ...formData, requiresLogging: value === 'yes' })}
                     >
                       <SelectTrigger className="border-0 bg-muted/50 focus:bg-background transition-all duration-300">
                         <SelectValue />
@@ -408,7 +408,7 @@ export const AddAssetForm = ({ onAddAsset, asset, onSave, onCancel, sites, exist
                           min="0"
                           step="0.1"
                           value={formData.fuelCapacity || ''}
-                          onChange={(e) => setFormData({...formData, fuelCapacity: e.target.value ? parseFloat(e.target.value) : undefined})}
+                          onChange={(e) => setFormData({ ...formData, fuelCapacity: e.target.value ? parseFloat(e.target.value) : undefined })}
                           placeholder="e.g., 90"
                           className="border-0 bg-muted/50 focus:bg-background transition-all duration-300"
                         />
@@ -422,7 +422,7 @@ export const AddAssetForm = ({ onAddAsset, asset, onSave, onCancel, sites, exist
                           min="0"
                           step="0.1"
                           value={formData.fuelConsumptionRate || ''}
-                          onChange={(e) => setFormData({...formData, fuelConsumptionRate: e.target.value ? parseFloat(e.target.value) : undefined})}
+                          onChange={(e) => setFormData({ ...formData, fuelConsumptionRate: e.target.value ? parseFloat(e.target.value) : undefined })}
                           placeholder="e.g., 18"
                           className="border-0 bg-muted/50 focus:bg-background transition-all duration-300"
                         />
@@ -439,7 +439,7 @@ export const AddAssetForm = ({ onAddAsset, asset, onSave, onCancel, sites, exist
                         min="0"
                         step="0.1"
                         value={formData.electricityConsumption || ''}
-                        onChange={(e) => setFormData({...formData, electricityConsumption: e.target.value ? parseFloat(e.target.value) : undefined})}
+                        onChange={(e) => setFormData({ ...formData, electricityConsumption: e.target.value ? parseFloat(e.target.value) : undefined })}
                         placeholder="e.g., 75"
                         className="border-0 bg-muted/50 focus:bg-background transition-all duration-300"
                       />
@@ -462,18 +462,18 @@ export const AddAssetForm = ({ onAddAsset, asset, onSave, onCancel, sites, exist
 
             <div className="flex gap-3 pt-4">
               {onCancel && (
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={onCancel} 
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onCancel}
                   className="flex-1 hover:bg-muted transition-all duration-300"
                 >
                   <X className="h-4 w-4 mr-2" />
                   Cancel
                 </Button>
               )}
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 className="flex-1 bg-gradient-primary hover:scale-105 transition-all duration-300 shadow-medium"
               >
                 <Save className="h-4 w-4 mr-2" />

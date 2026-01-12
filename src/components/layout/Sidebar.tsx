@@ -103,7 +103,7 @@ export const Sidebar = ({ activeTab, onTabChange, mode = 'desktop' }: SidebarPro
     },
     {
       id: "assets",
-      label: "Asset Inventory",
+      label: "Inventory",
       icon: Package
     },
     {

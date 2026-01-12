@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Input } from "@/components/ui/input";
@@ -93,6 +93,15 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
     specificLocation: 'all',
     recentlyUpdated: 'all'
   });
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50;
+
+  // Reset pagination when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterCategory, filterType, filterAvailability, advancedFilters]);
 
   // FIXED: Use asset-specific thresholds instead of hardcoded values
   const getStockStatus = (asset: Asset): number => {
@@ -416,7 +425,7 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-            Asset Inventory
+            Inventory
           </h1>
           <p className="text-muted-foreground mt-1">
             Manage your equipment, tools, and consumables
@@ -486,7 +495,7 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
                 <SelectItem value="equipment">Equipment</SelectItem>
                 <SelectItem value="tools">Tools</SelectItem>
                 <SelectItem value="consumable">Consumable</SelectItem>
-                <SelectItem value="non-consumable">Non-Consumable</SelectItem>
+                <SelectItem value="non-consumable">Reuseables</SelectItem>
               </SelectContent>
             </Select>
 
@@ -562,7 +571,7 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredAndSortedAssets.map((asset) => (
+              {filteredAndSortedAssets.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((asset) => (
                 <TableRow key={asset.id} className="hover:bg-muted/30 transition-colors">
                   {isAdmin && (
                     <TableCell>
@@ -616,7 +625,7 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
                     <TableCell>
                       <div className="flex flex-col space-y-1">
                         <Badge variant="outline" className="w-fit">{asset.category}</Badge>
-                        <Badge variant="secondary" className="w-fit text-[10px]">{asset.type}</Badge>
+                        <Badge variant="secondary" className="w-fit text-[10px]">{asset.type === 'non-consumable' ? 'Reuseables' : asset.type}</Badge>
                       </div>
                     </TableCell>
                   )}
@@ -744,6 +753,38 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
         )}
       </div>
 
+      {/* Pagination Controls */}
+      {
+        filteredAndSortedAssets.length > 0 && (
+          <div className="flex items-center justify-between py-4">
+            <div className="text-sm text-muted-foreground">
+              Showing {Math.min((currentPage - 1) * itemsPerPage + 1, filteredAndSortedAssets.length)} to {Math.min(currentPage * itemsPerPage, filteredAndSortedAssets.length)} of {filteredAndSortedAssets.length} assets
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+              >
+                Previous
+              </Button>
+              <div className="text-sm font-medium">
+                Page {currentPage} of {Math.ceil(filteredAndSortedAssets.length / itemsPerPage)}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(filteredAndSortedAssets.length / itemsPerPage)))}
+                disabled={currentPage >= Math.ceil(filteredAndSortedAssets.length / itemsPerPage)}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )
+      }
+
       {/* Restock Dialog */}
       <RestockDialog
         open={showRestockDialog}
@@ -820,14 +861,16 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
       />
 
       {/* Bulk Operations (Admin Only) */}
-      {isAdmin && (
-        <BulkAssetOperations
-          selectedAssets={selectedAssets}
-          onClearSelection={() => setSelectedAssetIds(new Set())}
-          onBulkDelete={handleBulkDelete}
-          onBulkUpdate={handleBulkUpdate}
-        />
-      )}
-    </div>
+      {
+        isAdmin && (
+          <BulkAssetOperations
+            selectedAssets={selectedAssets}
+            onClearSelection={() => setSelectedAssetIds(new Set())}
+            onBulkDelete={handleBulkDelete}
+            onBulkUpdate={handleBulkUpdate}
+          />
+        )
+      }
+    </div >
   );
 };

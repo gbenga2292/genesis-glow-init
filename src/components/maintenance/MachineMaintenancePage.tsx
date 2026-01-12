@@ -91,9 +91,11 @@ export const MachineMaintenancePage = ({
             const data = machineMaintenanceData.get(machine.id);
             const lastMaintenance = data?.lastServiceLog;
 
-            const expectedServiceDate = lastMaintenance
-                ? addMonths(new Date(lastMaintenance.dateStarted), machine.serviceInterval)
-                : addMonths(machine.deploymentDate, machine.serviceInterval);
+            const expectedServiceDate = lastMaintenance?.nextServiceDue
+                ? new Date(lastMaintenance.nextServiceDue)
+                : (lastMaintenance
+                    ? addMonths(new Date(lastMaintenance.dateStarted), machine.serviceInterval)
+                    : addMonths(machine.deploymentDate, machine.serviceInterval));
 
             const daysRemaining = differenceInDays(expectedServiceDate, now);
 
@@ -149,9 +151,11 @@ export const MachineMaintenancePage = ({
             const data = machineMaintenanceData.get(machine.id);
             const lastMaintenance = data?.lastServiceLog;
 
-            const expectedServiceDate = lastMaintenance
-                ? addMonths(new Date(lastMaintenance.dateStarted), machine.serviceInterval)
-                : addMonths(machine.deploymentDate, machine.serviceInterval);
+            const expectedServiceDate = lastMaintenance?.nextServiceDue
+                ? new Date(lastMaintenance.nextServiceDue)
+                : (lastMaintenance
+                    ? addMonths(new Date(lastMaintenance.dateStarted), machine.serviceInterval)
+                    : addMonths(machine.deploymentDate, machine.serviceInterval));
 
             const daysRemaining = differenceInDays(expectedServiceDate, new Date());
 

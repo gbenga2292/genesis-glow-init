@@ -560,7 +560,7 @@ export const AssetAnalyticsDialog = ({ asset, open, onOpenChange, quickCheckouts
           <DialogTitle className="flex items-center gap-2">
             <BarChart className="h-5 w-5" />
             Analytics - {asset.name}
-            <Badge variant="outline" className="ml-2">{asset.type}</Badge>
+            <Badge variant="outline" className="ml-2">{asset.type === 'non-consumable' ? 'Reuseables' : asset.type}</Badge>
           </DialogTitle>
         </DialogHeader>
 

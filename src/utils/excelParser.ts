@@ -18,25 +18,25 @@ export interface ExcelAssetData {
 export const parseExcelFile = (file: File): Promise<ExcelAssetData[]> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    
+
     reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        
+
         // Convert to JSON with header row
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-        
+
         if (jsonData.length < 2) {
           reject(new Error('Excel file must have at least a header row and one data row'));
           return;
         }
-        
+
         const headers = jsonData[0] as string[];
         const rows = jsonData.slice(1) as any[][];
-        
+
         // Map headers to expected fields
         const headerMap: { [key: string]: keyof ExcelAssetData } = {
           'name': 'name',
@@ -56,20 +56,20 @@ export const parseExcelFile = (file: File): Promise<ExcelAssetData[]> => {
           'cost': 'cost',
           'price': 'cost'
         };
-        
+
         const assets: ExcelAssetData[] = [];
-        
+
         rows.forEach((row, index) => {
           if (row.some(cell => cell !== null && cell !== undefined && cell !== '')) {
             const asset: Partial<ExcelAssetData> = {};
-            
+
             headers.forEach((header, colIndex) => {
               const normalizedHeader = header.toLowerCase().trim();
               const fieldName = headerMap[normalizedHeader];
-              
+
               if (fieldName && row[colIndex] !== null && row[colIndex] !== undefined && row[colIndex] !== '') {
                 const value = row[colIndex];
-                
+
                 switch (fieldName) {
                   case 'quantity':
                   case 'cost':
@@ -81,8 +81,13 @@ export const parseExcelFile = (file: File): Promise<ExcelAssetData[]> => {
                     }
                     break;
                   case 'type':
-                    if (['consumable', 'non-consumable', 'tools', 'equipment'].includes(value.toLowerCase())) {
-                      asset[fieldName] = value.toLowerCase() as 'consumable' | 'non-consumable' | 'tools' | 'equipment';
+                    let typeValue = value.toLowerCase();
+                    if (typeValue === 'reuseable' || typeValue === 'reuseables') {
+                      typeValue = 'non-consumable';
+                    }
+
+                    if (['consumable', 'non-consumable', 'tools', 'equipment'].includes(typeValue)) {
+                      asset[fieldName] = typeValue as 'consumable' | 'non-consumable' | 'tools' | 'equipment';
                     }
                     break;
                   case 'status':
@@ -100,7 +105,7 @@ export const parseExcelFile = (file: File): Promise<ExcelAssetData[]> => {
                 }
               }
             });
-            
+
             // Validate required fields
             if (asset.name && asset.quantity !== undefined) {
               assets.push({
@@ -119,13 +124,13 @@ export const parseExcelFile = (file: File): Promise<ExcelAssetData[]> => {
             }
           }
         });
-        
+
         resolve(assets);
       } catch (error) {
         reject(new Error(`Failed to parse Excel file: ${error}`));
       }
     };
-    
+
     reader.onerror = () => reject(new Error('Failed to read file'));
     reader.readAsArrayBuffer(file);
   });
@@ -138,10 +143,10 @@ export const getExcelTemplate = () => {
     ['Waterproof Membrane', 'Heavy-duty waterproofing sheets', 150, 'rolls', 'waterproofing', 'consumable', 'Storage B', 'Sealing', 'active', 'excellent', 25],
     ['Safety Helmets', 'Construction safety helmets', 20, 'pcs', 'dewatering', 'tools', 'Safety Storage', 'Safety', 'active', 'good', 30]
   ];
-  
+
   const ws = XLSX.utils.aoa_to_sheet(template);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Assets Template');
-  
+
   return XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
 };

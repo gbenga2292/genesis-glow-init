@@ -24,11 +24,13 @@ export const MachineCard = ({ machine, maintenanceLogs, onViewDetails }: Machine
     // We'll assume sorted for max performance as per the refactor plan.
 
     const lastMaintenance = serviceLogs[0];
-    const expectedServiceDate = lastMaintenance
-        ? addMonths(new Date(lastMaintenance.dateStarted), machine.serviceInterval)
-        : machine.status === 'active'
-            ? addMonths(machine.deploymentDate, machine.serviceInterval)
-            : undefined;
+    const expectedServiceDate = lastMaintenance?.nextServiceDue
+        ? new Date(lastMaintenance.nextServiceDue)
+        : (lastMaintenance
+            ? addMonths(new Date(lastMaintenance.dateStarted), machine.serviceInterval)
+            : machine.status === 'active'
+                ? addMonths(machine.deploymentDate, machine.serviceInterval)
+                : undefined);
 
     const daysRemaining = expectedServiceDate ? differenceInDays(expectedServiceDate, new Date()) : undefined;
 
@@ -41,11 +43,13 @@ export const MachineCard = ({ machine, maintenanceLogs, onViewDetails }: Machine
         }
     }
 
-    const statusColors = {
+    const statusColors: Record<string, string> = {
         'active': 'bg-green-500',
         'idle': 'bg-gray-500',
-        'under-maintenance': 'bg-yellow-500',
-        'deployed': 'bg-blue-500'
+        'maintenance': 'bg-red-500',
+        'standby': 'bg-yellow-500',
+        'missing': 'bg-red-700',
+        'retired': 'bg-gray-700'
     };
 
     const serviceStatusConfig = {

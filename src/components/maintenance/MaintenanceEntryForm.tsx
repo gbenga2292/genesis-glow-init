@@ -14,7 +14,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { format, addMonths } from "date-fns";
 import { CalendarIcon, Plus, X, Search, Save, AlertCircle, Trash2 } from "lucide-react";
 
 interface MaintenanceEntryFormProps {
@@ -36,6 +36,7 @@ interface MachineEntry {
     machineRemark: string;
     shutdownTime?: string;
     restartTime?: string;
+    nextMaintenanceDate?: Date;
 }
 
 export const MaintenanceEntryForm = ({ machines, assets, sites, employees, onSubmit, onCancel }: MaintenanceEntryFormProps) => {
@@ -74,7 +75,8 @@ export const MaintenanceEntryForm = ({ machines, assets, sites, employees, onSub
                     maintenanceDone: "",
                     active: machine.status === 'active',
                     location: machine.site || 'Warehouse',
-                    machineRemark: ""
+                    machineRemark: "",
+                    nextMaintenanceDate: addMonths(new Date(), machine.serviceInterval || 2)
                 };
             })
             .filter((entry): entry is MachineEntry => entry !== null);
@@ -185,7 +187,8 @@ export const MaintenanceEntryForm = ({ machines, assets, sites, employees, onSub
                 machineActiveAtTime: e.active,
                 serviceReset: e.active,
                 cost: 0,
-                downtime: downtime
+                downtime: downtime,
+                nextServiceDue: e.nextMaintenanceDate
             };
         });
 
@@ -466,41 +469,37 @@ export const MaintenanceEntryForm = ({ machines, assets, sites, employees, onSub
                                                 <div className="space-y-4">
                                                     <div className="flex items-center gap-2">
                                                         <Checkbox
-                                                            checked={entry.active}
-                                                            onCheckedChange={(checked) => handleEntryChange(entry.machineId, 'active', checked)}
+                                                            checked={!entry.active}
+                                                            onCheckedChange={(checked) => handleEntryChange(entry.machineId, 'active', !checked)}
                                                         />
                                                         <Label className="text-sm font-medium cursor-pointer">
-                                                            Machine was Active
+                                                            Record Shutdown / Downtime
                                                         </Label>
                                                     </div>
                                                     <p className="text-xs text-muted-foreground pl-6 -mt-3">
-                                                        Resets 2-month service cycle if active
+                                                        Check this if the machine was shut down for maintenance
                                                     </p>
 
                                                     {!entry.active && (
-                                                        <div className="pl-6 space-y-4 border-l-2 ml-2">
+                                                        <div className="pl-6 space-y-4 border-l-2 ml-2 animate-accordion-down">
                                                             <div className="grid grid-cols-2 gap-4">
                                                                 <div className="space-y-2">
                                                                     <Label className="text-sm text-destructive font-medium">Shutdown Time *</Label>
-                                                                    <div className="flex flex-col">
-                                                                        <Input
-                                                                            type="datetime-local"
-                                                                            className="h-9"
-                                                                            value={entry.shutdownTime || ''}
-                                                                            onChange={(e) => handleEntryChange(entry.machineId, 'shutdownTime', e.target.value)}
-                                                                        />
-                                                                    </div>
+                                                                    <input
+                                                                        type="datetime-local"
+                                                                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                                                        value={entry.shutdownTime || ''}
+                                                                        onChange={(e) => handleEntryChange(entry.machineId, 'shutdownTime', e.target.value)}
+                                                                    />
                                                                 </div>
                                                                 <div className="space-y-2">
                                                                     <Label className="text-sm text-green-600 font-medium">Restored Time *</Label>
-                                                                    <div className="flex flex-col">
-                                                                        <Input
-                                                                            type="datetime-local"
-                                                                            className="h-9"
-                                                                            value={entry.restartTime || ''}
-                                                                            onChange={(e) => handleEntryChange(entry.machineId, 'restartTime', e.target.value)}
-                                                                        />
-                                                                    </div>
+                                                                    <input
+                                                                        type="datetime-local"
+                                                                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                                                        value={entry.restartTime || ''}
+                                                                        onChange={(e) => handleEntryChange(entry.machineId, 'restartTime', e.target.value)}
+                                                                    />
                                                                 </div>
                                                             </div>
                                                             {entry.shutdownTime && entry.restartTime && (
@@ -517,6 +516,29 @@ export const MaintenanceEntryForm = ({ machines, assets, sites, employees, onSub
                                                             )}
                                                         </div>
                                                     )}
+
+                                                    <div className="space-y-2 pt-2">
+                                                        <Label className="text-sm font-medium">Next Maintenance Date</Label>
+                                                        <Popover>
+                                                            <PopoverTrigger asChild>
+                                                                <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !entry.nextMaintenanceDate && "text-muted-foreground")}>
+                                                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                                                    {entry.nextMaintenanceDate ? format(entry.nextMaintenanceDate, "PPP") : <span>Pick a date</span>}
+                                                                </Button>
+                                                            </PopoverTrigger>
+                                                            <PopoverContent className="w-auto p-0">
+                                                                <Calendar
+                                                                    mode="single"
+                                                                    selected={entry.nextMaintenanceDate}
+                                                                    onSelect={(d) => d && handleEntryChange(entry.machineId, 'nextMaintenanceDate', d)}
+                                                                    initialFocus
+                                                                />
+                                                            </PopoverContent>
+                                                        </Popover>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            Defaults to standard cycle, but you can override it here.
+                                                        </p>
+                                                    </div>
                                                 </div>
 
                                                 <div className="space-y-2 md:col-span-2">
@@ -565,7 +587,12 @@ export const MaintenanceEntryForm = ({ machines, assets, sites, employees, onSub
                                                                     <ScrollArea className="h-[300px]">
                                                                         <div className="space-y-2">
                                                                             {assets
-                                                                                .filter(a => a.name.toLowerCase().includes(partSearch.toLowerCase()) && a.availableQuantity > 0)
+                                                                                .filter(a =>
+                                                                                    a.name.toLowerCase().includes(partSearch.toLowerCase()) &&
+                                                                                    a.availableQuantity > 0 &&
+                                                                                    a.category === 'dewatering' &&
+                                                                                    a.type === 'consumable'
+                                                                                )
                                                                                 .map(asset => (
                                                                                     <div
                                                                                         key={asset.id}
@@ -582,7 +609,7 @@ export const MaintenanceEntryForm = ({ machines, assets, sites, employees, onSub
                                                                                     </div>
                                                                                 ))
                                                                             }
-                                                                            {assets.filter(a => a.name.toLowerCase().includes(partSearch.toLowerCase()) && a.availableQuantity > 0).length === 0 && (
+                                                                            {assets.filter(a => a.name.toLowerCase().includes(partSearch.toLowerCase()) && a.availableQuantity > 0 && a.category === 'dewatering' && a.type === 'consumable').length === 0 && (
                                                                                 <p className="text-center text-muted-foreground py-8">No parts available</p>
                                                                             )}
                                                                         </div>

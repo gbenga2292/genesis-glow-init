@@ -21,7 +21,7 @@ export const PDFReportGenerator = ({ open, onClose, assets, companySettings }: P
   const reportTypes = [
     {
       id: 'all',
-      title: 'Complete Asset Inventory Report',
+      title: 'Complete Inventory Report',
       description: 'All assets in the system with detailed information',
       count: assets.length,
       color: 'bg-gradient-primary'
@@ -51,7 +51,7 @@ export const PDFReportGenerator = ({ open, onClose, assets, companySettings }: P
 
   const handleGenerateReport = async (reportType: string) => {
     setIsGenerating(true);
-    
+
     try {
       const reportConfig = reportTypes.find(r => r.id === reportType);
       if (!reportConfig) return;
@@ -132,9 +132,9 @@ export const PDFReportGenerator = ({ open, onClose, assets, companySettings }: P
                       </Badge>
                     </div>
                   </CardHeader>
-                  
+
                   <CardContent>
-                    <Button 
+                    <Button
                       onClick={() => handleGenerateReport(report.id)}
                       disabled={isGenerating || report.count === 0}
                       className="w-full gap-2"
@@ -167,7 +167,7 @@ export const PDFReportGenerator = ({ open, onClose, assets, companySettings }: P
                   <li>Date and report type stamps</li>
                 </ul>
               </div>
-              
+
               <div>
                 <h5 className="font-medium mb-2">Excel Export Contains:</h5>
                 <ul className="list-disc list-inside space-y-1 text-muted-foreground">

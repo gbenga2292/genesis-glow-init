@@ -25,9 +25,10 @@ interface DashboardProps {
   equipmentLogs: EquipmentLog[];
   employees: Employee[];
   onQuickLogEquipment: (log: EquipmentLog) => void;
+  onNavigate: (tab: string) => void;
 }
 
-export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLogs, employees, onQuickLogEquipment }: DashboardProps) => {
+export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLogs, employees, onQuickLogEquipment, onNavigate }: DashboardProps) => {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [selectedEquipment, setSelectedEquipment] = useState<Asset | null>(null);
   const [selectedSite, setSelectedSite] = useState<Site | null>(null);
@@ -304,37 +305,136 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
         </p>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {stats.map((stat, index) => {
-          const trendInfo = stat.getTrendInfo();
-          return (
-            <Card
-              key={stat.title}
-              className="border-0 shadow-soft hover:shadow-medium transition-all duration-300"
-            >
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <stat.icon className={`h-4 w-4 ${stat.color}`} />
-                  {stat.title}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className={`text-3xl font-bold ${stat.color}`}>
-                  {stat.value}
+      {/* Action Modules Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        {/* 1. Inventory Overview */}
+        <Card
+          className="border-0 shadow-soft hover:shadow-lg transition-all duration-300 cursor-pointer group relative overflow-hidden"
+          onClick={() => onNavigate('assets')}
+        >
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <Package className="h-24 w-24 text-primary" />
+          </div>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <Package className="h-6 w-6 text-primary" />
+              Inventory Overview
+            </CardTitle>
+            <CardDescription>Manage all tools, equipment, and consumables</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex justify-between items-end">
+              <div>
+                <div className="text-3xl font-bold text-primary">{totalAssets}</div>
+                <div className="text-sm text-muted-foreground">Unique Assets</div>
+              </div>
+              <div className="text-right">
+                <div className="text-2xl font-bold text-success">{totalQuantity}</div>
+                <div className="text-sm text-muted-foreground">Total Quantity</div>
+              </div>
+            </div>
+            {(outOfStockCount > 0 || lowStockCount > 0) && (
+              <div className="mt-4 flex gap-3">
+                {outOfStockCount > 0 && (
+                  <Badge variant="destructive" className="flex gap-1 items-center">
+                    <AlertTriangle className="h-3 w-3" />
+                    {outOfStockCount} Out of Stock
+                  </Badge>
+                )}
+                {lowStockCount > 0 && (
+                  <Badge variant="outline" className="text-warning border-warning flex gap-1 items-center">
+                    <TrendingDown className="h-3 w-3" />
+                    {lowStockCount} Low Stock
+                  </Badge>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* 2. Project Waybills */}
+        <Card
+          className="border-0 shadow-soft hover:shadow-lg transition-all duration-300 cursor-pointer group relative overflow-hidden"
+          onClick={() => onNavigate('waybills')}
+        >
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <FileText className="h-24 w-24 text-warning" />
+          </div>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <FileText className="h-6 w-6 text-warning" />
+              Project Waybills
+            </CardTitle>
+            <CardDescription>Track items deployed to sites</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-warning">{outstandingWaybills}</div>
+            <div className="text-sm text-muted-foreground">Outstanding Waybills</div>
+            <div className="mt-4 h-2 w-full bg-secondary rounded-full overflow-hidden">
+              <div className="h-full bg-warning/50 w-3/4 rounded-full" /> {/* Placeholder visual */}
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">Active deployments pending return</p>
+          </CardContent>
+        </Card>
+
+        {/* 3. Returns Processing */}
+        <Card
+          className="border-0 shadow-soft hover:shadow-lg transition-all duration-300 cursor-pointer group relative overflow-hidden"
+          onClick={() => onNavigate('returns')}
+        >
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <CheckCircle className="h-24 w-24 text-blue-500" />
+          </div>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <CheckCircle className="h-6 w-6 text-blue-500" />
+              Returns Processing
+            </CardTitle>
+            <CardDescription>Process returned items and restock</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {/* Note: Assuming we can filter for distinct 'active returns' or stick to a placeholder if accurate data isn't ready. 
+                 Using outstandingWaybills for now as a proxy or 0 if separate data is needed. 
+                 User requested "outstanding returns(returns that hasnt been processed yet)". 
+                 I'll add a placeholder variable 'outstandingReturns' assuming it will be passed or calculated. 
+                 For now, I will calculate it from waybills if possible, or default to 0. 
+                 Actually, waybills with type 'return' and status 'outstanding' are likely what is needed. */}
+            <div className="text-3xl font-bold text-blue-500">
+              {waybills.filter(w => w.type === 'return' && w.status === 'outstanding').length}
+            </div>
+            <div className="text-sm text-muted-foreground">Pending Returns</div>
+            <p className="text-xs text-muted-foreground mt-2">Items arrived at yard, awaiting processing</p>
+          </CardContent>
+        </Card>
+
+        {/* 4. Employee Quick Checkouts */}
+        <Card
+          className="border-0 shadow-soft hover:shadow-lg transition-all duration-300 cursor-pointer group relative overflow-hidden"
+          onClick={() => onNavigate('employee-analytics')}
+        >
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <ShoppingCart className="h-24 w-24 text-purple-500" />
+          </div>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <ShoppingCart className="h-6 w-6 text-purple-500" />
+              Quick Checkouts
+            </CardTitle>
+            <CardDescription>Monitor individual tool assignments</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-purple-500">{outstandingCheckouts}</div>
+            <div className="text-sm text-muted-foreground">Active Checkouts</div>
+            <div className="mt-4 flex -space-x-2 overflow-hidden">
+              {/* Visual placeholder for user avatars */}
+              {[1, 2, 3].map(i => (
+                <div key={i} className="inline-block h-6 w-6 rounded-full ring-2 ring-background bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-500">
+                  U
                 </div>
-                <CardDescription className="mt-2 mb-3">
-                  {stat.description}
-                </CardDescription>
-                <TrendChart
-                  data={stat.trendData}
-                  trend={trendInfo.trend}
-                  percentage={trendInfo.percentage}
-                />
-              </CardContent>
-            </Card>
-          );
-        })}
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
 

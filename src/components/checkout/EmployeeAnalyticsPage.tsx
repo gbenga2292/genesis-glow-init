@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Employee, QuickCheckout } from "@/types/asset";
-import { Users, User, Package, Shield, CalendarIcon, ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
+import { Employee, QuickCheckout, Asset } from "@/types/asset";
+import { Users, User, Package, Shield, CalendarIcon, ChevronLeft, ChevronRight, ArrowLeft, CheckCircle } from "lucide-react";
 import { useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -9,10 +9,12 @@ import { cn } from "@/lib/utils";
 interface EmployeeAnalyticsPageProps {
     employees: Employee[];
     quickCheckouts: QuickCheckout[];
+    assets: Asset[];
     onBack: () => void;
+    onUpdateStatus?: (checkoutId: string, status: string) => Promise<void>;
 }
 
-export const EmployeeAnalyticsPage = ({ employees, quickCheckouts, onBack }: EmployeeAnalyticsPageProps) => {
+export const EmployeeAnalyticsPage = ({ employees, quickCheckouts, assets, onBack, onUpdateStatus }: EmployeeAnalyticsPageProps) => {
     const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
@@ -199,7 +201,28 @@ export const EmployeeAnalyticsPage = ({ employees, quickCheckouts, onBack }: Emp
                                                                         <CalendarIcon className="h-3 w-3 mr-1" />
                                                                         {new Date(checkout.checkoutDate).toLocaleDateString()}
                                                                     </div>
-                                                                    <span className="text-orange-600 font-medium">Outstanding</span>
+                                                                    <div className="flex gap-2 items-center">
+                                                                        <span className="text-orange-600 font-medium">Outstanding</span>
+                                                                        {(() => {
+                                                                            const asset = assets.find(a => a.id === checkout.assetId);
+                                                                            const canMarkAsUsed = asset && (asset.type === 'consumable' || asset.type === 'non-consumable');
+
+                                                                            return onUpdateStatus && canMarkAsUsed && (
+                                                                                <Button
+                                                                                    size="sm"
+                                                                                    variant="ghost"
+                                                                                    className="h-6 px-2 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        onUpdateStatus(checkout.id, 'used');
+                                                                                    }}
+                                                                                >
+                                                                                    <CheckCircle className="h-3 w-3 mr-1" />
+                                                                                    Mark Used
+                                                                                </Button>
+                                                                            );
+                                                                        })()}
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </CardContent>

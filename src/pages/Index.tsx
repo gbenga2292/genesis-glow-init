@@ -1433,16 +1433,42 @@ const Index = () => {
   const machines: Machine[] = assets
     .filter(a => a.type === 'equipment' && a.requiresLogging)
     .map(asset => {
-      const site = sites.find(s => s.id === asset.siteId);
+      // Strategy 1: Check siteQuantities for current physical location (real-time tracking)
+      // This ensures that when equipment is moved via waybill, the new location is reflected immediately
+      let siteId = null;
+      if (asset.siteQuantities) {
+        // Find the site with quantity > 0
+        const siteEntry = Object.entries(asset.siteQuantities).find(([_, qty]) => Number(qty) > 0);
+        if (siteEntry) {
+          siteId = siteEntry[0];
+        }
+      }
+
+      // Strategy 2: Fallback to explicit siteId if no active site logs found
+      if (!siteId && asset.siteId) {
+        siteId = asset.siteId;
+      }
+
+      const site = sites.find(s => s.id === siteId);
       const isWarehouse = site
         ? /warehouse|store|depot|head office/i.test(site.name)
         : /warehouse|store|depot|cupboard/i.test(asset.location || '');
 
+      // Check logs for latest activity status
+      const assetLogs = equipmentLogs
+        .filter(log => log.equipmentId === asset.id)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      const lastLog = assetLogs[0];
+      const logSaysInactive = lastLog && !lastLog.active; // If log exists and active is false
+
       let status: 'active' | 'maintenance' | 'retired' | 'standby' | 'missing' | 'idle' = 'active';
+
       if (asset.status === 'maintenance') status = 'maintenance';
       else if (asset.status === 'damaged') status = 'maintenance'; // severe damage implies maintenance
       else if (asset.status === 'missing') status = 'missing';
-      else if (isWarehouse) status = 'idle';
+      else if (isWarehouse) status = 'idle'; // Warehouse = Inactive/Idle
+      else if (logSaysInactive) status = 'standby'; // On site but logged as inactive
       else if (asset.status === 'active') status = 'active';
 
       // Calculate deployment date
@@ -1600,6 +1626,87 @@ const Index = () => {
     }
   };
 
+  const handleUpdateQuickCheckoutStatus = async (checkoutId: string, status: string) => {
+    if (!isAuthenticated) {
+      toast({
+        title: "Authentication Required",
+        description: "Please login to update status",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (window.electronAPI && window.electronAPI.db) {
+      try {
+        const checkoutToUpdate = quickCheckouts.find(c => c.id === checkoutId);
+
+        // If marking as used, we need to update asset inventory
+        if (status === 'used' && checkoutToUpdate && checkoutToUpdate.status === 'outstanding') {
+          const asset = assets.find(a => a.id === checkoutToUpdate.assetId);
+
+          if (asset) {
+            const newReserved = Math.max(0, (asset.reservedQuantity || 0) - checkoutToUpdate.quantity);
+            const newUsed = (asset.usedCount || 0) + checkoutToUpdate.quantity;
+
+            const newAvailable = calculateAvailableQuantity(
+              asset.quantity,
+              newReserved,
+              asset.damagedCount,
+              asset.missingCount,
+              newUsed
+            );
+
+            const updatedAsset = {
+              ...asset,
+              reservedQuantity: newReserved,
+              usedCount: newUsed,
+              availableQuantity: newAvailable,
+              updatedAt: new Date()
+            };
+
+            await window.electronAPI.db.updateAsset(asset.id, updatedAsset);
+            setAssets(prev => prev.map(a => a.id === asset.id ? updatedAsset : a));
+          }
+        }
+
+        await window.electronAPI.db.updateQuickCheckout(checkoutId, checkoutToUpdate ? { ...checkoutToUpdate, status } : { status });
+
+        // Refresh checkouts
+        const loadedCheckouts = await window.electronAPI.db.getQuickCheckouts();
+        setQuickCheckouts(loadedCheckouts.map((item: any) => ({
+          ...item,
+          checkoutDate: new Date(item.checkoutDate),
+          returnDate: item.returnDate ? new Date(item.returnDate) : undefined,
+          createdAt: new Date(item.createdAt),
+          updatedAt: new Date(item.updatedAt)
+        })));
+
+        toast({
+          title: "Status Updated",
+          description: `Checkout status updated to ${status}`
+        });
+
+        await logActivity({
+          action: 'update',
+          entity: 'checkout',
+          entityId: checkoutId,
+          details: `Updated quick checkout status to ${status}`
+        });
+
+      } catch (error) {
+        logger.error('Failed to update checkout status', error);
+        toast({
+          title: "Error",
+          description: "Failed to update status in database",
+          variant: "destructive"
+        });
+      }
+    } else {
+      // Optimistic update for non-electron env
+      setQuickCheckouts(prev => prev.map(qc => qc.id === checkoutId ? { ...qc, status: status as any } : qc));
+    }
+  };
+
   function renderContent() {
     switch (activeTab) {
       case "dashboard":
@@ -1640,7 +1747,7 @@ const Index = () => {
           } else {
             setEquipmentLogs(prev => [...prev, log]);
           }
-        }} />;
+        }} onNavigate={setActiveTab} />;
       case "assets":
         return <AssetTable
           assets={assets}
@@ -1774,7 +1881,9 @@ const Index = () => {
         return <EmployeeAnalyticsPage
           employees={employees}
           quickCheckouts={quickCheckouts}
+          assets={assets}
           onBack={() => setActiveTab("quick-checkout")}
+          onUpdateStatus={handleUpdateQuickCheckoutStatus}
         />;
 
       case "machine-maintenance":
@@ -2274,7 +2383,7 @@ const Index = () => {
           } else {
             setEquipmentLogs(prev => [...prev, log]);
           }
-        }} />;
+        }} onNavigate={setActiveTab} />;
     }
   }
 

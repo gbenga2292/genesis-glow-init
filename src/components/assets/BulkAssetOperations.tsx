@@ -303,7 +303,7 @@ export const BulkAssetOperations = ({
                                     <SelectItem value="equipment">Equipment</SelectItem>
                                     <SelectItem value="tools">Tools</SelectItem>
                                     <SelectItem value="consumable">Consumable</SelectItem>
-                                    <SelectItem value="non-consumable">Non-Consumable</SelectItem>
+                                    <SelectItem value="non-consumable">Reuseables</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>

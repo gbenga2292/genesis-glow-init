@@ -182,7 +182,7 @@ export const EmployeeAnalytics = ({
                                     <SelectItem value="tools">Tools</SelectItem>
                                     <SelectItem value="equipment">Equipment</SelectItem>
                                     <SelectItem value="consumable">Consumables</SelectItem>
-                                    <SelectItem value="non-consumable">Non-Consumables</SelectItem>
+                                    <SelectItem value="non-consumable">Reuseables</SelectItem>
                                     <SelectItem value="ppe">PPE</SelectItem>
                                 </SelectContent>
                             </Select>

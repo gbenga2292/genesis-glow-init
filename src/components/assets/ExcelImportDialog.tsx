@@ -60,7 +60,7 @@ export const ExcelImportDialog = ({ open, onClose, onImport }: ExcelImportDialog
       setProgress(50);
       const assets = await parseExcelFile(selectedFile);
       setProgress(80);
-      
+
       if (assets.length === 0) {
         setError('No valid asset data found in the Excel file');
         return;
@@ -121,7 +121,7 @@ export const ExcelImportDialog = ({ open, onClose, onImport }: ExcelImportDialog
               <CheckCircle className="h-5 w-5 text-success" />
               Excel File Requirements
             </h3>
-            
+
             <div className="space-y-3 text-sm">
               <div>
                 <h4 className="font-medium mb-2">Required Columns:</h4>
@@ -130,14 +130,14 @@ export const ExcelImportDialog = ({ open, onClose, onImport }: ExcelImportDialog
                   <li><strong>Quantity</strong> - Number of items (required)</li>
                 </ul>
               </div>
-              
+
               <div>
                 <h4 className="font-medium mb-2">Optional Columns:</h4>
                 <ul className="list-disc list-inside space-y-1 text-muted-foreground">
                   <li><strong>Description</strong> - Asset description</li>
                   <li><strong>Unit of Measurement</strong> - Unit (pcs, kg, meters, etc.)</li>
                   <li><strong>Category</strong> - dewatering, waterproofing, tiling, ppe, or office</li>
-                  <li><strong>Type</strong> - consumable, non-consumable, tools, or equipment</li>
+                  <li><strong>Type</strong> - consumable, reuseables, tools, or equipment</li>
                   <li><strong>Location</strong> - Storage location</li>
                   <li><strong>Service</strong> - Service classification</li>
                   <li><strong>Status</strong> - active, damaged, missing, or maintenance</li>
@@ -194,7 +194,7 @@ export const ExcelImportDialog = ({ open, onClose, onImport }: ExcelImportDialog
                   <CheckCircle className="h-5 w-5 text-success" />
                   Preview ({previewData.length} assets found)
                 </h4>
-                
+
                 <div className="max-h-60 overflow-y-auto">
                   <div className="grid gap-2">
                     {previewData.slice(0, 5).map((asset, index) => (
@@ -211,7 +211,7 @@ export const ExcelImportDialog = ({ open, onClose, onImport }: ExcelImportDialog
                         </div>
                       </div>
                     ))}
-                    
+
                     {previewData.length > 5 && (
                       <div className="text-center text-sm text-muted-foreground py-2">
                         ... and {previewData.length - 5} more assets
@@ -228,8 +228,8 @@ export const ExcelImportDialog = ({ open, onClose, onImport }: ExcelImportDialog
             <Button variant="outline" onClick={handleClose}>
               Cancel
             </Button>
-            <Button 
-              onClick={handleImport} 
+            <Button
+              onClick={handleImport}
               disabled={!previewData || isProcessing}
               className="bg-gradient-primary gap-2"
             >
