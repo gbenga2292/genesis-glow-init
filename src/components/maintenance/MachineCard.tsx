@@ -15,11 +15,15 @@ interface MachineCardProps {
 
 export const MachineCard = ({ machine, maintenanceLogs, onViewDetails }: MachineCardProps) => {
     // Calculate service schedule
-    const machineLogs = maintenanceLogs
-        .filter(log => log.machineId === machine.id && log.serviceReset)
-        .sort((a, b) => new Date(b.dateStarted).getTime() - new Date(a.dateStarted).getTime());
+    // Calculate service schedule
+    // Logs are passed pre-filtered for this machine and pre-sorted by date from the parent
+    const serviceLogs = maintenanceLogs.filter(log => log.serviceReset);
 
-    const lastMaintenance = machineLogs[0];
+    // Fallback sort if not sorted (optional safety, but assuming parent handles it for perf)
+    // const sortedServiceLogs = serviceLogs.sort(...) 
+    // We'll assume sorted for max performance as per the refactor plan.
+
+    const lastMaintenance = serviceLogs[0];
     const expectedServiceDate = lastMaintenance
         ? addMonths(new Date(lastMaintenance.dateStarted), machine.serviceInterval)
         : machine.status === 'active'
@@ -76,10 +80,6 @@ export const MachineCard = ({ machine, maintenanceLogs, onViewDetails }: Machine
                         <p className="font-medium">{machine.site || 'N/A'}</p>
                     </div>
                     <div>
-                        <span className="text-muted-foreground">Deployed:</span>
-                        <p className="font-medium">{format(machine.deploymentDate, 'dd/MM/yyyy')}</p>
-                    </div>
-                    <div>
                         <span className="text-muted-foreground">Pattern:</span>
                         <p className="font-medium">{machine.operatingPattern}</p>
                     </div>
@@ -121,7 +121,12 @@ export const MachineCard = ({ machine, maintenanceLogs, onViewDetails }: Machine
                 {/* Maintenance Count */}
                 <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Total Maintenance:</span>
-                    <Badge variant="secondary">{machineLogs.length} records</Badge>
+                    <Badge
+                        variant="secondary"
+                        className={cn(maintenanceLogs.length > 0 && "bg-green-100 text-green-800 hover:bg-green-200 border-green-200")}
+                    >
+                        {maintenanceLogs.length} record{maintenanceLogs.length !== 1 ? 's' : ''}
+                    </Badge>
                 </div>
 
                 {/* Actions */}

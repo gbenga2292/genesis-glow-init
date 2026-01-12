@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Machine, MaintenanceLog, MaintenanceDashboard } from "@/types/maintenance";
 import { Asset, Site, Employee } from "@/types/asset";
+// Maintenance Entry Form Component
 import { MaintenanceEntryForm } from "./MaintenanceEntryForm";
 import { MachineCard } from "./MachineCard";
 import { MachineDetailsDialog } from "./MachineDetailsDialog";
@@ -46,8 +47,37 @@ export const MachineMaintenancePage = ({
     const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
     const [filterStatus, setFilterStatus] = useState<'all' | 'ok' | 'due-soon' | 'overdue'>('all');
 
-    // Calculate dashboard metrics
-    const calculateDashboard = (): MaintenanceDashboard => {
+    // Memoize logs map: Map<MachineID, { lastServiceLog: MaintenanceLog | undefined, allServiceLogs: MaintenanceLog[] }>
+    const machineMaintenanceData = useMemo(() => {
+        const map = new Map<string, { lastServiceLog: MaintenanceLog | undefined, serviceLogs: MaintenanceLog[], allLogs: MaintenanceLog[] }>();
+
+        // Initialize map for all machines
+        machines.forEach(m => {
+            map.set(m.id, { lastServiceLog: undefined, serviceLogs: [], allLogs: [] });
+        });
+
+        // Populate logs
+        // Sorting maintenanceLogs ONCE here is better than N times
+        const sortedLogs = [...maintenanceLogs].sort((a, b) => new Date(b.dateStarted).getTime() - new Date(a.dateStarted).getTime());
+
+        sortedLogs.forEach(log => {
+            const data = map.get(log.machineId);
+            if (data) {
+                data.allLogs.push(log);
+                if (log.serviceReset) {
+                    data.serviceLogs.push(log);
+                    if (!data.lastServiceLog) {
+                        data.lastServiceLog = log; // Since it's sorted, the first one we find is the latest
+                    }
+                }
+            }
+        });
+
+        return map;
+    }, [machines, maintenanceLogs]);
+
+    // Calculate dashboard metrics using the memoized map
+    const dashboard = useMemo((): MaintenanceDashboard => {
         const now = new Date();
         const monthStart = startOfMonth(now);
         const monthEnd = endOfMonth(now);
@@ -58,11 +88,9 @@ export const MachineMaintenancePage = ({
         let overdueMachines = 0;
 
         activeMachines.forEach(machine => {
-            const machineLogs = maintenanceLogs
-                .filter(log => log.machineId === machine.id && log.serviceReset)
-                .sort((a, b) => new Date(b.dateStarted).getTime() - new Date(a.dateStarted).getTime());
+            const data = machineMaintenanceData.get(machine.id);
+            const lastMaintenance = data?.lastServiceLog;
 
-            const lastMaintenance = machineLogs[0];
             const expectedServiceDate = lastMaintenance
                 ? addMonths(new Date(lastMaintenance.dateStarted), machine.serviceInterval)
                 : addMonths(machine.deploymentDate, machine.serviceInterval);
@@ -102,39 +130,38 @@ export const MachineMaintenancePage = ({
             unscheduledMaintenanceCount,
             maintenanceCostThisMonth
         };
-    };
+    }, [machines, maintenanceLogs, machineMaintenanceData]);
 
-    const dashboard = calculateDashboard();
 
-    // Filter machines
-    const filteredMachines = machines.filter(machine => {
-        const matchesSearch = machine.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            machine.id.toLowerCase().includes(searchQuery.toLowerCase());
+    // Filter machines using memoized data
+    const filteredMachines = useMemo(() => {
+        return machines.filter(machine => {
+            const matchesSearch = machine.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                machine.id.toLowerCase().includes(searchQuery.toLowerCase());
 
-        if (!matchesSearch) return false;
+            if (!matchesSearch) return false;
 
-        if (filterStatus === 'all') return true;
+            if (filterStatus === 'all') return true;
 
-        // Calculate service status for filtering
-        if (machine.status !== 'active') return filterStatus === 'ok';
+            // Calculate service status for filtering
+            if (machine.status !== 'active') return filterStatus === 'ok';
 
-        const machineLogs = maintenanceLogs
-            .filter(log => log.machineId === machine.id && log.serviceReset)
-            .sort((a, b) => new Date(b.dateStarted).getTime() - new Date(a.dateStarted).getTime());
+            const data = machineMaintenanceData.get(machine.id);
+            const lastMaintenance = data?.lastServiceLog;
 
-        const lastMaintenance = machineLogs[0];
-        const expectedServiceDate = lastMaintenance
-            ? addMonths(new Date(lastMaintenance.dateStarted), machine.serviceInterval)
-            : addMonths(machine.deploymentDate, machine.serviceInterval);
+            const expectedServiceDate = lastMaintenance
+                ? addMonths(new Date(lastMaintenance.dateStarted), machine.serviceInterval)
+                : addMonths(machine.deploymentDate, machine.serviceInterval);
 
-        const daysRemaining = differenceInDays(expectedServiceDate, new Date());
+            const daysRemaining = differenceInDays(expectedServiceDate, new Date());
 
-        if (filterStatus === 'overdue') return daysRemaining < 0;
-        if (filterStatus === 'due-soon') return daysRemaining >= 0 && daysRemaining <= 14;
-        if (filterStatus === 'ok') return daysRemaining > 14;
+            if (filterStatus === 'overdue') return daysRemaining < 0;
+            if (filterStatus === 'due-soon') return daysRemaining >= 0 && daysRemaining <= 14;
+            if (filterStatus === 'ok') return daysRemaining > 14;
 
-        return true;
-    });
+            return true;
+        });
+    }, [machines, searchQuery, filterStatus, machineMaintenanceData]);
 
     return (
         <div className="space-y-6 p-6">
@@ -355,7 +382,7 @@ export const MachineMaintenancePage = ({
                                 <MachineCard
                                     key={machine.id}
                                     machine={machine}
-                                    maintenanceLogs={maintenanceLogs}
+                                    maintenanceLogs={machineMaintenanceData.get(machine.id)?.allLogs || []}
                                     onViewDetails={setSelectedMachine}
                                 />
                             ))}

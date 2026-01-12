@@ -36,6 +36,7 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
   const [activityDateRange, setActivityDateRange] = useState({ from: subDays(new Date(), 7), to: new Date() });
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [metricsHistory, setMetricsHistory] = useState<any[]>([]);
+  const [isEquipmentLoggingExpanded, setIsEquipmentLoggingExpanded] = useState(true);
   const { toast } = useToast();
 
   const totalAssets = assets.length;
@@ -359,74 +360,91 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
       {equipmentRequiringLogging.length > 0 && (
         <Card className="border-0 shadow-soft">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Wrench className="h-5 w-5 text-primary" />
-              Equipment Requiring Logging
-            </CardTitle>
-            <CardDescription>
-              {equipmentRequiringLogging.length} equipment items across sites
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {equipmentRequiringLogging.map((equipment, index) => {
-                const status = getLatestStatus(equipment.id);
-                const siteName = getSiteName(equipment);
-                const site = getSiteForEquipment(equipment);
-
-                return (
-                  <Card
-                    key={equipment.id || index}
-                    className="border-0 shadow-soft hover:shadow-medium transition-all duration-300"
-                  >
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base flex items-center justify-between">
-                        <span className="truncate">{equipment.name}</span>
-                        <Badge
-                          variant={status.active ? "default" : "secondary"}
-                          className="text-xs ml-2"
-                        >
-                          {status.active ? "Active" : "Inactive"}
-                        </Badge>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="text-sm space-y-1">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Site:</span>
-                          <span className="font-medium truncate ml-2">{siteName}</span>
-                        </div>
-                        {status.date && (
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Last Log:</span>
-                            <span className="font-medium text-xs">
-                              {format(new Date(status.date), 'MMM dd, yyyy')}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full gap-2"
-                        onClick={() => {
-                          if (site) {
-                            setSelectedEquipment(equipment);
-                            setSelectedSite(site);
-                            setShowAnalytics(true);
-                          }
-                        }}
-                        disabled={!site}
-                      >
-                        <BarChart3 className="h-4 w-4" />
-                        View Analytics
-                      </Button>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col">
+                <CardTitle className="flex items-center gap-2">
+                  <Wrench className="h-5 w-5 text-primary" />
+                  Equipment Requiring Logging
+                </CardTitle>
+                <CardDescription>
+                  {equipmentRequiringLogging.length} equipment items across sites
+                </CardDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsEquipmentLoggingExpanded(!isEquipmentLoggingExpanded)}
+              >
+                {isEquipmentLoggingExpanded ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </Button>
             </div>
-          </CardContent>
+          </CardHeader>
+          {isEquipmentLoggingExpanded && (
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {equipmentRequiringLogging.map((equipment, index) => {
+                  const status = getLatestStatus(equipment.id);
+                  const siteName = getSiteName(equipment);
+                  const site = getSiteForEquipment(equipment);
+
+                  return (
+                    <Card
+                      key={equipment.id || index}
+                      className="border-0 shadow-soft hover:shadow-medium transition-all duration-300"
+                    >
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base flex items-center justify-between">
+                          <span className="truncate">{equipment.name}</span>
+                          <Badge
+                            variant={status.active ? "default" : "secondary"}
+                            className="text-xs ml-2"
+                          >
+                            {status.active ? "Active" : "Inactive"}
+                          </Badge>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <div className="text-sm space-y-1">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Site:</span>
+                            <span className="font-medium truncate ml-2">{siteName}</span>
+                          </div>
+                          {status.date && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Last Log:</span>
+                              <span className="font-medium text-xs">
+                                {format(new Date(status.date), 'MMM dd, yyyy')}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full gap-2"
+                          onClick={() => {
+                            if (site) {
+                              setSelectedEquipment(equipment);
+                              setSelectedSite(site);
+                              setShowAnalytics(true);
+                            }
+                          }}
+                          disabled={!site}
+                        >
+                          <BarChart3 className="h-4 w-4" />
+                          View Analytics
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </CardContent>
+          )}
         </Card>
       )}
 

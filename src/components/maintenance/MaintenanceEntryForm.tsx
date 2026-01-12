@@ -34,6 +34,8 @@ interface MachineEntry {
     active: boolean;
     location: string;
     machineRemark: string;
+    shutdownTime?: string;
+    restartTime?: string;
 }
 
 export const MaintenanceEntryForm = ({ machines, assets, sites, employees, onSubmit, onCancel }: MaintenanceEntryFormProps) => {
@@ -136,6 +138,19 @@ export const MaintenanceEntryForm = ({ machines, assets, sites, employees, onSub
             if (!entry.maintenanceDone || entry.maintenanceDone.trim() === "") {
                 errors.push(`Maintenance description required for ${machine?.name || entry.machineId}`);
             }
+
+            if (!entry.active) {
+                if (!entry.shutdownTime) errors.push(`Shutdown Time required for ${machine?.name || entry.machineId}`);
+                if (!entry.restartTime) errors.push(`Restored Time required for ${machine?.name || entry.machineId}`);
+
+                if (entry.shutdownTime && entry.restartTime) {
+                    const start = new Date(entry.shutdownTime);
+                    const end = new Date(entry.restartTime);
+                    if (end <= start) {
+                        errors.push(`Restored time must be AFTER Shutdown time for ${machine?.name || entry.machineId}`);
+                    }
+                }
+            }
         });
 
         setValidationErrors(errors);
@@ -147,23 +162,32 @@ export const MaintenanceEntryForm = ({ machines, assets, sites, employees, onSub
             return;
         }
 
-        const formattedEntries = selectedMachines.map(e => ({
-            machineId: e.machineId,
-            maintenanceType: maintenanceType,
-            dateStarted: globalDate,
-            dateCompleted: globalDate,
-            technician: technician,
-            reason: e.maintenanceDone || 'Routine Maintenance',
-            workDone: e.maintenanceDone,
-            partsReplaced: e.selectedParts.map(p => `${p.name} (x${p.quantity})`).join(", "),
-            rawParts: e.selectedParts,
-            location: e.location,
-            remarks: e.machineRemark || generalRemark,
-            machineActiveAtTime: e.active,
-            serviceReset: e.active,
-            cost: 0,
-            downtime: e.active ? 0 : undefined
-        }));
+        const formattedEntries = selectedMachines.map(e => {
+            let downtime = 0;
+            if (!e.active && e.shutdownTime && e.restartTime) {
+                const start = new Date(e.shutdownTime);
+                const end = new Date(e.restartTime);
+                downtime = Math.max(0, (end.getTime() - start.getTime()) / (1000 * 60 * 60));
+            }
+
+            return {
+                machineId: e.machineId,
+                maintenanceType: maintenanceType,
+                dateStarted: globalDate,
+                dateCompleted: globalDate,
+                technician: technician,
+                reason: e.maintenanceDone || 'Routine Maintenance',
+                workDone: e.maintenanceDone,
+                partsReplaced: e.selectedParts.map(p => `${p.name} (x${p.quantity})`).join(", "),
+                rawParts: e.selectedParts,
+                location: e.location,
+                remarks: e.machineRemark || generalRemark,
+                machineActiveAtTime: e.active,
+                serviceReset: e.active,
+                cost: 0,
+                downtime: downtime
+            };
+        });
 
         await onSubmit(formattedEntries);
 
@@ -439,7 +463,7 @@ export const MaintenanceEntryForm = ({ machines, assets, sites, employees, onSub
                                                     </Select>
                                                 </div>
 
-                                                <div className="space-y-2">
+                                                <div className="space-y-4">
                                                     <div className="flex items-center gap-2">
                                                         <Checkbox
                                                             checked={entry.active}
@@ -449,9 +473,50 @@ export const MaintenanceEntryForm = ({ machines, assets, sites, employees, onSub
                                                             Machine was Active
                                                         </Label>
                                                     </div>
-                                                    <p className="text-xs text-muted-foreground pl-6">
-                                                        Resets 2-month service cycle
+                                                    <p className="text-xs text-muted-foreground pl-6 -mt-3">
+                                                        Resets 2-month service cycle if active
                                                     </p>
+
+                                                    {!entry.active && (
+                                                        <div className="pl-6 space-y-4 border-l-2 ml-2">
+                                                            <div className="grid grid-cols-2 gap-4">
+                                                                <div className="space-y-2">
+                                                                    <Label className="text-sm text-destructive font-medium">Shutdown Time *</Label>
+                                                                    <div className="flex flex-col">
+                                                                        <Input
+                                                                            type="datetime-local"
+                                                                            className="h-9"
+                                                                            value={entry.shutdownTime || ''}
+                                                                            onChange={(e) => handleEntryChange(entry.machineId, 'shutdownTime', e.target.value)}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                                <div className="space-y-2">
+                                                                    <Label className="text-sm text-green-600 font-medium">Restored Time *</Label>
+                                                                    <div className="flex flex-col">
+                                                                        <Input
+                                                                            type="datetime-local"
+                                                                            className="h-9"
+                                                                            value={entry.restartTime || ''}
+                                                                            onChange={(e) => handleEntryChange(entry.machineId, 'restartTime', e.target.value)}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            {entry.shutdownTime && entry.restartTime && (
+                                                                <div className="text-sm">
+                                                                    <span className="text-muted-foreground">Calculated Downtime: </span>
+                                                                    {(() => {
+                                                                        const start = new Date(entry.shutdownTime);
+                                                                        const end = new Date(entry.restartTime);
+                                                                        if (end <= start) return <span className="text-destructive font-semibold">Invalid Time Range</span>;
+                                                                        const diff = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+                                                                        return <Badge variant={diff > 24 ? "destructive" : "secondary"}>{diff.toFixed(2)} hours</Badge>;
+                                                                    })()}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </div>
 
                                                 <div className="space-y-2 md:col-span-2">

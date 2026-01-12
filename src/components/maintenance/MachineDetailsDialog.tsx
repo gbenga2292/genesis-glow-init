@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Machine, MaintenanceLog } from "@/types/maintenance";
 import { format, differenceInHours } from "date-fns";
 import { ArrowLeft, Calendar, Wrench, DollarSign, MapPin, User, FileText } from "lucide-react";
@@ -81,10 +82,6 @@ export const MachineDetailsDialog = ({ machine, maintenanceLogs, onClose }: Mach
                                     <p className="font-medium">{machine.site || 'N/A'}</p>
                                 </div>
                                 <div>
-                                    <span className="text-sm text-muted-foreground">Deployment Date</span>
-                                    <p className="font-medium">{format(machine.deploymentDate, 'dd/MM/yyyy')}</p>
-                                </div>
-                                <div>
                                     <span className="text-sm text-muted-foreground">Operating Pattern</span>
                                     <p className="font-medium">{machine.operatingPattern}</p>
                                 </div>
@@ -144,78 +141,84 @@ export const MachineDetailsDialog = ({ machine, maintenanceLogs, onClose }: Mach
                                 </CardContent>
                             </Card>
                         ) : (
-                            machineLogs.map((log) => (
-                                <Card key={log.id}>
-                                    <CardHeader>
-                                        <div className="flex items-start justify-between">
-                                            <div>
-                                                <CardTitle className="text-base flex items-center gap-2">
-                                                    <Wrench className="h-4 w-4" />
-                                                    {format(new Date(log.dateStarted), 'dd/MM/yyyy')}
-                                                </CardTitle>
-                                                <CardDescription>{log.reason}</CardDescription>
+                            <Accordion type="single" collapsible className="w-full space-y-2">
+                                {machineLogs.map(log => (
+                                    <AccordionItem key={log.id} value={log.id} className="border rounded-lg bg-card px-4">
+                                        <AccordionTrigger className="hover:no-underline py-3">
+                                            <div className="flex flex-1 items-center justify-between mr-4 text-left">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="flex items-center gap-2 min-w-[100px]">
+                                                        <Wrench className="h-4 w-4 text-muted-foreground" />
+                                                        <span className="font-semibold">{format(new Date(log.dateStarted), 'dd/MM/yyyy')}</span>
+                                                    </div>
+                                                    <Badge className={cn("w-24 justify-center", maintenanceTypeColors[log.maintenanceType])}>
+                                                        {log.maintenanceType}
+                                                    </Badge>
+                                                    <span className="text-sm text-muted-foreground line-clamp-1">{log.reason}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                    <User className="h-3 w-3" />
+                                                    <span className="hidden sm:inline">{log.technician}</span>
+                                                </div>
                                             </div>
-                                            <Badge className={maintenanceTypeColors[log.maintenanceType]}>
-                                                {log.maintenanceType}
-                                            </Badge>
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent className="space-y-3">
-                                        <div className="grid grid-cols-2 gap-3 text-sm">
-                                            <div className="flex items-center gap-2">
-                                                <User className="h-4 w-4 text-muted-foreground" />
-                                                <span>{log.technician}</span>
-                                            </div>
-                                            {log.location && (
-                                                <div className="flex items-center gap-2">
-                                                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                                                    <span>{log.location}</span>
+                                        </AccordionTrigger>
+                                        <AccordionContent className="pb-4 pt-1">
+                                            <div className="space-y-4 border-t pt-4">
+                                                <div className="grid grid-cols-2 gap-3 text-sm">
+                                                    {log.location && (
+                                                        <div className="flex items-center gap-2">
+                                                            <MapPin className="h-4 w-4 text-muted-foreground" />
+                                                            <span>Location: {log.location}</span>
+                                                        </div>
+                                                    )}
+                                                    {log.downtime && (
+                                                        <div className="flex items-center gap-2">
+                                                            <Calendar className="h-4 w-4 text-muted-foreground" />
+                                                            <span>{log.downtime}h downtime</span>
+                                                        </div>
+                                                    )}
+                                                    {log.cost && (
+                                                        <div className="flex items-center gap-2">
+                                                            <DollarSign className="h-4 w-4 text-muted-foreground" />
+                                                            <span>Cost: ₦{log.cost.toLocaleString()}</span>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            )}
-                                            {log.downtime && (
-                                                <div className="flex items-center gap-2">
-                                                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                                                    <span>{log.downtime}h downtime</span>
-                                                </div>
-                                            )}
-                                            {log.cost && (
-                                                <div className="flex items-center gap-2">
-                                                    <DollarSign className="h-4 w-4 text-muted-foreground" />
-                                                    <span>₦{log.cost.toLocaleString()}</span>
-                                                </div>
-                                            )}
-                                        </div>
 
-                                        <div className="space-y-2">
-                                            <div>
-                                                <span className="text-xs font-semibold text-muted-foreground">Work Done:</span>
-                                                <p className="text-sm">{log.workDone}</p>
-                                            </div>
-                                            {log.partsReplaced && (
-                                                <div>
-                                                    <span className="text-xs font-semibold text-muted-foreground">Parts Replaced:</span>
-                                                    <p className="text-sm">{log.partsReplaced}</p>
+                                                <div className="space-y-2 bg-muted/30 p-3 rounded-md">
+                                                    <div>
+                                                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Work Done</span>
+                                                        <p className="text-sm mt-1">{log.workDone}</p>
+                                                    </div>
+                                                    {log.partsReplaced && (
+                                                        <div className="pt-2 border-t border-dashed">
+                                                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Parts Replaced</span>
+                                                            <p className="text-sm mt-1">{log.partsReplaced}</p>
+                                                        </div>
+                                                    )}
+                                                    {log.remarks && (
+                                                        <div className="pt-2 border-t border-dashed">
+                                                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Remarks</span>
+                                                            <p className="text-sm mt-1 italic">{log.remarks}</p>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            )}
-                                            {log.remarks && (
-                                                <div>
-                                                    <span className="text-xs font-semibold text-muted-foreground">Remarks:</span>
-                                                    <p className="text-sm">{log.remarks}</p>
-                                                </div>
-                                            )}
-                                        </div>
 
-                                        <div className="flex items-center gap-2 text-xs">
-                                            <Badge variant={log.machineActiveAtTime ? "default" : "secondary"}>
-                                                {log.machineActiveAtTime ? "Active" : "Inactive"}
-                                            </Badge>
-                                            {log.serviceReset && (
-                                                <Badge variant="outline">Service Cycle Reset</Badge>
-                                            )}
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            ))
+                                                <div className="flex items-center gap-2 text-xs">
+                                                    <Badge variant={log.machineActiveAtTime ? "default" : "secondary"}>
+                                                        {log.machineActiveAtTime ? "Active during maintenance" : "Inactive during maintenance"}
+                                                    </Badge>
+                                                    {log.serviceReset && (
+                                                        <Badge variant="outline" className="border-green-500 text-green-600">
+                                                            Service Cycle Reset
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </AccordionContent>
+                                    </AccordionItem>
+                                ))}
+                            </Accordion>
                         )}
                     </TabsContent>
 

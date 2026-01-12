@@ -47,6 +47,7 @@ import { AuditCharts } from "@/components/reporting/AuditCharts";
 import { MachineMaintenancePage } from "@/components/maintenance/MachineMaintenancePage";
 import { Machine, MaintenanceLog } from "@/types/maintenance";
 import { exportAssetsToExcel } from "../utils/exportUtils";
+import { useAppData } from "@/contexts/AppDataContext";
 
 
 const Index = () => {
@@ -73,13 +74,34 @@ const Index = () => {
   const [selectedAssetForAnalytics, setSelectedAssetForAnalytics] = useState<Asset | null>(null);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [aiPrefillData, setAiPrefillData] = useState<any>(null);
+  // Use AppData Context to avoid redundant fetching
+  const {
+    employees, setEmployees,
+    vehicles, setVehicles,
+    sites, setSites,
+    companySettings, setCompanySettings,
+    siteTransactions, setSiteTransactions,
+    equipmentLogs, setEquipmentLogs,
+    quickCheckouts, setQuickCheckouts,
+    refreshAllData
+  } = useAppData();
+
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [waybills, setWaybills] = useState<Waybill[]>([]);
+  const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
+  const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLog[]>([]);
+
   const [isGeneratingAudit, setIsGeneratingAudit] = useState(false);
   const [showAuditDateDialog, setShowAuditDateDialog] = useState(false);
   const [auditStartDate, setAuditStartDate] = useState<string>(`${new Date().getFullYear()}-01-01`);
   const [auditEndDate, setAuditEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
-  // Load assets from database
+  // Initialize data on mount if needed (AppDataContext handles its own loading, but we might want to ensure freshness)
+  useEffect(() => {
+    refreshAllData();
+  }, [refreshAllData]);
+
+  // Load assets from database (Not yet in AppDataContext)
   useEffect(() => {
     (async () => {
       if (window.electronAPI && window.electronAPI.db) {
@@ -116,9 +138,7 @@ const Index = () => {
     };
   }, []);
 
-  const [waybills, setWaybills] = useState<Waybill[]>([]);
-
-  // Load waybills from database
+  // Load waybills from database (Not yet in AppDataContext)
   useEffect(() => {
     (async () => {
       if (window.electronAPI && window.electronAPI.db) {
@@ -140,144 +160,11 @@ const Index = () => {
     })();
   }, []);
 
-  const [quickCheckouts, setQuickCheckouts] = useState<QuickCheckout[]>([]);
-
-  // Load quick checkouts from database
-  useEffect(() => {
-    (async () => {
-      if (window.electronAPI && window.electronAPI.db) {
-        try {
-          const loadedCheckouts = await window.electronAPI.db.getQuickCheckouts();
-          setQuickCheckouts(loadedCheckouts.map((item: any) => ({
-            ...item,
-            checkoutDate: new Date(item.checkoutDate)
-          })));
-        } catch (error) {
-          logger.error('Failed to load quick checkouts from database', error);
-        }
-      }
-    })();
-  }, []);
-
-
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
   const [deletingAsset, setDeletingAsset] = useState<Asset | null>(null);
-  const [employees, setEmployees] = useState<Employee[]>([]);
-
-  // Load employees from database
-  useEffect(() => {
-    (async () => {
-      if (window.electronAPI && window.electronAPI.db) {
-        try {
-          const loadedEmployees = await window.electronAPI.db.getEmployees();
-          setEmployees(loadedEmployees.map((item: any) => ({
-            ...item,
-            createdAt: new Date(item.createdAt),
-            updatedAt: new Date(item.updatedAt)
-          })));
-        } catch (error) {
-          logger.error('Failed to load employees from database', error);
-        }
-      }
-    })();
-  }, []);
-
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-
-  // Load vehicles from database
-  useEffect(() => {
-    (async () => {
-      if (window.electronAPI && window.electronAPI.db) {
-        try {
-          const loadedVehicles = await window.electronAPI.db.getVehicles();
-          setVehicles(loadedVehicles.map((item: any) => ({
-            ...item,
-            createdAt: new Date(item.created_at || item.createdAt),
-            updatedAt: new Date(item.updated_at || item.updatedAt)
-          })));
-        } catch (error) {
-          logger.error('Failed to load vehicles from database', error);
-        }
-      }
-    })();
-  }, []);
-
   const [selectedSite, setSelectedSite] = useState<Site | null>(null);
-  const [sites, setSites] = useState<Site[]>([]);
 
-  // Load sites from database
-  useEffect(() => {
-    (async () => {
-      if (window.electronAPI && window.electronAPI.db) {
-        try {
-          const loadedSites = await window.electronAPI.db.getSites();
-          setSites(loadedSites.map((item: any) => ({
-            ...item,
-            createdAt: new Date(item.createdAt),
-            updatedAt: new Date(item.updatedAt)
-          })));
-        } catch (error) {
-          logger.error('Failed to load sites from database', error);
-        }
-      }
-    })();
-  }, []);
-
-  const [companySettings, setCompanySettings] = useState<CompanySettingsType>({} as CompanySettingsType);
-
-  // Load company settings from database
-  useEffect(() => {
-    (async () => {
-      if (window.electronAPI && window.electronAPI.db) {
-        try {
-          const loadedSettings = await window.electronAPI.db.getCompanySettings();
-          setCompanySettings(loadedSettings || {});
-        } catch (error) {
-          logger.error('Failed to load company settings from database', error);
-        }
-      }
-    })();
-  }, []);
-
-  const [siteTransactions, setSiteTransactions] = useState<SiteTransaction[]>([]);
-
-  // Load site transactions from database
-  useEffect(() => {
-    (async () => {
-      if (window.electronAPI && window.electronAPI.db) {
-        try {
-          const loadedTransactions = await window.electronAPI.db.getSiteTransactions();
-          setSiteTransactions(loadedTransactions.map((item: any) => ({
-            ...item,
-            createdAt: new Date(item.createdAt)
-          })));
-        } catch (error) {
-          logger.error('Failed to load site transactions from database', error);
-        }
-      }
-    })();
-  }, []);
-
-  const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLog[]>([]);
-
-  // Load equipment logs from database
-  useEffect(() => {
-    (async () => {
-      if (window.electronAPI && window.electronAPI.db) {
-        try {
-          const logs = await window.electronAPI.db.getEquipmentLogs();
-          // Database already returns transformed data (camelCase), no need to map again
-          setEquipmentLogs(logs);
-        } catch (error) {
-          logger.error('Failed to load equipment logs from database', error);
-        }
-      }
-    })();
-  }, []);
-
-  const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
-
-  // Load consumable logs from database
+  // Load consumable logs from database (Not yet in AppDataContext)
   useEffect(() => {
     (async () => {
       if (window.electronAPI && window.electronAPI.db) {
@@ -292,9 +179,7 @@ const Index = () => {
     })();
   }, []);
 
-  const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLog[]>([]);
-
-  // Load maintenance logs from database
+  // Load maintenance logs from database (Not yet in AppDataContext)
   useEffect(() => {
     (async () => {
       if (window.electronAPI && window.electronAPI.db) {
@@ -1622,6 +1507,7 @@ const Index = () => {
 
     try {
       for (const entry of entries) {
+        // 1. Create Maintenance Log
         const log: MaintenanceLog = {
           ...entry,
           id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
@@ -1630,9 +1516,64 @@ const Index = () => {
         } as MaintenanceLog;
 
         await (window.electronAPI.db as any).createMaintenanceLog?.(log);
+
+        // 2. Process Parts Usage
+        if (entry.rawParts && entry.rawParts.length > 0) {
+          for (const part of entry.rawParts) {
+            const asset = assets.find(a => a.id === part.id);
+            if (asset) {
+              // Update Asset Counts
+              const newUsedCount = (asset.usedCount || 0) + part.quantity;
+              const updatedAsset = {
+                ...asset,
+                usedCount: newUsedCount,
+                availableQuantity: calculateAvailableQuantity(
+                  asset.quantity,
+                  asset.reservedQuantity,
+                  asset.damagedCount,
+                  asset.missingCount,
+                  newUsedCount
+                ),
+                updatedAt: new Date()
+              };
+
+              // Save asset update
+              await (window.electronAPI.db as any).updateAsset(asset.id, updatedAsset);
+
+              // Update local state for asset
+              setAssets(prev => prev.map(a => a.id === asset.id ? updatedAsset : a));
+
+              // Create 'Used' Checkout Record for tracking
+              const checkoutData = {
+                assetId: asset.id,
+                assetName: asset.name,
+                employeeId: 'MAINTENANCE', // System user or similar
+                employeeName: entry.technician || 'Maintenance Technician',
+                quantity: part.quantity,
+                checkoutDate: new Date(),
+                status: 'used', // Directly mark as used
+                notes: `Used in maintenance for machine: ${entry.machineId}. Work: ${entry.reason || entry.workDone}`,
+                returnDate: new Date() // Completed immediately
+              };
+
+              try {
+                await (window.electronAPI.db as any).createQuickCheckout?.(checkoutData);
+              } catch (err) {
+                console.error("Failed to create usage checkout record", err);
+                // Non-blocking, main goal is asset deduction which is done above
+              }
+            }
+          }
+        }
       }
 
-      // Reload maintenance logs
+      await logActivity({
+        action: 'create',
+        entity: 'maintenance',
+        details: `Logged maintenance for ${entries.length} machine(s)`
+      });
+
+      // Reload maintenance logs to update UI immediately
       const loadedLogs = await (window.electronAPI.db as any).getMaintenanceLogs?.();
       if (loadedLogs) {
         setMaintenanceLogs(loadedLogs.map((item: any) => ({
@@ -1644,12 +1585,6 @@ const Index = () => {
           updatedAt: new Date(item.updatedAt || item.updated_at)
         })));
       }
-
-      await logActivity({
-        action: 'create',
-        entity: 'maintenance',
-        details: `Logged maintenance for ${entries.length} machine(s)`
-      });
 
       toast({
         title: "Maintenance Logged",
