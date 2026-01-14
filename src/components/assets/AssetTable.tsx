@@ -429,15 +429,15 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
   );
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-4 md:space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+          <h1 className="text-2xl md:text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
             Inventory
           </h1>
-          <p className="text-muted-foreground mt-1">
-            Manage your equipment, tools, and consumables
+          <p className="text-muted-foreground text-sm mt-1">
+            Equipment, tools, and consumables
           </p>
         </div>
         <div className="flex items-center gap-4">
@@ -465,24 +465,24 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-card border-0 shadow-soft rounded-lg p-4">
-        <div className="flex flex-col md:flex-row gap-4">
+      {/* Filters - Mobile Optimized */}
+      <div className="bg-card border-0 shadow-soft rounded-lg p-3 md:p-4">
+        <div className="flex flex-col gap-3">
           {/* Search */}
-          <div className="relative flex-1">
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
             <Input
-              placeholder="Search assets by name, location, or service..."
+              placeholder="Search assets..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 border-0 bg-muted/50 focus:bg-background transition-all duration-300"
+              className="pl-10 border-0 bg-muted/50 focus:bg-background transition-all duration-300 h-10"
             />
           </div>
 
-          {/* Filters */}
-          <div className="flex gap-2">
+          {/* Filters Row - Scrollable on mobile */}
+          <div className="flex gap-2 overflow-x-auto pb-1 mobile-hide-scrollbar -mx-1 px-1">
             <Select value={filterCategory} onValueChange={(value: any) => setFilterCategory(value)}>
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-[120px] md:w-40 shrink-0 h-9">
                 <SelectValue placeholder="Category" />
               </SelectTrigger>
               <SelectContent>
@@ -496,7 +496,7 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
             </Select>
 
             <Select value={filterType} onValueChange={(value: any) => setFilterType(value)}>
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-[100px] md:w-40 shrink-0 h-9">
                 <SelectValue placeholder="Type" />
               </SelectTrigger>
               <SelectContent>
@@ -509,27 +509,28 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
             </Select>
 
             <Select value={filterAvailability} onValueChange={(value: any) => setFilterAvailability(value)}>
-              <SelectTrigger className="w-44">
-                <SelectValue placeholder="Availability" />
+              <SelectTrigger className="w-[110px] md:w-44 shrink-0 h-9">
+                <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Availability</SelectItem>
-                <SelectItem value="ready">✅ Ready to Use</SelectItem>
-                <SelectItem value="restock">📦 Needs Restock</SelectItem>
-                <SelectItem value="critical">🚨 Critical Stock</SelectItem>
-                <SelectItem value="out">❌ Out of Stock</SelectItem>
-                <SelectItem value="issues">⚠️ Has Issues</SelectItem>
-                <SelectItem value="reserved">🔒 Checked Out</SelectItem>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="ready">✅ Ready</SelectItem>
+                <SelectItem value="restock">📦 Restock</SelectItem>
+                <SelectItem value="critical">🚨 Critical</SelectItem>
+                <SelectItem value="out">❌ Out</SelectItem>
+                <SelectItem value="issues">⚠️ Issues</SelectItem>
+                <SelectItem value="reserved">🔒 Reserved</SelectItem>
               </SelectContent>
             </Select>
 
             <Button
               variant="outline"
               onClick={() => setShowAdvancedFilters(true)}
-              className="gap-2 relative"
+              className="gap-1 relative shrink-0 h-9 px-2 md:px-3"
+              size="sm"
             >
               <Filter className="h-4 w-4" />
-              More Filters
+              <span className="hidden md:inline">More</span>
               {activeAdvancedFilterCount > 0 && (
                 <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-xs">
                   {activeAdvancedFilterCount}
