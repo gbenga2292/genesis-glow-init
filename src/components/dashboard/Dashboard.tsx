@@ -387,7 +387,12 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
             <div className="mt-4 h-2 w-full bg-secondary rounded-full overflow-hidden">
               <div className="h-full bg-warning/50 w-3/4 rounded-full" /> {/* Placeholder visual */}
             </div>
-            <p className="text-xs text-muted-foreground mt-2">Active deployments pending return</p>
+            <div className="flex items-center justify-between mt-3 pt-3 border-t">
+              <p className="text-xs text-muted-foreground">Active deployments pending return</p>
+              <Badge variant="outline" className="text-xs">
+                {waybills.length} Total
+              </Badge>
+            </div>
           </CardContent>
         </Card>
 
