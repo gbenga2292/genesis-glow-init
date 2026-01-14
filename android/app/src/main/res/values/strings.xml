@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Genesis Glow</string>
-    <string name="title_activity_main">Genesis Glow</string>
+    <string name="app_name">DCEL Inventory</string>
+    <string name="title_activity_main">DCEL Inventory</string>
     <string name="package_name">com.genesisglow.app</string>
     <string name="custom_url_scheme">com.genesisglow.app</string>
 </resources>
