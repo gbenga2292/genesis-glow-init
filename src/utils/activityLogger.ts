@@ -1,17 +1,13 @@
 import { Activity } from "@/types/asset";
 import { logger } from "@/lib/logger";
+import { dataService } from "@/services/dataService";
 
 /**
  * Activity Logger - Database-backed
- * All activities are now stored in the SQLite database instead of localStorage
+ * Uses dataService for platform-agnostic logging (Supabase/Electron)
  */
 
 export const logActivity = async (activity: Omit<Activity, 'id' | 'timestamp' | 'userName'>): Promise<void> => {
-  if (!window.electronAPI || !window.electronAPI.db) {
-    logger.warn('Database not available for activity logging');
-    return;
-  }
-
   try {
     // Get current user from localStorage (session data)
     const currentUserData = localStorage.getItem('currentUser');
@@ -25,32 +21,25 @@ export const logActivity = async (activity: Omit<Activity, 'id' | 'timestamp' | 
       }
     }
 
-    const newActivity: Activity = {
-      id: crypto.randomUUID(),
-      timestamp: new Date(),
-      userName,
-      ...activity
+    const newActivity: Partial<Activity> = {
+      ...activity,
+      userName, // Add current username
     };
 
-    // Save to database
-    await window.electronAPI.db.createActivity(newActivity);
+    // Save to database via unified dataService
+    await dataService.activities.createActivity({
+      ...newActivity,
+      timestamp: new Date()
+    });
+
   } catch (error) {
     logger.error('Failed to log activity', error);
   }
 };
 
 export const getActivities = async (): Promise<Activity[]> => {
-  if (!window.electronAPI || !window.electronAPI.db) {
-    logger.warn('Database not available for getting activities');
-    return [];
-  }
-
   try {
-    const activities = await window.electronAPI.db.getActivities();
-    return activities.map((activity: any) => ({
-      ...activity,
-      timestamp: new Date(activity.timestamp)
-    }));
+    return await dataService.activities.getActivities();
   } catch (error) {
     logger.error('Failed to get activities', error);
     return [];
@@ -58,13 +47,8 @@ export const getActivities = async (): Promise<Activity[]> => {
 };
 
 export const clearActivities = async (): Promise<void> => {
-  if (!window.electronAPI || !window.electronAPI.db) {
-    logger.warn('Database not available for clearing activities');
-    return;
-  }
-
   try {
-    await window.electronAPI.db.clearActivities();
+    await dataService.activities.clearActivities();
   } catch (error) {
     logger.error('Failed to clear activities', error);
   }
@@ -79,7 +63,7 @@ export const exportActivitiesToTxt = async (): Promise<string> => {
 
   activities.forEach(activity => {
     const date = activity.timestamp.toLocaleString();
-    txt += `[${date}] User: ${activity.userName || activity.userId}\n`;
+    txt += `[${date}] User: ${activity.userName || activity.userId || 'System'}\n`;
     txt += `Action: ${activity.action} on ${activity.entity}${activity.entityId ? ` (${activity.entityId})` : ''}\n`;
     txt += `Details: ${activity.details || 'N/A'}\n\n`;
   });

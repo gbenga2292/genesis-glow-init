@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { logger } from '@/lib/logger';
 import { logActivity } from '@/utils/activityLogger';
+import { dataService } from '@/services/dataService';
 
 // User type and role definitions remain the same
 export type UserRole = 'admin' | 'data_entry_supervisor' | 'regulatory' | 'manager' | 'staff';
@@ -47,31 +48,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return saved ? JSON.parse(saved) : null;
   });
 
-  // Login: Supports two modes
-  // 1. Database authentication (primary) - when Electron database is available
-  // 2. Hardcoded admin fallback (secondary) - for testing without database
+  // Login: Uses unified dataService which automatically detects platform
+  // - Desktop (Electron): Uses local SQLite database
+  // - Mobile/Web: Uses Supabase PostgreSQL
   const login = async (username: string, password: string): Promise<{ success: boolean; message?: string }> => {
     try {
-      // Try database login first if available
-      if (window.electronAPI && window.electronAPI.db) {
-        const result = await window.electronAPI.db.login(username, password);
-        if (result.success && result.user) {
-          setCurrentUser(result.user);
-          setIsAuthenticated(true);
-          localStorage.setItem('isAuthenticated', 'true');
-          localStorage.setItem('currentUser', JSON.stringify(result.user));
-          await logActivity({
-            action: 'login',
-            entity: 'user',
-            entityId: result.user.id,
-            details: `User ${result.user.username} logged in`
-          });
-          return { success: true };
-        }
-        // If database login fails, fall through to hardcoded admin check
+      const result = await dataService.auth.login(username, password);
+
+      if (result.success && result.user) {
+        setCurrentUser(result.user);
+        setIsAuthenticated(true);
+        localStorage.setItem('isAuthenticated', 'true');
+        localStorage.setItem('currentUser', JSON.stringify(result.user));
+        await logActivity({
+          action: 'login',
+          entity: 'user',
+          entityId: result.user.id,
+          details: `User ${result.user.username} logged in`
+        });
+        return { success: true };
       }
 
-      // Hardcoded admin fallback (only used if database login fails or unavailable)
+      // If dataService login fails, try hardcoded admin fallback
       if (username === 'admin' && password === 'admin123') {
         const hardcodedAdmin: User = {
           id: 'admin',
@@ -95,8 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: true };
       }
 
-      // If we reach here, credentials were invalid
-      return { success: false, message: 'Invalid credentials' };
+      return { success: false, message: result.message || 'Invalid credentials' };
     } catch (error) {
       logger.error('Login error', error);
       return { success: false, message: error instanceof Error ? error.message : 'Unknown error' };
@@ -175,10 +172,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const getUsers = async (): Promise<User[]> => {
     try {
-      if (!window.electronAPI || !window.electronAPI.db) {
-        return [];
-      }
-      return await window.electronAPI.db.getUsers();
+      return await dataService.auth.getUsers();
     } catch (error) {
       logger.error('Get users error', error);
       return [];
@@ -187,10 +181,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const createUser = async (userData: { name: string; username: string; password: string; role: UserRole }): Promise<{ success: boolean; message?: string }> => {
     try {
-      if (!window.electronAPI || !window.electronAPI.db) {
-        return { success: false, message: 'Database not available' };
-      }
-      const result = await window.electronAPI.db.createUser(userData);
+      const result = await dataService.auth.createUser(userData);
       if (result.success) {
         await logActivity({
           action: 'create_user',
@@ -207,10 +198,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateUser = async (userId: string, userData: { name: string; username: string; role: UserRole; password?: string }): Promise<{ success: boolean; message?: string }> => {
     try {
-      if (!window.electronAPI || !window.electronAPI.db) {
-        return { success: false, message: 'Database not available' };
-      }
-      const result = await window.electronAPI.db.updateUser(userId, userData);
+      const result = await dataService.auth.updateUser(userId, userData);
       if (result.success) {
         await logActivity({
           action: 'update_user',
@@ -228,10 +216,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const deleteUser = async (userId: string): Promise<{ success: boolean; message?: string }> => {
     try {
-      if (!window.electronAPI || !window.electronAPI.db) {
-        return { success: false, message: 'Database not available' };
-      }
-      const result = await window.electronAPI.db.deleteUser(userId);
+      const result = await dataService.auth.deleteUser(userId);
       if (result.success) {
         await logActivity({
           action: 'delete_user',

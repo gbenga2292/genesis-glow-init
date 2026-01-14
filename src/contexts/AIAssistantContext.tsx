@@ -54,7 +54,7 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({
   aiEnabled = true
 }) => {
   const { currentUser } = useAuth();
-  const { addAsset } = useAssets();
+  const { addAsset, updateAsset } = useAssets();
   const { toast } = useToast();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -138,10 +138,8 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({
           return siteData;
         },
         updateAsset: async (id, updates) => {
-          // Use the database API to update asset
-          if (window.electronAPI && window.electronAPI.db && window.electronAPI.db.updateAsset) {
-            await window.electronAPI.db.updateAsset(id, updates);
-          }
+          // Use the database API to update asset via Context/DataService
+          await updateAsset(id, updates as any);
           return { ...updates, id } as Asset;
         }
       });

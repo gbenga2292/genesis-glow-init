@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { Asset } from '@/types/asset';
 import { useToast } from '@/hooks/use-toast';
 import { logger } from '@/lib/logger';
+import { dataService } from '@/services/dataService';
 
 interface AssetsContextType {
   assets: Asset[];
@@ -27,17 +28,15 @@ export const AssetsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [assets, setAssets] = useState<Asset[]>([]);
 
   const loadAssets = useCallback(async () => {
-    if (window.electronAPI && window.electronAPI.db) {
-      try {
-        const loadedAssets = await window.electronAPI.db.getAssets();
-        setAssets(loadedAssets.map((item: any) => ({
-          ...item,
-          createdAt: new Date(item.createdAt),
-          updatedAt: new Date(item.updatedAt)
-        })));
-      } catch (error) {
-        logger.error('Failed to load assets from database', error);
-      }
+    try {
+      const loadedAssets = await dataService.assets.getAssets();
+      setAssets(loadedAssets.map((item: any) => ({
+        ...item,
+        createdAt: new Date(item.createdAt || item.created_at),
+        updatedAt: new Date(item.updatedAt || item.updated_at)
+      })));
+    } catch (error) {
+      logger.error('Failed to load assets from database', error);
     }
   }, []);
 
@@ -67,15 +66,6 @@ export const AssetsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
 
   const addAsset = async (assetData: Omit<Asset, 'id' | 'createdAt' | 'updatedAt'>) => {
-    if (!window.electronAPI || !window.electronAPI.db) {
-      toast({
-        title: "Database Not Available",
-        description: "This app needs to run in Electron mode to access the database.",
-        variant: "destructive"
-      });
-      return;
-    }
-
     const newAsset: Asset = {
       ...assetData,
       id: Date.now().toString(),
@@ -86,8 +76,7 @@ export const AssetsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
 
     try {
-      const savedAssets = await window.electronAPI.db.addAsset(newAsset);
-      const savedAsset = savedAssets[0];
+      const savedAsset = await dataService.assets.createAsset(newAsset);
       setAssets(prev => [...prev, savedAsset]);
 
       toast({
@@ -107,15 +96,12 @@ export const AssetsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const updateAsset = async (id: string, updatedAsset: Asset) => {
     const assetWithUpdatedDate = {
       ...updatedAsset,
-      availableQuantity: updatedAsset.availableQuantity, // Use provided value or DB value
+      availableQuantity: updatedAsset.availableQuantity,
       updatedAt: new Date()
     };
 
     try {
-      if (window.electronAPI && window.electronAPI.db) {
-        await window.electronAPI.db.updateAsset(id, assetWithUpdatedDate);
-      }
-
+      await dataService.assets.updateAsset(Number(id), assetWithUpdatedDate);
       setAssets(prev => prev.map(asset => asset.id === id ? assetWithUpdatedDate : asset));
 
       toast({
@@ -137,9 +123,7 @@ export const AssetsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!asset) return;
 
     try {
-      if (window.electronAPI && window.electronAPI.db) {
-        await window.electronAPI.db.deleteAsset(id);
-      }
+      await dataService.assets.deleteAsset(Number(id));
       setAssets(prev => prev.filter(asset => asset.id !== id));
 
       toast({

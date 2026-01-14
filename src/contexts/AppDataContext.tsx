@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { QuickCheckout, Site, CompanySettings as CompanySettingsType, Employee, SiteTransaction, Vehicle } from '@/types/asset';
 import { EquipmentLog } from '@/types/equipment';
 import { logger } from '@/lib/logger';
+import { dataService } from '@/services/dataService';
 
 interface AppDataContextType {
   quickCheckouts: QuickCheckout[];
@@ -41,102 +42,88 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLog[]>([]);
 
   const loadQuickCheckouts = useCallback(async () => {
-    if (window.electronAPI && window.electronAPI.db) {
-      try {
-        const loadedCheckouts = await window.electronAPI.db.getQuickCheckouts();
-        setQuickCheckouts(loadedCheckouts.map((item: any) => ({
-          ...item,
-          checkoutDate: new Date(item.checkoutDate)
-        })));
-      } catch (error) {
-        logger.error('Failed to load quick checkouts from database', error);
-      }
+    try {
+      const loadedCheckouts = await dataService.quickCheckouts.getQuickCheckouts();
+      setQuickCheckouts(loadedCheckouts.map((item: any) => ({
+        ...item,
+        checkoutDate: new Date(item.checkoutDate || item.checkout_date)
+      })));
+    } catch (error) {
+      logger.error('Failed to load quick checkouts from database', error);
     }
   }, []);
 
   const loadEmployees = useCallback(async () => {
-    if (window.electronAPI && window.electronAPI.db) {
-      try {
-        const loadedEmployees = await window.electronAPI.db.getEmployees();
-        setEmployees(loadedEmployees.map((item: any) => ({
-          ...item,
-          createdAt: new Date(item.createdAt),
-          updatedAt: new Date(item.updatedAt)
-        })));
-      } catch (error) {
-        logger.error('Failed to load employees from database', error);
-      }
+    try {
+      const loadedEmployees = await dataService.employees.getEmployees();
+      setEmployees(loadedEmployees.map((item: any) => ({
+        ...item,
+        createdAt: new Date(item.createdAt || item.created_at),
+        updatedAt: new Date(item.updatedAt || item.updated_at)
+      })));
+    } catch (error) {
+      logger.error('Failed to load employees from database', error);
     }
   }, []);
 
   const loadVehicles = useCallback(async () => {
-    if (window.electronAPI && window.electronAPI.db) {
-      try {
-        const loadedVehicles = await window.electronAPI.db.getVehicles();
-        setVehicles(loadedVehicles.map((item: any) => ({
-          ...item,
-          createdAt: new Date(item.created_at || item.createdAt),
-          updatedAt: new Date(item.updated_at || item.updatedAt)
-        })));
-      } catch (error) {
-        logger.error('Failed to load vehicles from database', error);
-      }
+    try {
+      const loadedVehicles = await dataService.vehicles.getVehicles();
+      setVehicles(loadedVehicles.map((item: any) => ({
+        ...item,
+        createdAt: new Date(item.created_at || item.createdAt),
+        updatedAt: new Date(item.updated_at || item.updatedAt)
+      })));
+    } catch (error) {
+      logger.error('Failed to load vehicles from database', error);
     }
   }, []);
 
   const loadSites = useCallback(async () => {
-    if (window.electronAPI && window.electronAPI.db) {
-      try {
-        const loadedSites = await window.electronAPI.db.getSites();
-        setSites(loadedSites.map((item: any) => ({
-          ...item,
-          createdAt: new Date(item.createdAt),
-          updatedAt: new Date(item.updatedAt)
-        })));
-      } catch (error) {
-        logger.error('Failed to load sites from database', error);
-      }
+    try {
+      const loadedSites = await dataService.sites.getSites();
+      setSites(loadedSites.map((item: any) => ({
+        ...item,
+        createdAt: new Date(item.createdAt || item.created_at),
+        updatedAt: new Date(item.updatedAt || item.updated_at)
+      })));
+    } catch (error) {
+      logger.error('Failed to load sites from database', error);
     }
   }, []);
 
   const loadCompanySettings = useCallback(async () => {
-    if (window.electronAPI && window.electronAPI.db) {
-      try {
-        const loadedSettings = await window.electronAPI.db.getCompanySettings();
-        setCompanySettings(loadedSettings || {});
-      } catch (error) {
-        logger.error('Failed to load company settings from database', error);
-      }
+    try {
+      const loadedSettings = await dataService.companySettings.getCompanySettings();
+      setCompanySettings(loadedSettings || ({} as CompanySettingsType));
+    } catch (error) {
+      logger.error('Failed to load company settings from database', error);
     }
   }, []);
 
   const loadSiteTransactions = useCallback(async () => {
-    if (window.electronAPI && window.electronAPI.db) {
-      try {
-        const loadedTransactions = await window.electronAPI.db.getSiteTransactions();
-        setSiteTransactions(loadedTransactions.map((item: any) => ({
-          ...item,
-          createdAt: new Date(item.createdAt)
-        })));
-      } catch (error) {
-        logger.error('Failed to load site transactions from database', error);
-      }
+    try {
+      const loadedTransactions = await dataService.siteTransactions.getSiteTransactions();
+      setSiteTransactions(loadedTransactions.map((item: any) => ({
+        ...item,
+        createdAt: new Date(item.createdAt || item.created_at)
+      })));
+    } catch (error) {
+      logger.error('Failed to load site transactions from database', error);
     }
   }, []);
 
   const loadEquipmentLogs = useCallback(async () => {
-    if (window.electronAPI && window.electronAPI.db) {
-      try {
-        const logs = await window.electronAPI.db.getEquipmentLogs();
-        setEquipmentLogs(logs.map((item: any) => ({
-          ...item,
-          date: new Date(item.date),
-          createdAt: new Date(item.created_at),
-          updatedAt: new Date(item.updated_at)
-        })));
-      } catch (error) {
-        logger.error('Failed to load equipment logs from database', error);
-      }
+    try {
+      const logs = await dataService.equipmentLogs.getEquipmentLogs();
+      setEquipmentLogs(logs.map((item: any) => ({
+        ...item,
+        date: new Date(item.date),
+        createdAt: new Date(item.created_at || item.createdAt),
+        updatedAt: new Date(item.updated_at || item.updatedAt)
+      })));
+    } catch (error) {
+      logger.error('Failed to load equipment logs from database', error);
     }
   }, []);
 
