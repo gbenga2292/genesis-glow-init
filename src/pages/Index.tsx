@@ -7,6 +7,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu, Plus, Bot } from "lucide-react";
 import { AppMenuBar } from "@/components/layout/AppMenuBar";
+import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { cn } from "@/lib/utils";
 import { AssetTable } from "@/components/assets/AssetTable";
 import { AddAssetForm } from "@/components/assets/AddAssetForm";
@@ -2760,7 +2761,8 @@ const Index = () => {
           )}
 
           <main className={cn(
-            "flex-1 overflow-y-auto p-4 md:p-6"
+            "flex-1 overflow-y-auto p-3 md:p-6",
+            isMobile && "pb-20" // Add padding for bottom nav
           )}>
             {isAssetInventoryTab && (
               <div className="flex flex-col space-y-3 md:space-y-0 md:flex-row md:justify-between md:items-center mb-6">
@@ -3146,6 +3148,15 @@ const Index = () => {
             endDate={new Date(auditEndDate)}
           />
         </div>
+      )}
+
+      {/* Mobile Bottom Navigation */}
+      {isMobile && (
+        <MobileBottomNav
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          onMenuClick={() => setMobileMenuOpen(true)}
+        />
       )}
 
     </AIAssistantProvider>
