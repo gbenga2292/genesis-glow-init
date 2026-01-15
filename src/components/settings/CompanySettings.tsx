@@ -22,6 +22,7 @@ import { logActivity, exportActivitiesToTxt, getActivities, clearActivities } fr
 import { useAuth, User, UserRole } from "@/contexts/AuthContext";
 import { SyncStatusPanel } from "./SyncStatusPanel";
 import { EmployeeAnalytics } from "./EmployeeAnalytics";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface CompanySettingsProps {
   settings: CompanySettingsType;
@@ -71,6 +72,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
   const { currentUser, hasPermission, getUsers, createUser, updateUser, deleteUser } = useAuth();
+  const isMobile = useIsMobile();
   const isAdmin = currentUser?.role === 'admin';
   const [formData, setFormData] = useState<CompanySettingsType>({ ...defaultSettings, ...settings });
   const [employeeName, setEmployeeName] = useState("");
@@ -2204,7 +2206,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       </div>
 
       <Tabs defaultValue="company" className="w-full">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-7 h-auto">
           <TabsTrigger value="company" className="flex items-center gap-2">
             <Building className="h-4 w-4" />
             Company
@@ -2437,7 +2439,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex justify-between items-center">
+                <div className={`flex justify-between items-center ${isMobile ? 'flex-col items-start gap-4 mb-4' : ''}`}>
                   <h4 className="font-medium">User Management</h4>
                   <div className="flex gap-2">
                     <Button onClick={() => setIsAddUserDialogOpen(true)} className="gap-2">
@@ -2450,7 +2452,8 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                   </div>
                 </div>
 
-                {showPermissionsTable ? (
+                {/* User Permissions Table (Desktop Only) */}
+                {!isMobile && showPermissionsTable ? (
                   <div className="space-y-2">
                     <h4 className="font-medium">User Permissions</h4>
                     {users.length === 0 ? (
@@ -2541,9 +2544,9 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                     ) : (
                       <div className="space-y-2 max-h-96 overflow-y-auto">
                         {users.map(user => (
-                          <div key={user.id} className="flex items-center justify-between border p-3 rounded">
+                          <div key={user.id} className={`flex items-center justify-between border p-3 rounded ${isMobile ? 'flex-col items-stretch gap-4' : ''}`}>
                             {editingUserId === user.id ? (
-                              <div className="flex gap-2 flex-1">
+                              <div className={`flex gap-2 flex-1 ${isMobile ? 'flex-col' : ''}`}>
                                 <Input
                                   value={editUserName}
                                   onChange={(e) => setEditUserName(e.target.value)}
@@ -2714,7 +2717,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex justify-between items-center">
+              <div className={`flex justify-between items-center ${isMobile ? 'flex-col items-start gap-4 mb-4' : ''}`}>
                 <h4 className="font-medium">Active Employees</h4>
                 {hasPermission('write_employees') && (
                   <Button onClick={() => setIsAddEmployeeDialogOpen(true)} className="gap-2">
@@ -2729,9 +2732,9 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                 ) : (
                   <ul className="space-y-2 max-h-96 overflow-y-auto">
                     {employees.filter(emp => emp.status === 'active').map(emp => (
-                      <li key={emp.id} className="flex justify-between items-center border p-2 rounded">
+                      <li key={emp.id} className={`flex justify-between items-center border p-2 rounded ${isMobile ? 'flex-col items-stretch gap-3' : ''}`}>
                         {editingEmployeeId === emp.id ? (
-                          <div className="flex gap-2 flex-1">
+                          <div className={`flex gap-2 flex-1 ${isMobile ? 'flex-col' : ''}`}>
                             <Input
                               value={tempEmployeeName}
                               onChange={(e) => setTempEmployeeName(e.target.value)}
@@ -2883,7 +2886,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex gap-2">
+              <div className={`flex gap-2 ${isMobile ? 'flex-col items-stretch' : ''}`}>
                 <Input
                   placeholder="Vehicle Name/Plate"
                   value={vehicleName}
@@ -2900,9 +2903,9 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                 ) : (
                   <ul className="space-y-2 max-h-96 overflow-y-auto">
                     {vehicles.map((vehicle) => (
-                      <li key={vehicle.id} className="flex justify-between items-center border p-2 rounded">
+                      <li key={vehicle.id} className={`flex justify-between items-center border p-2 rounded ${isMobile ? 'flex-col items-stretch gap-3' : ''}`}>
                         {editingVehicleIndex === vehicles.indexOf(vehicle) ? (
-                          <div className="flex gap-2 flex-1">
+                          <div className={`flex gap-2 flex-1 ${isMobile ? 'flex-col' : ''}`}>
                             <Input
                               value={tempVehicleName}
                               onChange={(e) => setTempVehicleName(e.target.value)}

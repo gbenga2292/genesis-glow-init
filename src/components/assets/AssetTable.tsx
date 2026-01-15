@@ -4,6 +4,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Table,
@@ -554,200 +555,298 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
         assetLocations={assetLocations}
       />
 
-      {/* Table */}
+      {/* Table / Card View */}
       <div className="bg-card border-0 shadow-soft rounded-lg overflow-hidden">
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50">
-                {isAdmin && (
-                  <TableHead className="w-12">
-                    <Checkbox
-                      checked={selectedAssetIds.size === filteredAndSortedAssets.length && filteredAndSortedAssets.length > 0}
-                      onCheckedChange={handleToggleAllAssets}
-                      aria-label="Select all assets"
-                    />
-                  </TableHead>
-                )}
-                <SortableHeader field="name">Asset Name</SortableHeader>
-                <SortableHeader field="quantity">Total Stock</SortableHeader>
-                {!isMobile && <TableHead>Reserved</TableHead>}
-                {!isMobile && <TableHead>Available</TableHead>}
-                {!isMobile && <TableHead>Stats (M | D | U)</TableHead>}
-                {!isMobile && <TableHead>Category | Type</TableHead>}
-                <SortableHeader field="location">Location</SortableHeader>
-                <SortableHeader field="stockStatus">Stock Status</SortableHeader>
-                <TableHead className="w-16">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredAndSortedAssets.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((asset) => (
-                <TableRow key={asset.id} className="hover:bg-muted/30 transition-colors">
-                  {isAdmin && (
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedAssetIds.has(asset.id)}
-                        onCheckedChange={() => handleToggleAssetSelection(asset.id)}
-                        aria-label={`Select ${asset.name}`}
-                      />
-                    </TableCell>
-                  )}
-                  <TableCell className="font-medium">
-                    {asset.name}
-                  </TableCell>
-
-                  <TableCell>
-                    <span className="font-semibold text-primary">{asset.quantity} {asset.unitOfMeasurement}</span>
-                  </TableCell>
-
-                  {!isMobile && (
-                    <TableCell>
-                      {asset.reservedQuantity || 0}
-                    </TableCell>
-                  )}
-
-                  {!isMobile && (
-                    <TableCell>
-                      {asset.availableQuantity || 0}
-                    </TableCell>
-                  )}
-
-                  {!isMobile && (
-                    <TableCell>
-                      <div className="flex flex-col text-xs space-y-1">
-                        <div className="flex justify-between w-24">
-                          <span className="text-muted-foreground">Missing:</span>
-                          <span className="font-medium text-destructive">{asset.missingCount || 0}</span>
-                        </div>
-                        <div className="flex justify-between w-24">
-                          <span className="text-muted-foreground">Damaged:</span>
-                          <span className="font-medium text-amber-500">{asset.damagedCount || 0}</span>
-                        </div>
-                        <div className="flex justify-between w-24">
-                          <span className="text-muted-foreground">Used:</span>
-                          <span className="font-medium text-blue-500">{asset.usedCount || 0}</span>
-                        </div>
+        {isMobile ? (
+          <div className="space-y-3 p-3">
+            {filteredAndSortedAssets.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((asset) => (
+              <Card key={asset.id} className="shadow-sm border">
+                <CardContent className="p-4">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="space-y-1">
+                      <div className="font-semibold text-base">{asset.name}</div>
+                      <div className="text-xs text-muted-foreground flex items-center gap-2">
+                        <Badge variant="secondary" className="text-[10px] h-5">{asset.category}</Badge>
+                        <span className="capitalize">{asset.type}</span>
                       </div>
-                    </TableCell>
-                  )}
-
-                  {!isMobile && (
-                    <TableCell>
-                      <div className="flex flex-col space-y-1">
-                        <Badge variant="outline" className="w-fit">{asset.category}</Badge>
-                        <Badge variant="secondary" className="w-fit text-[10px]">{asset.type === 'non-consumable' ? 'Reuseables' : asset.type}</Badge>
-                      </div>
-                    </TableCell>
-                  )}
-
-                  <TableCell>
-                    {asset.location || (asset.siteId && siteMap[asset.siteId]) || '-'}
-                  </TableCell>
-
-                  <TableCell>{getStockBadge(asset)}</TableCell>
-
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {hasPermission('write_assets') && (
-                          <DropdownMenuItem onClick={() => {
-                            if (!isAuthenticated) {
-                              toast({
-                                title: "Login Required",
-                                description: "Please log in to edit assets.",
-                                variant: "destructive",
-                              });
-                              return;
-                            }
-                            onEdit(asset);
-                          }}>
-                            <Edit className="h-4 w-4 mr-2" />
-                            Edit Form
-                          </DropdownMenuItem>
-                        )}
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                              <FileText className="h-4 w-4 mr-2" />
-                              Description
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {hasPermission('write_assets') && (
+                            <DropdownMenuItem onClick={() => {
+                              if (!isAuthenticated) return;
+                              onEdit(asset);
+                            }}>
+                              <Edit className="h-4 w-4 mr-2" />
+                              Edit Form
                             </DropdownMenuItem>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>{asset.name} - Description</DialogTitle>
-                            </DialogHeader>
-                            <div className="mt-4">
-                              <p className="text-sm text-muted-foreground">
-                                {asset.description || 'No description available for this asset.'}
-                              </p>
-                            </div>
-                          </DialogContent>
-                        </Dialog>
-                        <DropdownMenuItem
-                          onClick={() => {
-                            if (!isAuthenticated) {
-                              toast({
-                                title: "Login Required",
-                                description: "Please log in to view analytics.",
-                                variant: "destructive",
-                              });
-                              return;
-                            }
-                            onViewAnalytics?.(asset);
-                          }}
-                        >
-                          <BarChart className="h-4 w-4 mr-2" />
-                          Analytics
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => {
-                            if (!isAuthenticated) {
-                              toast({
-                                title: "Login Required",
-                                description: "Please log in to view restock history.",
-                                variant: "destructive",
-                              });
-                              return;
-                            }
+                          )}
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                <FileText className="h-4 w-4 mr-2" />
+                                Description
+                              </DropdownMenuItem>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>{asset.name} - Description</DialogTitle>
+                              </DialogHeader>
+                              <div className="mt-4">
+                                <p className="text-sm text-muted-foreground">
+                                  {asset.description || 'No description available for this asset.'}
+                                </p>
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                          <DropdownMenuItem onClick={() => onViewAnalytics?.(asset)}>
+                            <BarChart className="h-4 w-4 mr-2" />
+                            Analytics
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => {
                             setSelectedAssetForHistory(asset);
                             setShowRestockHistoryDialog(true);
-                          }}
-                        >
-                          <History className="h-4 w-4 mr-2" />
-                          Restock History
-                        </DropdownMenuItem>
-                        {hasPermission('delete_assets') && (
+                          }}>
+                            <History className="h-4 w-4 mr-2" />
+                            Restock History
+                          </DropdownMenuItem>
+                          {hasPermission('delete_assets') && (
+                            <DropdownMenuItem
+                              onClick={() => onDelete(asset)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-sm">
+                    <div>
+                      <span className="text-xs text-muted-foreground block mb-1">Total Stock</span>
+                      <span className="font-semibold text-primary">{asset.quantity} {asset.unitOfMeasurement}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-muted-foreground block mb-1">Status</span>
+                      {getStockBadge(asset)}
+                    </div>
+                    <div className="col-span-2 pt-2 border-t mt-1 flex justify-between items-center">
+                      <div className="flex flex-col">
+                        <span className="text-xs text-muted-foreground">Location</span>
+                        <span className="truncate max-w-[200px]">{asset.location || (asset.siteId && siteMap[asset.siteId]) || '-'}</span>
+                      </div>
+                      <Badge variant={asset.status === 'active' ? 'outline' : 'secondary'} className="text-[10px]">
+                        {asset.status ? asset.status.toUpperCase() : 'ACTIVE'}
+                      </Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  {isAdmin && (
+                    <TableHead className="w-12">
+                      <Checkbox
+                        checked={selectedAssetIds.size === filteredAndSortedAssets.length && filteredAndSortedAssets.length > 0}
+                        onCheckedChange={handleToggleAllAssets}
+                        aria-label="Select all assets"
+                      />
+                    </TableHead>
+                  )}
+                  <SortableHeader field="name">Asset Name</SortableHeader>
+                  <SortableHeader field="quantity">Total Stock</SortableHeader>
+                  {!isMobile && <TableHead>Reserved</TableHead>}
+                  {!isMobile && <TableHead>Available</TableHead>}
+                  {!isMobile && <TableHead>Stats (M | D | U)</TableHead>}
+                  {!isMobile && <TableHead>Category | Type</TableHead>}
+                  <SortableHeader field="location">Location</SortableHeader>
+                  <SortableHeader field="stockStatus">Stock Status</SortableHeader>
+                  <TableHead className="w-16">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredAndSortedAssets.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((asset) => (
+                  <TableRow key={asset.id} className="hover:bg-muted/30 transition-colors">
+                    {isAdmin && (
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedAssetIds.has(asset.id)}
+                          onCheckedChange={() => handleToggleAssetSelection(asset.id)}
+                          aria-label={`Select ${asset.name}`}
+                        />
+                      </TableCell>
+                    )}
+                    <TableCell className="font-medium">
+                      {asset.name}
+                    </TableCell>
+
+                    <TableCell>
+                      <span className="font-semibold text-primary">{asset.quantity} {asset.unitOfMeasurement}</span>
+                    </TableCell>
+
+                    {!isMobile && (
+                      <TableCell>
+                        {asset.reservedQuantity || 0}
+                      </TableCell>
+                    )}
+
+                    {!isMobile && (
+                      <TableCell>
+                        {asset.availableQuantity || 0}
+                      </TableCell>
+                    )}
+
+                    {!isMobile && (
+                      <TableCell>
+                        <div className="flex flex-col text-xs space-y-1">
+                          <div className="flex justify-between w-24">
+                            <span className="text-muted-foreground">Missing:</span>
+                            <span className="font-medium text-destructive">{asset.missingCount || 0}</span>
+                          </div>
+                          <div className="flex justify-between w-24">
+                            <span className="text-muted-foreground">Damaged:</span>
+                            <span className="font-medium text-amber-500">{asset.damagedCount || 0}</span>
+                          </div>
+                          <div className="flex justify-between w-24">
+                            <span className="text-muted-foreground">Used:</span>
+                            <span className="font-medium text-blue-500">{asset.usedCount || 0}</span>
+                          </div>
+                        </div>
+                      </TableCell>
+                    )}
+
+                    {!isMobile && (
+                      <TableCell>
+                        <div className="flex flex-col space-y-1">
+                          <Badge variant="outline" className="w-fit">{asset.category}</Badge>
+                          <Badge variant="secondary" className="w-fit text-[10px]">{asset.type === 'non-consumable' ? 'Reuseables' : asset.type}</Badge>
+                        </div>
+                      </TableCell>
+                    )}
+
+                    <TableCell>
+                      {asset.location || (asset.siteId && siteMap[asset.siteId]) || '-'}
+                    </TableCell>
+
+                    <TableCell>{getStockBadge(asset)}</TableCell>
+
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {hasPermission('write_assets') && (
+                            <DropdownMenuItem onClick={() => {
+                              if (!isAuthenticated) {
+                                toast({
+                                  title: "Login Required",
+                                  description: "Please log in to edit assets.",
+                                  variant: "destructive",
+                                });
+                                return;
+                              }
+                              onEdit(asset);
+                            }}>
+                              <Edit className="h-4 w-4 mr-2" />
+                              Edit Form
+                            </DropdownMenuItem>
+                          )}
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                <FileText className="h-4 w-4 mr-2" />
+                                Description
+                              </DropdownMenuItem>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>{asset.name} - Description</DialogTitle>
+                              </DialogHeader>
+                              <div className="mt-4">
+                                <p className="text-sm text-muted-foreground">
+                                  {asset.description || 'No description available for this asset.'}
+                                </p>
+                              </div>
+                            </DialogContent>
+                          </Dialog>
                           <DropdownMenuItem
                             onClick={() => {
                               if (!isAuthenticated) {
                                 toast({
                                   title: "Login Required",
-                                  description: "Please log in to delete assets.",
+                                  description: "Please log in to view analytics.",
                                   variant: "destructive",
                                 });
                                 return;
                               }
-                              onDelete(asset);
+                              onViewAnalytics?.(asset);
                             }}
-                            className="text-destructive focus:text-destructive"
                           >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
+                            <BarChart className="h-4 w-4 mr-2" />
+                            Analytics
                           </DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              if (!isAuthenticated) {
+                                toast({
+                                  title: "Login Required",
+                                  description: "Please log in to view restock history.",
+                                  variant: "destructive",
+                                });
+                                return;
+                              }
+                              setSelectedAssetForHistory(asset);
+                              setShowRestockHistoryDialog(true);
+                            }}
+                          >
+                            <History className="h-4 w-4 mr-2" />
+                            Restock History
+                          </DropdownMenuItem>
+                          {hasPermission('delete_assets') && (
+                            <DropdownMenuItem
+                              onClick={() => {
+                                if (!isAuthenticated) {
+                                  toast({
+                                    title: "Login Required",
+                                    description: "Please log in to delete assets.",
+                                    variant: "destructive",
+                                  });
+                                  return;
+                                }
+                                onDelete(asset);
+                              }}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
 
         {/* Empty State */}
         {filteredAndSortedAssets.length === 0 && (
@@ -768,7 +867,8 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
         filteredAndSortedAssets.length > 0 && (
           <div className="flex items-center justify-between py-4">
             <div className="text-sm text-muted-foreground">
-              Showing {Math.min((currentPage - 1) * itemsPerPage + 1, filteredAndSortedAssets.length)} to {Math.min(currentPage * itemsPerPage, filteredAndSortedAssets.length)} of {filteredAndSortedAssets.length} assets
+              <span className="hidden md:inline">Showing {Math.min((currentPage - 1) * itemsPerPage + 1, filteredAndSortedAssets.length)} to {Math.min(currentPage * itemsPerPage, filteredAndSortedAssets.length)} of {filteredAndSortedAssets.length} assets</span>
+              <span className="md:hidden">{Math.min((currentPage - 1) * itemsPerPage + 1, filteredAndSortedAssets.length)}-{Math.min(currentPage * itemsPerPage, filteredAndSortedAssets.length)} of {filteredAndSortedAssets.length}</span>
             </div>
             <div className="flex items-center space-x-2">
               <Button

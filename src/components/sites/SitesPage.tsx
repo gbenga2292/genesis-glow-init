@@ -23,6 +23,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { MachinesSection } from "./MachinesSection";
 import { ConsumablesSection } from "./ConsumablesSection";
 import { ConsumableUsageLog } from "@/types/consumable";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface SitesPageProps {
   sites: Site[];
@@ -108,6 +109,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
   const [siteFilter, setSiteFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const { isAuthenticated, hasPermission } = useAuth();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   // Load site filter from localStorage on component mount
   useEffect(() => {
@@ -597,7 +599,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
               </Collapsible>
 
               {/* Actions */}
-              <div className="flex gap-3 pt-4">
+              <div className={`flex gap-3 pt-4 ${isMobile ? 'flex-col' : ''}`}>
                 <Button onClick={() => handleCreateReturnWaybill(selectedSite)} className="flex-1">
                   <FileText className="h-4 w-4 mr-2" />
                   Create Return Waybill
@@ -850,46 +852,48 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
                   )}
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Asset</TableHead>
-                      <TableHead>Quantity</TableHead>
-                      <TableHead>Reference</TableHead>
-                      <TableHead>Notes</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {transactions
-                      .filter((t) => t.siteId === selectedSite.id)
-                      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                      .map((transaction) => (
-                        <TableRow key={transaction.id}>
-                          <TableCell>{new Date(transaction.createdAt).toLocaleString()}</TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={transaction.type === "in" ? "default" : "secondary"}
-                            >
-                              {transaction.type.toUpperCase()}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="font-medium">{transaction.assetName}</TableCell>
-                          <TableCell>{transaction.quantity}</TableCell>
-                          <TableCell>{transaction.referenceId}</TableCell>
-                          <TableCell className="text-sm">{transaction.notes}</TableCell>
-                        </TableRow>
-                      ))}
-                    {transactions.filter((t) => t.siteId === selectedSite.id).length === 0 && (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center text-muted-foreground h-24">
-                          No transactions for this site yet.
-                        </TableCell>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Asset</TableHead>
+                        <TableHead>Quantity</TableHead>
+                        <TableHead>Reference</TableHead>
+                        <TableHead>Notes</TableHead>
                       </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {transactions
+                        .filter((t) => t.siteId === selectedSite.id)
+                        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                        .map((transaction) => (
+                          <TableRow key={transaction.id}>
+                            <TableCell>{new Date(transaction.createdAt).toLocaleString()}</TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={transaction.type === "in" ? "default" : "secondary"}
+                              >
+                                {transaction.type.toUpperCase()}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="font-medium">{transaction.assetName}</TableCell>
+                            <TableCell>{transaction.quantity}</TableCell>
+                            <TableCell>{transaction.referenceId}</TableCell>
+                            <TableCell className="text-sm">{transaction.notes}</TableCell>
+                          </TableRow>
+                        ))}
+                      {transactions.filter((t) => t.siteId === selectedSite.id).length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center text-muted-foreground h-24">
+                            No transactions for this site yet.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </div>
           </DialogContent>
