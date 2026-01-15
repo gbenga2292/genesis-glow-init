@@ -137,7 +137,7 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
     loadEquipmentLogs();
   }, [loadQuickCheckouts, loadEmployees, loadVehicles, loadSites, loadCompanySettings, loadSiteTransactions, loadEquipmentLogs]);
 
-  const refreshAllData = async () => {
+  const refreshAllData = useCallback(async () => {
     await Promise.all([
       loadQuickCheckouts(),
       loadEmployees(),
@@ -147,7 +147,7 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
       loadSiteTransactions(),
       loadEquipmentLogs()
     ]);
-  };
+  }, [loadQuickCheckouts, loadEmployees, loadVehicles, loadSites, loadCompanySettings, loadSiteTransactions, loadEquipmentLogs]);
 
   return (
     <AppDataContext.Provider value={{
