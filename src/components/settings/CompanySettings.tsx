@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { logger } from "@/lib/logger";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -2194,6 +2194,32 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     setEditUserRole('staff');
   };
 
+  // Build tabs list dynamically based on permissions
+  const settingsTabs = React.useMemo(() => {
+    const tabs = [
+      { value: "company", label: "Company Info", shortLabel: "Company", icon: <Building className="h-4 w-4" /> },
+    ];
+    
+    if (hasPermission('manage_users')) {
+      tabs.push({ value: "users", label: "User Management", shortLabel: "Users", icon: <Users className="h-4 w-4" /> });
+    }
+    
+    if (currentUser?.role !== 'staff') {
+      tabs.push(
+        { value: "employees", label: "Employees", shortLabel: "Staff", icon: <UserPlus className="h-4 w-4" /> },
+        { value: "vehicles", label: "Vehicles", shortLabel: "Cars", icon: <Car className="h-4 w-4" /> },
+        { value: "ai", label: "AI Settings", shortLabel: "AI", icon: <Bot className="h-4 w-4" /> },
+        { value: "data", label: "Data Management", shortLabel: "Data", icon: <Database className="h-4 w-4" /> }
+      );
+    }
+    
+    tabs.push({ value: "sync", label: "Sync Status", shortLabel: "Sync", icon: <Database className="h-4 w-4" /> });
+    
+    return tabs;
+  }, [currentUser?.role, hasPermission]);
+
+  const [activeSettingsTab, setActiveSettingsTab] = useState("company");
+
   return (
     <div className="space-y-4 md:space-y-6 animate-fade-in">
       <div className="px-0">
@@ -2205,50 +2231,58 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         </p>
       </div>
 
-      <Tabs defaultValue="company" className="w-full">
-        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 hide-scrollbar">
-          <TabsList className="inline-flex h-auto min-w-max md:grid md:w-full md:grid-cols-4 lg:grid-cols-7 gap-1">
-            <TabsTrigger value="company" className="flex items-center gap-1.5 px-3 py-2 text-xs md:text-sm whitespace-nowrap">
-              <Building className="h-4 w-4 shrink-0" />
-              <span className="hidden sm:inline">Company</span>
-              <span className="sm:hidden">Info</span>
-            </TabsTrigger>
-            {hasPermission('manage_users') && (
-              <TabsTrigger value="users" className="flex items-center gap-1.5 px-3 py-2 text-xs md:text-sm whitespace-nowrap">
-                <Users className="h-4 w-4 shrink-0" />
-                Users
-              </TabsTrigger>
-            )}
-            {currentUser?.role !== 'staff' && (
-              <>
-                <TabsTrigger value="employees" className="flex items-center gap-1.5 px-3 py-2 text-xs md:text-sm whitespace-nowrap">
-                  <UserPlus className="h-4 w-4 shrink-0" />
-                  <span className="hidden sm:inline">Employees</span>
-                  <span className="sm:hidden">Staff</span>
-                </TabsTrigger>
-                <TabsTrigger value="vehicles" className="flex items-center gap-1.5 px-3 py-2 text-xs md:text-sm whitespace-nowrap">
-                  <Car className="h-4 w-4 shrink-0" />
-                  <span className="hidden sm:inline">Vehicles</span>
-                  <span className="sm:hidden">Cars</span>
-                </TabsTrigger>
-                <TabsTrigger value="ai" className="flex items-center gap-1.5 px-3 py-2 text-xs md:text-sm whitespace-nowrap">
-                  <Bot className="h-4 w-4 shrink-0" />
-                  AI
-                </TabsTrigger>
-                <TabsTrigger value="data" className="flex items-center gap-1.5 px-3 py-2 text-xs md:text-sm whitespace-nowrap">
-                  <Database className="h-4 w-4 shrink-0" />
-                  Data
-                </TabsTrigger>
-              </>
-            )}
-            <TabsTrigger value="sync" className="flex items-center gap-1.5 px-3 py-2 text-xs md:text-sm whitespace-nowrap">
-              <Database className="h-4 w-4 shrink-0" />
-              Sync
-            </TabsTrigger>
-          </TabsList>
+      {/* Mobile: Dropdown selector for tabs */}
+      {isMobile ? (
+        <div className="w-full">
+          <Select value={activeSettingsTab} onValueChange={setActiveSettingsTab}>
+            <SelectTrigger className="w-full h-12 bg-muted/50 border-0 rounded-xl text-base font-medium">
+              <div className="flex items-center gap-2">
+                {settingsTabs.find(t => t.value === activeSettingsTab)?.icon}
+                <SelectValue>
+                  {settingsTabs.find(t => t.value === activeSettingsTab)?.label}
+                </SelectValue>
+              </div>
+            </SelectTrigger>
+            <SelectContent className="max-h-[60vh]">
+              {settingsTabs.map((tab) => (
+                <SelectItem
+                  key={tab.value}
+                  value={tab.value}
+                  className="py-3 text-base"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">{tab.icon}</span>
+                    <span>{tab.label}</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
+      ) : (
+        // Desktop: Standard tabs
+        <Tabs value={activeSettingsTab} onValueChange={setActiveSettingsTab} className="w-full">
+          <div className="overflow-x-auto hide-scrollbar">
+            <TabsList className="inline-flex h-auto min-w-max md:grid md:w-full md:grid-cols-4 lg:grid-cols-7 gap-1">
+              {settingsTabs.map((tab) => (
+                <TabsTrigger 
+                  key={tab.value} 
+                  value={tab.value} 
+                  className="flex items-center gap-1.5 px-3 py-2 text-xs md:text-sm whitespace-nowrap"
+                >
+                  {tab.icon}
+                  <span className="hidden sm:inline">{tab.label}</span>
+                  <span className="sm:hidden">{tab.shortLabel}</span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
+        </Tabs>
+      )}
 
-        <TabsContent value="company" className="space-y-4 md:space-y-6 mt-4">
+      {/* Settings Content */}
+      {activeSettingsTab === "company" && (
+        <div className="space-y-4 md:space-y-6 mt-4">
           <div className="grid grid-cols-1 gap-4 md:gap-6 lg:grid-cols-2">
             {/* Company Information */}
             <Card className="border-0 shadow-soft">
@@ -2430,11 +2464,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
               </Button>
             </div>
           )}
-        </TabsContent>
+        </div>
+      )}
 
-        {/* User Management Tab */}
-        {hasPermission('manage_users') && (
-          <TabsContent value="users" className="space-y-4 md:space-y-6 mt-4">
+      {/* User Management Tab */}
+      {activeSettingsTab === "users" && hasPermission('manage_users') && (
+        <div className="space-y-4 md:space-y-6 mt-4">
             <Card className="border-0 shadow-soft">
               <CardHeader className="pb-3 md:pb-6">
                 <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
@@ -2708,11 +2743,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                 Save Settings
               </Button>
             </div>
-          </TabsContent>
-        )}
+        </div>
+      )}
 
-        {/* Employees Tab */}
-        <TabsContent value="employees" className="space-y-6">
+      {/* Employees Tab */}
+      {activeSettingsTab === "employees" && (
+        <div className="space-y-6">
           <Card className="border-0 shadow-soft">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -2878,10 +2914,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
               Save Settings
             </Button>
           </div>
-        </TabsContent>
+        </div>
+      )}
 
-        {/* Vehicles Tab */}
-        <TabsContent value="vehicles" className="space-y-6">
+      {/* Vehicles Tab */}
+      {activeSettingsTab === "vehicles" && (
+        <div className="space-y-6">
           <Card className="border-0 shadow-soft">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -2950,10 +2988,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
               Save Settings
             </Button>
           </div>
-        </TabsContent>
+        </div>
+      )}
 
-        {/* AI Assistant (Remote/API key) Configuration Tab */}
-        <TabsContent value="ai" className="space-y-6">
+      {/* AI Assistant (Remote/API key) Configuration Tab */}
+      {activeSettingsTab === "ai" && (
+        <div className="space-y-6">
           {/* Top-level controls: Add / View saved AI clients are now compact dialogs */}
 
           <Card className="border-0 shadow-soft">
@@ -3288,10 +3328,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
               )}
             </CardContent>
           </Card>
-        </TabsContent >
+        </div>
+      )}
 
-        {/* Data Management Tab */}
-        < TabsContent value="data" className="space-y-6" >
+      {/* Data Management Tab */}
+      {activeSettingsTab === "data" && (
+        <div className="space-y-6">
           <Card className="border-0 shadow-soft">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -4009,13 +4051,15 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
               Save Settings
             </Button>
           </div>
-        </TabsContent>
+        </div>
+      )}
 
-        {/* Database Sync Tab */}
-        <TabsContent value="sync" className="space-y-6">
+      {/* Database Sync Tab */}
+      {activeSettingsTab === "sync" && (
+        <div className="space-y-6">
           <SyncStatusPanel />
-        </TabsContent>
-      </Tabs>
+        </div>
+      )}
 
       {/* Employee Analytics Dialog */}
       <Dialog open={!!analyticsEmployee} onOpenChange={(open) => !open && setAnalyticsEmployee(null)}>
