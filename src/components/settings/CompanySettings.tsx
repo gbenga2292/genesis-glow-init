@@ -2195,57 +2195,61 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-          Company Settings
+    <div className="space-y-4 md:space-y-6 animate-fade-in">
+      <div className="px-0">
+        <h1 className="text-xl md:text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+          Settings
         </h1>
-        <p className="text-muted-foreground mt-2">
-          Configure your company information and preferences
+        <p className="text-sm md:text-base text-muted-foreground mt-1 md:mt-2">
+          Configure your company and app settings
         </p>
       </div>
 
       <Tabs defaultValue="company" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-7 h-auto">
-          <TabsTrigger value="company" className="flex items-center gap-2">
-            <Building className="h-4 w-4" />
-            Company
-          </TabsTrigger>
-          {hasPermission('manage_users') && (
-            <TabsTrigger value="users" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Users
+        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 hide-scrollbar">
+          <TabsList className="inline-flex h-auto min-w-max md:grid md:w-full md:grid-cols-4 lg:grid-cols-7 gap-1">
+            <TabsTrigger value="company" className="flex items-center gap-1.5 px-3 py-2 text-xs md:text-sm whitespace-nowrap">
+              <Building className="h-4 w-4 shrink-0" />
+              <span className="hidden sm:inline">Company</span>
+              <span className="sm:hidden">Info</span>
             </TabsTrigger>
-          )}
-          {currentUser?.role !== 'staff' && (
-            <>
-              <TabsTrigger value="employees" className="flex items-center gap-2">
-                <UserPlus className="h-4 w-4" />
-                Employees
+            {hasPermission('manage_users') && (
+              <TabsTrigger value="users" className="flex items-center gap-1.5 px-3 py-2 text-xs md:text-sm whitespace-nowrap">
+                <Users className="h-4 w-4 shrink-0" />
+                Users
               </TabsTrigger>
-              <TabsTrigger value="vehicles" className="flex items-center gap-2">
-                <Car className="h-4 w-4" />
-                Vehicles
-              </TabsTrigger>
-              <TabsTrigger value="ai" className="flex items-center gap-2">
-                <Bot className="h-4 w-4" />
-                AI Assistant
-              </TabsTrigger>
-              <TabsTrigger value="data" className="flex items-center gap-2">
-                <Database className="h-4 w-4" />
-                Data
-              </TabsTrigger>
-            </>
-          )}
-          <TabsTrigger value="sync" className="flex items-center gap-2">
-            <Database className="h-4 w-4" />
-            Sync
-          </TabsTrigger>
-        </TabsList>
+            )}
+            {currentUser?.role !== 'staff' && (
+              <>
+                <TabsTrigger value="employees" className="flex items-center gap-1.5 px-3 py-2 text-xs md:text-sm whitespace-nowrap">
+                  <UserPlus className="h-4 w-4 shrink-0" />
+                  <span className="hidden sm:inline">Employees</span>
+                  <span className="sm:hidden">Staff</span>
+                </TabsTrigger>
+                <TabsTrigger value="vehicles" className="flex items-center gap-1.5 px-3 py-2 text-xs md:text-sm whitespace-nowrap">
+                  <Car className="h-4 w-4 shrink-0" />
+                  <span className="hidden sm:inline">Vehicles</span>
+                  <span className="sm:hidden">Cars</span>
+                </TabsTrigger>
+                <TabsTrigger value="ai" className="flex items-center gap-1.5 px-3 py-2 text-xs md:text-sm whitespace-nowrap">
+                  <Bot className="h-4 w-4 shrink-0" />
+                  AI
+                </TabsTrigger>
+                <TabsTrigger value="data" className="flex items-center gap-1.5 px-3 py-2 text-xs md:text-sm whitespace-nowrap">
+                  <Database className="h-4 w-4 shrink-0" />
+                  Data
+                </TabsTrigger>
+              </>
+            )}
+            <TabsTrigger value="sync" className="flex items-center gap-1.5 px-3 py-2 text-xs md:text-sm whitespace-nowrap">
+              <Database className="h-4 w-4 shrink-0" />
+              Sync
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-        {/* Company Information + Logo Tab */}
-        <TabsContent value="company" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <TabsContent value="company" className="space-y-4 md:space-y-6 mt-4">
+          <div className="grid grid-cols-1 gap-4 md:gap-6 lg:grid-cols-2">
             {/* Company Information */}
             <Card className="border-0 shadow-soft">
               <CardHeader className="flex flex-row items-center justify-between">
@@ -2347,7 +2351,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t">
+                <div className="grid grid-cols-1 gap-4 pt-4 border-t sm:grid-cols-2 md:grid-cols-3">
                   <div className="space-y-2">
                     <Label htmlFor="maintenanceFrequency">Maintenance Frequency (Days)</Label>
                     <Input
@@ -2430,24 +2434,24 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
         {/* User Management Tab */}
         {hasPermission('manage_users') && (
-          <TabsContent value="users" className="space-y-6">
+          <TabsContent value="users" className="space-y-4 md:space-y-6 mt-4">
             <Card className="border-0 shadow-soft">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+              <CardHeader className="pb-3 md:pb-6">
+                <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
                   <Users className="h-5 w-5" />
                   User Management
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className={`flex justify-between items-center ${isMobile ? 'flex-col items-start gap-4 mb-4' : ''}`}>
-                  <h4 className="font-medium">User Management</h4>
-                  <div className="flex gap-2">
-                    <Button onClick={() => setIsAddUserDialogOpen(true)} className="gap-2">
+                <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
+                  <h4 className="font-medium text-sm md:text-base">Manage Users</h4>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button onClick={() => setIsAddUserDialogOpen(true)} className="gap-2 flex-1 sm:flex-none" size={isMobile ? "sm" : "default"}>
                       <UserPlus className="h-4 w-4" />
                       Add User
                     </Button>
-                    <Button variant="outline" onClick={() => setShowPermissionsTable(!showPermissionsTable)}>
-                      {showPermissionsTable ? 'View Users List' : 'View Permissions Table'}
+                    <Button variant="outline" onClick={() => setShowPermissionsTable(!showPermissionsTable)} size={isMobile ? "sm" : "default"} className="flex-1 sm:flex-none text-xs sm:text-sm">
+                      {showPermissionsTable ? 'List View' : 'Table View'}
                     </Button>
                   </div>
                 </div>
