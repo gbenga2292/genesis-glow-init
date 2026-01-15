@@ -185,15 +185,7 @@ export const Sidebar = ({ activeTab, onTabChange, mode = 'desktop' }: SidebarPro
     )}>
       <div className="p-4 md:p-6 border-b border-border">
         <div className="flex items-center gap-3">
-          <img
-            src="/logo.png"
-            alt="DCEL Logo"
-            className="h-8 w-8 md:h-10 md:w-10 object-contain"
-            onError={(e) => {
-              // Fallback if logo doesn't load
-              e.currentTarget.style.display = 'none';
-            }}
-          />
+
           <div>
             <h1 className="text-base md:text-xl font-bold bg-gradient-primary bg-clip-text text-transparent">
               DCEL Inventory

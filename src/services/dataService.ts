@@ -630,10 +630,10 @@ export const companySettingsService = {
             .from('company_settings')
             .select('*')
             .limit(1)
-            .single();
+            .maybeSingle();
 
         if (error) throw error;
-        return data;
+        return data || {} as CompanySettings;
     },
 
     updateCompanySettings: async (settings: Partial<CompanySettings>): Promise<CompanySettings> => {
@@ -646,7 +646,7 @@ export const companySettingsService = {
             .from('company_settings')
             .select('id')
             .limit(1)
-            .single();
+            .maybeSingle();
 
         if (existing) {
             const { data, error } = await supabase

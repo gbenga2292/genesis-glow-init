@@ -337,15 +337,7 @@ const Index = () => {
       return;
     }
 
-    // Check if database is available
-    if (!window.electronAPI || !window.electronAPI.db) {
-      toast({
-        title: "Database Not Available",
-        description: "This app needs to run in Electron mode to access the database. Please run the desktop application.",
-        variant: "destructive"
-      });
-      return;
-    }
+    // Database check handled by dataService
 
     const newAsset: Asset = {
       ...assetData,
@@ -358,8 +350,7 @@ const Index = () => {
 
     try {
       // Save to database
-      const savedAssets = await window.electronAPI.db.addAsset(newAsset);
-      const savedAsset = savedAssets[0]; // addAsset returns an array
+      const savedAsset = await dataService.assets.createAsset(newAsset);
 
       // Update local state with the saved asset
       setAssets(prev => [...prev, savedAsset]);
@@ -413,9 +404,7 @@ const Index = () => {
 
     try {
       // Update in database first
-      if (window.electronAPI && window.electronAPI.db) {
-        await window.electronAPI.db.updateAsset(updatedAsset.id, assetWithUpdatedDate);
-      }
+      await dataService.assets.updateAsset(updatedAsset.id, assetWithUpdatedDate);
 
       // Then update local state
       setAssets(prev =>
@@ -456,9 +445,7 @@ const Index = () => {
     if (deletingAsset) {
       try {
         // Delete from database first
-        if (window.electronAPI && window.electronAPI.db) {
-          await window.electronAPI.db.deleteAsset(deletingAsset.id);
-        }
+        await dataService.assets.deleteAsset(deletingAsset.id);
 
         // Then remove from local state
         setAssets(prev => prev.filter(asset => asset.id !== deletingAsset.id));
@@ -496,15 +483,7 @@ const Index = () => {
       return;
     }
 
-    // Check if database is available
-    if (!window.electronAPI || !window.electronAPI.db) {
-      toast({
-        title: "Database Not Available",
-        description: "This app needs to run in Electron mode to access the database. Please run the desktop application.",
-        variant: "destructive"
-      });
-      return;
-    }
+    // Database check handled by dataService
 
     // Generate sequential waybill ID
     const waybillCount = waybills.filter(wb => wb.type === 'waybill').length + 1;
@@ -528,13 +507,13 @@ const Index = () => {
 
     try {
       // Save waybill to database
-      await window.electronAPI.db.createWaybill(newWaybill);
+      await dataService.waybills.createWaybill(newWaybill);
 
       // Rely on DB reload to update inventory
       setWaybills(prev => [...prev, newWaybill]);
 
       // Trigger assets refresh
-      const loadedAssets = await window.electronAPI.db.getAssets();
+      const loadedAssets = await dataService.assets.getAssets();
       window.dispatchEvent(new CustomEvent('refreshAssets', {
         detail: loadedAssets.map((item: any) => ({
           ...item,
@@ -2395,14 +2374,7 @@ const Index = () => {
     }
 
     // Check if database is available
-    if (!(window.electronAPI && window.electronAPI.db)) {
-      toast({
-        title: "Database Not Available",
-        description: "This app needs to run in Electron mode to access the database. Please run the desktop application.",
-        variant: "destructive"
-      });
-      return;
-    }
+    // Database check handled by dataService
 
     try {
       // Map imported data to Asset format
@@ -2490,8 +2462,8 @@ const Index = () => {
       const failedAssets: string[] = [];
       for (const asset of mapped) {
         try {
-          const savedAsset = await window.electronAPI.db.createAsset(asset);
-          savedAssets.push(savedAsset[0]); // createAsset returns an array
+          const savedAsset = await dataService.assets.createAsset(asset);
+          savedAssets.push(savedAsset);
         } catch (error) {
           logger.error('Failed to save asset to database', error, { context: 'BulkImport', data: { assetName: asset.name } });
           failedAssets.push(asset.name);
@@ -2703,29 +2675,31 @@ const Index = () => {
     >
       <div className="flex flex-col h-screen overflow-hidden bg-background">
         {/* Custom Menu Bar for Desktop */}
-        <AppMenuBar
-          onNewAsset={() => setActiveTab("add-asset")}
-          onRefresh={() => window.location.reload()}
-          onExport={() => {
-            if (isAuthenticated) {
-              exportAssetsToExcel(assets, "Full_Inventory_Export");
-              toast({
-                title: "Export Initiated",
-                description: "Your inventory data is being exported to Excel."
-              });
-            } else {
-              toast({
-                title: "Authentication Required",
-                description: "Please login to export data",
-                variant: "destructive"
-              });
-            }
-          }}
-          onOpenSettings={() => setActiveTab("settings")}
-          canCreateAsset={hasPermission('write_assets')}
-          onMobileMenuClick={isMobile ? () => setMobileMenuOpen(true) : undefined}
-          currentUser={currentUser}
-        />
+        <div className="hidden md:block">
+          <AppMenuBar
+            onNewAsset={() => setActiveTab("add-asset")}
+            onRefresh={() => window.location.reload()}
+            onExport={() => {
+              if (isAuthenticated) {
+                exportAssetsToExcel(assets, "Full_Inventory_Export");
+                toast({
+                  title: "Export Initiated",
+                  description: "Your inventory data is being exported to Excel."
+                });
+              } else {
+                toast({
+                  title: "Authentication Required",
+                  description: "Please login to export data",
+                  variant: "destructive"
+                });
+              }
+            }}
+            onOpenSettings={() => setActiveTab("settings")}
+            canCreateAsset={hasPermission('write_assets')}
+            onMobileMenuClick={isMobile ? () => setMobileMenuOpen(true) : undefined}
+            currentUser={currentUser}
+          />
+        </div>
 
         {/* Mobile Sidebar Sheet */}
         <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>

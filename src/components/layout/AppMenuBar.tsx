@@ -142,7 +142,7 @@ export const AppMenuBar = ({
             </button>
           )}
           <div className="px-4 py-2 flex items-center gap-2">
-            <img src="favicon.ico" alt="DCEL" className="h-5 w-5" />
+            <img src="favicon.ico" alt="DCEL" className="h-5 w-5 hidden md:block" />
             <span className="text-sm font-semibold text-foreground">DCEL</span>
           </div>
 
