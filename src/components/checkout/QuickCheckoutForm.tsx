@@ -12,6 +12,7 @@ import { ShoppingCart, RotateCcw, User, Calendar, Trash2, FileText } from "lucid
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { QuickCheckoutReport } from "./QuickCheckoutReport";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface QuickCheckoutFormProps {
   assets: Asset[];
@@ -53,6 +54,7 @@ export const QuickCheckoutForm = ({
 
   const { isAuthenticated, currentUser, hasPermission } = useAuth();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   // Main checkout list shows only outstanding items
   const filteredCheckouts = quickCheckouts.filter(checkout => checkout.status === 'outstanding');
@@ -156,7 +158,7 @@ export const QuickCheckoutForm = ({
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex justify-between items-start">
+      <div className={`flex ${isMobile ? 'flex-col gap-4' : 'justify-between items-start'}`}>
         <div>
           <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
             Quick Checkout
@@ -216,7 +218,7 @@ export const QuickCheckoutForm = ({
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="quantity">Quantity *</Label>
                   <Input

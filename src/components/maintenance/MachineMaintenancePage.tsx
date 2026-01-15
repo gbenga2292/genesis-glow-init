@@ -21,6 +21,8 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAppData } from "@/contexts/AppDataContext";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface MachineMaintenancePageProps {
     machines: Machine[];
@@ -48,6 +50,15 @@ export const MachineMaintenancePage = ({
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
     const [filterStatus, setFilterStatus] = useState<'all' | 'ok' | 'due-soon' | 'overdue'>('all');
+    const isMobile = useIsMobile();
+
+    // Tab definitions for cleaner rendering
+    const tabs = [
+        { value: 'dashboard', label: 'Dashboard', icon: null },
+        { value: 'machines', label: `Machines (${machines.length})`, icon: null },
+        { value: 'vehicles', label: `Vehicles (${vehicles.length})`, icon: <Truck className="h-4 w-4 mr-2" /> },
+        { value: 'entry', label: 'Log Maintenance', icon: <Wrench className="h-4 w-4 mr-2" /> }
+    ];
 
     // Convert vehicles to machine format for unified handling
     const vehiclesAsMachines: Machine[] = useMemo(() => {
@@ -219,18 +230,34 @@ export const MachineMaintenancePage = ({
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={(value: any) => setActiveTab(value)}>
                 <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
-                    <TabsList>
-                        <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-                        <TabsTrigger value="machines">Machines ({machines.length})</TabsTrigger>
-                        <TabsTrigger value="vehicles">
-                            <Truck className="h-4 w-4 mr-2" />
-                            Vehicles ({vehicles.length})
-                        </TabsTrigger>
-                        <TabsTrigger value="entry">
-                            <Wrench className="h-4 w-4 mr-2" />
-                            Log Maintenance
-                        </TabsTrigger>
-                    </TabsList>
+                    {isMobile ? (
+                        <div className="w-full">
+                            <Select value={activeTab} onValueChange={(value: any) => setActiveTab(value)}>
+                                <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Select view" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {tabs.map(tab => (
+                                        <SelectItem key={tab.value} value={tab.value}>
+                                            <div className="flex items-center">
+                                                {tab.icon}
+                                                {tab.label}
+                                            </div>
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    ) : (
+                        <TabsList>
+                            {tabs.map(tab => (
+                                <TabsTrigger key={tab.value} value={tab.value}>
+                                    {tab.icon}
+                                    {tab.label}
+                                </TabsTrigger>
+                            ))}
+                        </TabsList>
+                    )}
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="outline" size="sm">

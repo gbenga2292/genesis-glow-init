@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Asset, Waybill, QuickCheckout, Activity, Site, Employee } from "@/types/asset";
 import { EquipmentLog } from "@/types/equipment";
-import { Package, FileText, ShoppingCart, AlertTriangle, TrendingDown, CheckCircle, User, Wrench, BarChart3, ChevronDown, ChevronUp, CalendarIcon } from "lucide-react";
+import { Package, FileText, ShoppingCart, AlertTriangle, TrendingDown, CheckCircle, User, Wrench, BarChart3, ChevronDown, ChevronUp, CalendarIcon, MapPin } from "lucide-react";
 import { getActivities } from "@/utils/activityLogger";
 import { SiteMachineAnalytics } from "@/components/sites/SiteMachineAnalytics";
 import { NotificationPanel } from "./NotificationPanel";
@@ -444,6 +444,35 @@ export const Dashboard = ({ assets, waybills, quickCheckouts, sites, equipmentLo
                   U
                 </div>
               ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 5. Sites */}
+        <Card
+          className="border-0 shadow-soft hover:shadow-lg transition-all duration-300 cursor-pointer group relative overflow-hidden active:scale-[0.98]"
+          onClick={() => onNavigate('sites')}
+        >
+          <div className="absolute top-0 right-0 p-2 md:p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <MapPin className="h-16 md:h-24 w-16 md:w-24 text-green-500" />
+          </div>
+          <CardHeader className="pb-2 p-3 md:p-6">
+            <CardTitle className="flex items-center gap-2 text-base md:text-xl">
+              <MapPin className="h-5 w-5 md:h-6 md:w-6 text-green-500" />
+              Sites
+            </CardTitle>
+            <CardDescription className="text-xs md:text-sm">Project locations</CardDescription>
+          </CardHeader>
+          <CardContent className="p-3 md:p-6 pt-0">
+            <div className="text-2xl md:text-3xl font-bold text-green-500">
+              {sites.filter(s => s.status === 'active').length}
+            </div>
+            <div className="text-xs md:text-sm text-muted-foreground">Active Sites</div>
+            <div className="flex items-center justify-between mt-2 pt-2 border-t">
+              <p className="text-[10px] md:text-xs text-muted-foreground">Total sites</p>
+              <Badge variant="outline" className="text-[10px] md:text-xs">
+                {sites.length}
+              </Badge>
             </div>
           </CardContent>
         </Card>

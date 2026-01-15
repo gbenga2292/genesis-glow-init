@@ -184,12 +184,25 @@ export const Sidebar = ({ activeTab, onTabChange, mode = 'desktop' }: SidebarPro
         : "w-full h-full border-none"
     )}>
       <div className="p-4 md:p-6 border-b border-border">
-        <h1 className="text-lg md:text-xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-          DCEL Asset Manager
-        </h1>
-        <p className="text-xs md:text-sm text-muted-foreground mt-1">
-          Inventory & Logistics
-        </p>
+        <div className="flex items-center gap-3">
+          <img
+            src="/logo.png"
+            alt="DCEL Logo"
+            className="h-8 w-8 md:h-10 md:w-10 object-contain"
+            onError={(e) => {
+              // Fallback if logo doesn't load
+              e.currentTarget.style.display = 'none';
+            }}
+          />
+          <div>
+            <h1 className="text-base md:text-xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+              DCEL Inventory
+            </h1>
+            <p className="text-[10px] md:text-sm text-muted-foreground">
+              Asset Manager
+            </p>
+          </div>
+        </div>
       </div>
 
       <nav className="p-3 md:p-4 space-y-1 md:space-y-2 flex-1 overflow-y-auto">

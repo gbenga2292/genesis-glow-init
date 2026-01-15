@@ -202,7 +202,7 @@ export const assetService = {
         return data;
     },
 
-    updateAsset: async (id: number, asset: Partial<Asset>): Promise<Asset> => {
+    updateAsset: async (id: string | number, asset: Partial<Asset>): Promise<Asset> => {
         if (isElectron()) {
             return await window.electronAPI.db.updateAsset(id.toString(), asset);
         }
@@ -218,7 +218,7 @@ export const assetService = {
         return data;
     },
 
-    deleteAsset: async (id: number): Promise<void> => {
+    deleteAsset: async (id: string | number): Promise<void> => {
         if (isElectron()) {
             return await window.electronAPI.db.deleteAsset(id.toString());
         }
@@ -266,7 +266,7 @@ export const siteService = {
         return data;
     },
 
-    updateSite: async (id: number, site: Partial<Site>): Promise<Site> => {
+    updateSite: async (id: string | number, site: Partial<Site>): Promise<Site> => {
         if (isElectron()) {
             return await window.electronAPI.db.updateSite(id.toString(), site);
         }
@@ -282,7 +282,7 @@ export const siteService = {
         return data;
     },
 
-    deleteSite: async (id: number): Promise<void> => {
+    deleteSite: async (id: string | number): Promise<void> => {
         if (isElectron()) {
             return await window.electronAPI.db.deleteSite(id.toString());
         }
@@ -330,7 +330,7 @@ export const employeeService = {
         return data;
     },
 
-    updateEmployee: async (id: number, employee: Partial<Employee>): Promise<Employee> => {
+    updateEmployee: async (id: string | number, employee: Partial<Employee>): Promise<Employee> => {
         if (isElectron()) {
             return await window.electronAPI.db.updateEmployee(id.toString(), employee);
         }
@@ -346,7 +346,7 @@ export const employeeService = {
         return data;
     },
 
-    deleteEmployee: async (id: number): Promise<void> => {
+    deleteEmployee: async (id: string | number): Promise<void> => {
         if (isElectron()) {
             return await window.electronAPI.db.deleteEmployee(id.toString());
         }
@@ -394,7 +394,7 @@ export const vehicleService = {
         return data;
     },
 
-    updateVehicle: async (id: number, vehicle: Partial<Vehicle>): Promise<Vehicle> => {
+    updateVehicle: async (id: string | number, vehicle: Partial<Vehicle>): Promise<Vehicle> => {
         if (isElectron()) {
             return await window.electronAPI.db.updateVehicle(id.toString(), vehicle);
         }
@@ -410,7 +410,7 @@ export const vehicleService = {
         return data;
     },
 
-    deleteVehicle: async (id: number): Promise<void> => {
+    deleteVehicle: async (id: string | number): Promise<void> => {
         if (isElectron()) {
             return await window.electronAPI.db.deleteVehicle(id.toString());
         }
@@ -458,7 +458,7 @@ export const quickCheckoutService = {
         return data;
     },
 
-    updateQuickCheckout: async (id: number, checkout: Partial<QuickCheckout>): Promise<QuickCheckout> => {
+    updateQuickCheckout: async (id: string | number, checkout: Partial<QuickCheckout>): Promise<QuickCheckout> => {
         if (isElectron()) {
             return await window.electronAPI.db.updateQuickCheckout(id.toString(), checkout);
         }
@@ -474,7 +474,7 @@ export const quickCheckoutService = {
         return data;
     },
 
-    deleteQuickCheckout: async (id: number): Promise<void> => {
+    deleteQuickCheckout: async (id: string | number): Promise<void> => {
         if (isElectron()) {
             return await window.electronAPI.db.deleteQuickCheckout(id.toString());
         }

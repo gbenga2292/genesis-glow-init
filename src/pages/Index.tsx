@@ -49,6 +49,7 @@ import { MachineMaintenancePage } from "@/components/maintenance/MachineMaintena
 import { Machine, MaintenanceLog } from "@/types/maintenance";
 import { exportAssetsToExcel } from "../utils/exportUtils";
 import { useAppData } from "@/contexts/AppDataContext";
+import { dataService } from "@/services/dataService";
 
 
 const Index = () => {
@@ -1095,10 +1096,8 @@ const Index = () => {
     };
 
     try {
-      if (window.electronAPI && window.electronAPI.db) {
-        // Save to DB
-        await window.electronAPI.db.createQuickCheckout(newCheckout);
-      }
+      // Use dataService for persistence (handles Supabase/Electron internally)
+      const savedCheckout = await dataService.quickCheckouts.createQuickCheckout(newCheckout);
 
       setAssets(prev => prev.map(asset => {
         if (asset.id === checkoutData.assetId) {
@@ -1113,16 +1112,16 @@ const Index = () => {
             updatedAt: new Date()
           };
 
-          // Persist asset update if DB available
-          if (window.electronAPI && window.electronAPI.db) {
-            window.electronAPI.db.updateAsset(asset.id, updatedAsset).catch(err => logger.error("Failed to update asset for checkout", err));
-          }
+          // Persist asset update
+          dataService.assets.updateAsset(Number(asset.id), updatedAsset)
+            .catch(err => logger.error("Failed to update asset for checkout", err));
+
           return updatedAsset;
         }
         return asset;
       }));
 
-      setQuickCheckouts(prev => [...prev, newCheckout]);
+      setQuickCheckouts(prev => [savedCheckout, ...prev]);
 
       await logActivity({
         action: 'checkout',
@@ -2034,24 +2033,20 @@ const Index = () => {
                 return;
               }
               try {
-                if (window.electronAPI && window.electronAPI.db) {
-                  await window.electronAPI.db.createSite(site);
-                  const loadedSites = await window.electronAPI.db.getSites();
-                  setSites(loadedSites.map((item: any) => ({
-                    ...item,
-                    createdAt: new Date(item.createdAt),
-                    updatedAt: new Date(item.updatedAt)
-                  })));
+                const savedSite = await dataService.sites.createSite(site);
+                const loadedSites = await dataService.sites.getSites();
+                setSites(loadedSites.map((item: any) => ({
+                  ...item,
+                  createdAt: new Date(item.createdAt),
+                  updatedAt: new Date(item.updatedAt)
+                })));
 
-                  await logActivity({
-                    action: 'create',
-                    entity: 'site',
-                    entityId: site.id,
-                    details: `Created site ${site.name}`
-                  });
-                } else {
-                  setSites(prev => [...prev, site]);
-                }
+                await logActivity({
+                  action: 'create',
+                  entity: 'site',
+                  entityId: savedSite.id,
+                  details: `Created site ${site.name}`
+                });
               } catch (error) {
                 logger.error('Failed to add site', error);
                 toast({ title: 'Error', description: 'Failed to save site to database', variant: 'destructive' });
@@ -2067,24 +2062,20 @@ const Index = () => {
                 return;
               }
               try {
-                if (window.electronAPI && window.electronAPI.db) {
-                  await window.electronAPI.db.updateSite(updatedSite.id, updatedSite);
-                  const loadedSites = await window.electronAPI.db.getSites();
-                  setSites(loadedSites.map((item: any) => ({
-                    ...item,
-                    createdAt: new Date(item.createdAt),
-                    updatedAt: new Date(item.updatedAt)
-                  })));
+                await dataService.sites.updateSite(updatedSite.id, updatedSite);
+                const loadedSites = await dataService.sites.getSites();
+                setSites(loadedSites.map((item: any) => ({
+                  ...item,
+                  createdAt: new Date(item.createdAt),
+                  updatedAt: new Date(item.updatedAt)
+                })));
 
-                  await logActivity({
-                    action: 'update',
-                    entity: 'site',
-                    entityId: updatedSite.id,
-                    details: `Updated site ${updatedSite.name}`
-                  });
-                } else {
-                  setSites(prev => prev.map(site => (site.id === updatedSite.id ? updatedSite : site)));
-                }
+                await logActivity({
+                  action: 'update',
+                  entity: 'site',
+                  entityId: updatedSite.id,
+                  details: `Updated site ${updatedSite.name}`
+                });
               } catch (error) {
                 logger.error('Failed to update site', error);
                 toast({ title: 'Error', description: 'Failed to update site in database', variant: 'destructive' });
@@ -2100,24 +2091,20 @@ const Index = () => {
                 return;
               }
               try {
-                if (window.electronAPI && window.electronAPI.db) {
-                  await window.electronAPI.db.deleteSite(siteId);
-                  const loadedSites = await window.electronAPI.db.getSites();
-                  setSites(loadedSites.map((item: any) => ({
-                    ...item,
-                    createdAt: new Date(item.createdAt),
-                    updatedAt: new Date(item.updatedAt)
-                  })));
+                await dataService.sites.deleteSite(siteId);
+                const loadedSites = await dataService.sites.getSites();
+                setSites(loadedSites.map((item: any) => ({
+                  ...item,
+                  createdAt: new Date(item.createdAt),
+                  updatedAt: new Date(item.updatedAt)
+                })));
 
-                  await logActivity({
-                    action: 'delete',
-                    entity: 'site',
-                    entityId: siteId,
-                    details: `Deleted site ${siteId}`
-                  });
-                } else {
-                  setSites(prev => prev.filter(site => site.id !== siteId));
-                }
+                await logActivity({
+                  action: 'delete',
+                  entity: 'site',
+                  entityId: siteId,
+                  details: `Deleted site ${siteId}`
+                });
               } catch (error) {
                 logger.error('Failed to delete site', error);
                 toast({ title: 'Error', description: 'Failed to delete site from database', variant: 'destructive' });
