@@ -24,6 +24,26 @@ import type {
     Waybill
 } from '@/types/asset';
 import type { EquipmentLog } from '@/types/equipment';
+import {
+    transformAssetToDB,
+    transformAssetFromDB,
+    transformSiteToDB,
+    transformSiteFromDB,
+    transformEmployeeToDB,
+    transformEmployeeFromDB,
+    transformWaybillToDB,
+    transformWaybillFromDB,
+    transformEquipmentLogToDB,
+    transformEquipmentLogFromDB,
+    transformActivityToDB,
+    transformActivityFromDB,
+    transformQuickCheckoutToDB,
+    transformQuickCheckoutFromDB,
+    transformSiteTransactionToDB,
+    transformSiteTransactionFromDB,
+    transformVehicleToDB,
+    transformVehicleFromDB,
+} from '@/utils/dataTransform';
 
 // Detect if running in Electron
 const isElectron = () => {
@@ -184,7 +204,7 @@ export const assetService = {
             .order('created_at', { ascending: false });
 
         if (error) throw error;
-        return data || [];
+        return (data || []).map(transformAssetFromDB);
     },
 
     createAsset: async (asset: Partial<Asset>): Promise<Asset> => {
@@ -192,14 +212,15 @@ export const assetService = {
             return await window.electronAPI.db.createAsset(asset);
         }
 
+        const dbAsset = transformAssetToDB(asset);
         const { data, error } = await supabase
             .from('assets')
-            .insert(asset)
+            .insert(dbAsset)
             .select()
             .single();
 
         if (error) throw error;
-        return data;
+        return transformAssetFromDB(data);
     },
 
     updateAsset: async (id: string | number, asset: Partial<Asset>): Promise<Asset> => {
@@ -207,15 +228,16 @@ export const assetService = {
             return await window.electronAPI.db.updateAsset(id.toString(), asset);
         }
 
+        const dbAsset = transformAssetToDB(asset);
         const { data, error } = await supabase
             .from('assets')
-            .update({ ...asset, updated_at: new Date().toISOString() })
+            .update({ ...dbAsset, updated_at: new Date().toISOString() })
             .eq('id', id)
             .select()
             .single();
 
         if (error) throw error;
-        return data;
+        return transformAssetFromDB(data);
     },
 
     deleteAsset: async (id: string | number): Promise<void> => {
@@ -248,7 +270,7 @@ export const siteService = {
             .order('created_at', { ascending: false });
 
         if (error) throw error;
-        return data || [];
+        return (data || []).map(transformSiteFromDB);
     },
 
     createSite: async (site: Partial<Site>): Promise<Site> => {
@@ -256,14 +278,15 @@ export const siteService = {
             return await window.electronAPI.db.createSite(site);
         }
 
+        const dbSite = transformSiteToDB(site);
         const { data, error } = await supabase
             .from('sites')
-            .insert(site)
+            .insert(dbSite)
             .select()
             .single();
 
         if (error) throw error;
-        return data;
+        return transformSiteFromDB(data);
     },
 
     updateSite: async (id: string | number, site: Partial<Site>): Promise<Site> => {
@@ -271,15 +294,16 @@ export const siteService = {
             return await window.electronAPI.db.updateSite(id.toString(), site);
         }
 
+        const dbSite = transformSiteToDB(site);
         const { data, error } = await supabase
             .from('sites')
-            .update({ ...site, updated_at: new Date().toISOString() })
+            .update({ ...dbSite, updated_at: new Date().toISOString() })
             .eq('id', id)
             .select()
             .single();
 
         if (error) throw error;
-        return data;
+        return transformSiteFromDB(data);
     },
 
     deleteSite: async (id: string | number): Promise<void> => {
@@ -312,7 +336,7 @@ export const employeeService = {
             .order('created_at', { ascending: false });
 
         if (error) throw error;
-        return data || [];
+        return (data || []).map(transformEmployeeFromDB);
     },
 
     createEmployee: async (employee: Partial<Employee>): Promise<Employee> => {
@@ -320,14 +344,15 @@ export const employeeService = {
             return await window.electronAPI.db.createEmployee(employee);
         }
 
+        const dbEmployee = transformEmployeeToDB(employee);
         const { data, error } = await supabase
             .from('employees')
-            .insert(employee)
+            .insert(dbEmployee)
             .select()
             .single();
 
         if (error) throw error;
-        return data;
+        return transformEmployeeFromDB(data);
     },
 
     updateEmployee: async (id: string | number, employee: Partial<Employee>): Promise<Employee> => {
@@ -335,15 +360,16 @@ export const employeeService = {
             return await window.electronAPI.db.updateEmployee(id.toString(), employee);
         }
 
+        const dbEmployee = transformEmployeeToDB(employee);
         const { data, error } = await supabase
             .from('employees')
-            .update({ ...employee, updated_at: new Date().toISOString() })
+            .update({ ...dbEmployee, updated_at: new Date().toISOString() })
             .eq('id', id)
             .select()
             .single();
 
         if (error) throw error;
-        return data;
+        return transformEmployeeFromDB(data);
     },
 
     deleteEmployee: async (id: string | number): Promise<void> => {
@@ -376,7 +402,7 @@ export const vehicleService = {
             .order('created_at', { ascending: false });
 
         if (error) throw error;
-        return data || [];
+        return (data || []).map(transformVehicleFromDB);
     },
 
     createVehicle: async (vehicle: Partial<Vehicle>): Promise<Vehicle> => {
@@ -384,14 +410,15 @@ export const vehicleService = {
             return await window.electronAPI.db.createVehicle(vehicle);
         }
 
+        const dbVehicle = transformVehicleToDB(vehicle);
         const { data, error } = await supabase
             .from('vehicles')
-            .insert(vehicle)
+            .insert(dbVehicle)
             .select()
             .single();
 
         if (error) throw error;
-        return data;
+        return transformVehicleFromDB(data);
     },
 
     updateVehicle: async (id: string | number, vehicle: Partial<Vehicle>): Promise<Vehicle> => {
@@ -399,15 +426,16 @@ export const vehicleService = {
             return await window.electronAPI.db.updateVehicle(id.toString(), vehicle);
         }
 
+        const dbVehicle = transformVehicleToDB(vehicle);
         const { data, error } = await supabase
             .from('vehicles')
-            .update({ ...vehicle, updated_at: new Date().toISOString() })
+            .update({ ...dbVehicle, updated_at: new Date().toISOString() })
             .eq('id', id)
             .select()
             .single();
 
         if (error) throw error;
-        return data;
+        return transformVehicleFromDB(data);
     },
 
     deleteVehicle: async (id: string | number): Promise<void> => {
@@ -440,7 +468,7 @@ export const quickCheckoutService = {
             .order('checkout_date', { ascending: false });
 
         if (error) throw error;
-        return data || [];
+        return (data || []).map(transformQuickCheckoutFromDB);
     },
 
     createQuickCheckout: async (checkout: Partial<QuickCheckout>): Promise<QuickCheckout> => {
@@ -448,14 +476,15 @@ export const quickCheckoutService = {
             return await window.electronAPI.db.createQuickCheckout(checkout);
         }
 
+        const dbCheckout = transformQuickCheckoutToDB(checkout);
         const { data, error } = await supabase
             .from('quick_checkouts')
-            .insert(checkout)
+            .insert(dbCheckout)
             .select()
             .single();
 
         if (error) throw error;
-        return data;
+        return transformQuickCheckoutFromDB(data);
     },
 
     updateQuickCheckout: async (id: string | number, checkout: Partial<QuickCheckout>): Promise<QuickCheckout> => {
@@ -463,15 +492,16 @@ export const quickCheckoutService = {
             return await window.electronAPI.db.updateQuickCheckout(id.toString(), checkout);
         }
 
+        const dbCheckout = transformQuickCheckoutToDB(checkout);
         const { data, error } = await supabase
             .from('quick_checkouts')
-            .update({ ...checkout, updated_at: new Date().toISOString() })
+            .update({ ...dbCheckout, updated_at: new Date().toISOString() })
             .eq('id', id)
             .select()
             .single();
 
         if (error) throw error;
-        return data;
+        return transformQuickCheckoutFromDB(data);
     },
 
     deleteQuickCheckout: async (id: string | number): Promise<void> => {
@@ -504,7 +534,7 @@ export const waybillService = {
             .order('issue_date', { ascending: false });
 
         if (error) throw error;
-        return data || [];
+        return (data || []).map(transformWaybillFromDB);
     },
 
     createWaybill: async (waybill: Partial<Waybill>): Promise<Waybill> => {
@@ -512,14 +542,15 @@ export const waybillService = {
             return await window.electronAPI.db.createWaybill(waybill);
         }
 
+        const dbWaybill = transformWaybillToDB(waybill);
         const { data, error } = await supabase
             .from('waybills')
-            .insert(waybill)
+            .insert(dbWaybill)
             .select()
             .single();
 
         if (error) throw error;
-        return data;
+        return transformWaybillFromDB(data);
     },
 
     updateWaybill: async (id: string, waybill: Partial<Waybill>): Promise<Waybill> => {
@@ -527,15 +558,16 @@ export const waybillService = {
             return await window.electronAPI.db.updateWaybill(id, waybill);
         }
 
+        const dbWaybill = transformWaybillToDB(waybill);
         const { data, error } = await supabase
             .from('waybills')
-            .update({ ...waybill, updated_at: new Date().toISOString() })
+            .update({ ...dbWaybill, updated_at: new Date().toISOString() })
             .eq('id', id)
             .select()
             .single();
 
         if (error) throw error;
-        return data;
+        return transformWaybillFromDB(data);
     },
 
     deleteWaybill: async (id: string): Promise<void> => {
@@ -568,7 +600,7 @@ export const equipmentLogService = {
             .order('date', { ascending: false });
 
         if (error) throw error;
-        return data || [];
+        return (data || []).map(transformEquipmentLogFromDB);
     },
 
     createEquipmentLog: async (log: Partial<EquipmentLog>): Promise<EquipmentLog> => {
@@ -576,14 +608,15 @@ export const equipmentLogService = {
             return await window.electronAPI.db.createEquipmentLog(log);
         }
 
+        const dbLog = transformEquipmentLogToDB(log);
         const { data, error } = await supabase
             .from('equipment_logs')
-            .insert(log)
+            .insert(dbLog)
             .select()
             .single();
 
         if (error) throw error;
-        return data;
+        return transformEquipmentLogFromDB(data);
     },
 
     updateEquipmentLog: async (id: number, log: Partial<EquipmentLog>): Promise<EquipmentLog> => {
@@ -591,15 +624,16 @@ export const equipmentLogService = {
             return await window.electronAPI.db.updateEquipmentLog(id.toString(), log);
         }
 
+        const dbLog = transformEquipmentLogToDB(log);
         const { data, error } = await supabase
             .from('equipment_logs')
-            .update({ ...log, updated_at: new Date().toISOString() })
+            .update({ ...dbLog, updated_at: new Date().toISOString() })
             .eq('id', id)
             .select()
             .single();
 
         if (error) throw error;
-        return data;
+        return transformEquipmentLogFromDB(data);
     },
 
     deleteEquipmentLog: async (id: number): Promise<void> => {
@@ -687,7 +721,7 @@ export const siteTransactionService = {
             .order('created_at', { ascending: false });
 
         if (error) throw error;
-        return data || [];
+        return (data || []).map(transformSiteTransactionFromDB);
     },
 
     createSiteTransaction: async (transaction: Partial<SiteTransaction>): Promise<SiteTransaction> => {
@@ -696,14 +730,15 @@ export const siteTransactionService = {
             return transaction as SiteTransaction;
         }
 
+        const dbTransaction = transformSiteTransactionToDB(transaction);
         const { data, error } = await supabase
             .from('site_transactions')
-            .insert(transaction)
+            .insert(dbTransaction)
             .select()
             .single();
 
         if (error) throw error;
-        return data;
+        return transformSiteTransactionFromDB(data);
     }
 };
 
@@ -723,11 +758,7 @@ export const activityService = {
             .order('timestamp', { ascending: false });
 
         if (error) throw error;
-        // Convert timestamp strings to Date objects
-        return (data || []).map((activity: any) => ({
-            ...activity,
-            timestamp: new Date(activity.timestamp)
-        }));
+        return (data || []).map(transformActivityFromDB);
     },
 
     createActivity: async (activity: Partial<Activity>): Promise<void> => {
@@ -736,9 +767,10 @@ export const activityService = {
             return;
         }
 
+        const dbActivity = transformActivityToDB(activity);
         const { error } = await supabase
             .from('activities')
-            .insert(activity);
+            .insert(dbActivity);
 
         if (error) throw error;
     },

@@ -215,3 +215,124 @@ export function transformWaybillToDB(waybill: any): any {
     created_by: waybill.createdBy,
   };
 }
+
+/**
+ * Transform activity data from frontend format to database format
+ */
+export function transformActivityToDB(activity: any): any {
+  return {
+    user_id: activity.userId,
+    user_name: activity.userName,
+    action: activity.action,
+    entity: activity.entity,
+    entity_id: activity.entityId,
+    details: activity.details,
+    timestamp: activity.timestamp instanceof Date ? activity.timestamp.toISOString() : activity.timestamp,
+  };
+}
+
+/**
+ * Transform activity data from database format to frontend format
+ */
+export function transformActivityFromDB(dbActivity: any): any {
+  return {
+    ...dbActivity,
+    userId: dbActivity.user_id,
+    userName: dbActivity.user_name,
+    entityId: dbActivity.entity_id,
+    timestamp: new Date(dbActivity.timestamp),
+  };
+}
+
+/**
+ * Transform quick checkout from frontend format to database format
+ */
+export function transformQuickCheckoutToDB(checkout: any): any {
+  return {
+    asset_id: checkout.assetId,
+    asset_name: checkout.assetName,
+    quantity: checkout.quantity,
+    returned_quantity: checkout.returnedQuantity,
+    employee: checkout.employee,
+    checkout_date: checkout.checkoutDate instanceof Date ? checkout.checkoutDate.toISOString() : checkout.checkoutDate,
+    expected_return_days: checkout.expectedReturnDays,
+    return_date: checkout.returnDate instanceof Date ? checkout.returnDate.toISOString() : checkout.returnDate,
+    status: checkout.status,
+    notes: checkout.notes,
+  };
+}
+
+/**
+ * Transform quick checkout from database format to frontend format
+ */
+export function transformQuickCheckoutFromDB(dbCheckout: any): any {
+  return {
+    ...dbCheckout,
+    assetId: dbCheckout.asset_id,
+    assetName: dbCheckout.asset_name,
+    returnedQuantity: dbCheckout.returned_quantity,
+    checkoutDate: new Date(dbCheckout.checkout_date),
+    expectedReturnDays: dbCheckout.expected_return_days,
+    returnDate: dbCheckout.return_date ? new Date(dbCheckout.return_date) : undefined,
+  };
+}
+
+/**
+ * Transform site transaction from frontend format to database format
+ */
+export function transformSiteTransactionToDB(transaction: any): any {
+  return {
+    site_id: transaction.siteId,
+    asset_id: transaction.assetId,
+    asset_name: transaction.assetName,
+    quantity: transaction.quantity,
+    type: transaction.type,
+    transaction_type: transaction.transactionType,
+    reference_id: transaction.referenceId,
+    reference_type: transaction.referenceType,
+    condition: transaction.condition,
+    notes: transaction.notes,
+    created_at: transaction.createdAt instanceof Date ? transaction.createdAt.toISOString() : transaction.createdAt,
+    created_by: transaction.createdBy,
+  };
+}
+
+/**
+ * Transform site transaction from database format to frontend format
+ */
+export function transformSiteTransactionFromDB(dbTransaction: any): any {
+  return {
+    ...dbTransaction,
+    siteId: dbTransaction.site_id,
+    assetId: dbTransaction.asset_id,
+    assetName: dbTransaction.asset_name,
+    transactionType: dbTransaction.transaction_type,
+    referenceId: dbTransaction.reference_id,
+    referenceType: dbTransaction.reference_type,
+    createdAt: new Date(dbTransaction.created_at),
+    createdBy: dbTransaction.created_by,
+  };
+}
+
+/**
+ * Transform vehicle from frontend format to database format
+ */
+export function transformVehicleToDB(vehicle: any): any {
+  return {
+    name: vehicle.name,
+    type: vehicle.type,
+    registration_number: vehicle.registration_number || vehicle.registrationNumber,
+    status: vehicle.status,
+  };
+}
+
+/**
+ * Transform vehicle from database format to frontend format
+ */
+export function transformVehicleFromDB(dbVehicle: any): any {
+  return {
+    ...dbVehicle,
+    createdAt: new Date(dbVehicle.created_at),
+    updatedAt: new Date(dbVehicle.updated_at),
+  };
+}
