@@ -8,6 +8,8 @@ import { Machine, MaintenanceLog } from "@/types/maintenance";
 import { format, differenceInHours } from "date-fns";
 import { ArrowLeft, Calendar, Wrench, DollarSign, MapPin, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface MachineDetailsPageProps {
     machine: Machine;
@@ -16,6 +18,7 @@ interface MachineDetailsPageProps {
 }
 
 export const MachineDetailsPage = ({ machine, maintenanceLogs, onBack }: MachineDetailsPageProps) => {
+    const isMobile = useIsMobile();
     const [activeTab, setActiveTab] = useState("overview");
 
     const machineLogs = maintenanceLogs
@@ -37,184 +40,208 @@ export const MachineDetailsPage = ({ machine, maintenanceLogs, onBack }: Machine
         'emergency': 'bg-red-100 text-red-800'
     };
 
+    const tabs = [
+        { value: 'overview', label: 'Overview' },
+        { value: 'maintenance', label: 'Logs' },
+        { value: 'statistics', label: 'Stats' }
+    ];
+
     return (
         <div className="flex flex-col h-full bg-background animate-fade-in">
-            {/* Header */}
-            <div className="flex items-center gap-4 p-6 border-b">
-                <Button variant="ghost" size="icon" onClick={onBack}>
+            {/* Header - Mobile optimized */}
+            <div className="flex items-center gap-2 sm:gap-4 p-3 sm:p-6 border-b">
+                <Button variant="ghost" size="icon" onClick={onBack} className="shrink-0">
                     <ArrowLeft className="h-5 w-5" />
                 </Button>
-                <div className="flex-1">
-                    <h1 className="text-2xl font-bold tracking-tight">{machine.name}</h1>
-                    <p className="text-muted-foreground">
+                <div className="flex-1 min-w-0">
+                    <h1 className="text-lg sm:text-2xl font-bold tracking-tight truncate">{machine.name}</h1>
+                    <p className="text-xs sm:text-sm text-muted-foreground truncate">
                         {machine.model} • {machine.serialNumber}
                     </p>
                 </div>
-                <Badge variant={machine.status === 'active' ? 'default' : 'secondary'} className="capitalize">
+                <Badge variant={machine.status === 'active' ? 'default' : 'secondary'} className="capitalize shrink-0">
                     {machine.status}
                 </Badge>
             </div>
 
             {/* Main Content */}
-            <div className="flex-1 overflow-auto p-6">
+            <div className="flex-1 overflow-auto p-3 sm:p-6">
                 <div className="max-w-6xl mx-auto">
-                    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-                        <TabsList className="grid w-full grid-cols-3">
-                            <TabsTrigger value="overview">Overview</TabsTrigger>
-                            <TabsTrigger value="maintenance">Maintenance Log</TabsTrigger>
-                            <TabsTrigger value="statistics">Statistics</TabsTrigger>
-                        </TabsList>
+                    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
+                        {/* Mobile dropdown or desktop tabs */}
+                        {isMobile ? (
+                            <Select value={activeTab} onValueChange={setActiveTab}>
+                                <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Select view" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {tabs.map(tab => (
+                                        <SelectItem key={tab.value} value={tab.value}>
+                                            {tab.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        ) : (
+                            <TabsList className="grid w-full grid-cols-3">
+                                <TabsTrigger value="overview">Overview</TabsTrigger>
+                                <TabsTrigger value="maintenance">Maintenance Log</TabsTrigger>
+                                <TabsTrigger value="statistics">Statistics</TabsTrigger>
+                            </TabsList>
+                        )}
 
-                        <TabsContent value="overview" className="space-y-6">
-                            {/* Machine Profile */}
+                        <TabsContent value="overview" className="space-y-4 sm:space-y-6">
+                            {/* Machine Profile - Mobile grid */}
                             <Card>
-                                <CardHeader>
-                                    <CardTitle className="text-base">Machine Profile</CardTitle>
+                                <CardHeader className="p-3 sm:p-6">
+                                    <CardTitle className="text-sm sm:text-base">Machine Profile</CardTitle>
                                 </CardHeader>
-                                <CardContent className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                <CardContent className="p-3 sm:p-6 pt-0 grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
                                     <div>
-                                        <span className="text-sm text-muted-foreground">Machine ID</span>
-                                        <p className="font-medium">{machine.id}</p>
+                                        <span className="text-xs sm:text-sm text-muted-foreground">ID</span>
+                                        <p className="font-medium text-sm truncate">{machine.id}</p>
                                     </div>
                                     <div>
-                                        <span className="text-sm text-muted-foreground">Status</span>
-                                        <p className="font-medium capitalize">{machine.status}</p>
+                                        <span className="text-xs sm:text-sm text-muted-foreground">Status</span>
+                                        <p className="font-medium text-sm capitalize">{machine.status}</p>
                                     </div>
                                     <div>
-                                        <span className="text-sm text-muted-foreground">Site</span>
-                                        <p className="font-medium">{machine.site || 'N/A'}</p>
+                                        <span className="text-xs sm:text-sm text-muted-foreground">Site</span>
+                                        <p className="font-medium text-sm truncate">{machine.site || 'N/A'}</p>
                                     </div>
                                     <div>
-                                        <span className="text-sm text-muted-foreground">Operating Pattern</span>
-                                        <p className="font-medium">{machine.operatingPattern}</p>
+                                        <span className="text-xs sm:text-sm text-muted-foreground">Pattern</span>
+                                        <p className="font-medium text-sm">{machine.operatingPattern}</p>
                                     </div>
                                     <div>
-                                        <span className="text-sm text-muted-foreground">Service Interval</span>
-                                        <p className="font-medium">{machine.serviceInterval} months</p>
+                                        <span className="text-xs sm:text-sm text-muted-foreground">Service</span>
+                                        <p className="font-medium text-sm">{machine.serviceInterval} months</p>
                                     </div>
                                     {machine.responsibleSupervisor && (
                                         <div>
-                                            <span className="text-sm text-muted-foreground">Responsible Supervisor</span>
-                                            <p className="font-medium">{machine.responsibleSupervisor}</p>
+                                            <span className="text-xs sm:text-sm text-muted-foreground">Supervisor</span>
+                                            <p className="font-medium text-sm truncate">{machine.responsibleSupervisor}</p>
                                         </div>
                                     )}
                                     {machine.notes && (
-                                        <div className="col-span-2 md:col-span-3">
-                                            <span className="text-sm text-muted-foreground">Notes</span>
-                                            <p className="font-medium">{machine.notes}</p>
+                                        <div className="col-span-2 sm:col-span-3">
+                                            <span className="text-xs sm:text-sm text-muted-foreground">Notes</span>
+                                            <p className="font-medium text-sm">{machine.notes}</p>
                                         </div>
                                     )}
                                 </CardContent>
                             </Card>
 
-                            {/* Quick Stats */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {/* Quick Stats - Mobile responsive */}
+                            <div className="grid grid-cols-3 gap-2 sm:gap-4">
                                 <Card className="border-l-4 border-l-primary">
-                                    <CardContent className="pt-6">
+                                    <CardContent className="p-3 sm:pt-6 sm:p-6">
                                         <div className="text-center">
-                                            <p className="text-3xl font-bold">{machineLogs.length}</p>
-                                            <p className="text-sm text-muted-foreground">Total Maintenance</p>
+                                            <p className="text-xl sm:text-3xl font-bold">{machineLogs.length}</p>
+                                            <p className="text-xs text-muted-foreground">Maintenance</p>
                                         </div>
                                     </CardContent>
                                 </Card>
                                 <Card className="border-l-4 border-l-orange-500">
-                                    <CardContent className="pt-6">
+                                    <CardContent className="p-3 sm:pt-6 sm:p-6">
                                         <div className="text-center">
-                                            <p className="text-3xl font-bold">{totalDowntime}h</p>
-                                            <p className="text-sm text-muted-foreground">Total Downtime</p>
+                                            <p className="text-xl sm:text-3xl font-bold">{totalDowntime}h</p>
+                                            <p className="text-xs text-muted-foreground">Downtime</p>
                                         </div>
                                     </CardContent>
                                 </Card>
                                 <Card className="border-l-4 border-l-green-500">
-                                    <CardContent className="pt-6">
+                                    <CardContent className="p-3 sm:pt-6 sm:p-6">
                                         <div className="text-center">
-                                            <p className="text-3xl font-bold">₦{totalCost.toLocaleString()}</p>
-                                            <p className="text-sm text-muted-foreground">Total Cost</p>
+                                            <p className="text-lg sm:text-3xl font-bold">₦{totalCost.toLocaleString()}</p>
+                                            <p className="text-xs text-muted-foreground">Cost</p>
                                         </div>
                                     </CardContent>
                                 </Card>
                             </div>
                         </TabsContent>
 
-                        <TabsContent value="maintenance" className="space-y-4">
+                        <TabsContent value="maintenance" className="space-y-3 sm:space-y-4">
                             {machineLogs.length === 0 ? (
                                 <Card>
-                                    <CardContent className="py-12 text-center text-muted-foreground">
-                                        <Wrench className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                                        <p>No maintenance records found for this machine.</p>
+                                    <CardContent className="py-8 sm:py-12 text-center text-muted-foreground">
+                                        <Wrench className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 opacity-20" />
+                                        <p className="text-sm">No maintenance records found.</p>
                                     </CardContent>
                                 </Card>
                             ) : (
                                 <Accordion type="single" collapsible className="w-full space-y-2">
                                     {machineLogs.map(log => (
-                                        <AccordionItem key={log.id} value={log.id} className="border rounded-lg bg-card px-4">
-                                            <AccordionTrigger className="hover:no-underline py-3">
-                                                <div className="flex flex-1 items-center justify-between mr-4 text-left">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="flex items-center gap-2 min-w-[100px]">
-                                                            <Wrench className="h-4 w-4 text-muted-foreground" />
-                                                            <span className="font-semibold">{format(new Date(log.dateStarted), 'dd/MM/yyyy')}</span>
+                                        <AccordionItem key={log.id} value={log.id} className="border rounded-lg bg-card px-2 sm:px-4">
+                                            <AccordionTrigger className="hover:no-underline py-2 sm:py-3">
+                                                <div className="flex flex-1 flex-col sm:flex-row sm:items-center justify-between mr-2 sm:mr-4 text-left gap-1 sm:gap-4">
+                                                    <div className="flex items-center gap-2 sm:gap-4">
+                                                        <div className="flex items-center gap-1 sm:gap-2">
+                                                            <Wrench className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
+                                                            <span className="font-semibold text-xs sm:text-sm">{format(new Date(log.dateStarted), 'dd/MM/yy')}</span>
                                                         </div>
-                                                        <Badge className={cn("w-24 justify-center", maintenanceTypeColors[log.maintenanceType])}>
+                                                        <Badge className={cn("text-xs px-1.5 py-0.5 sm:w-24 sm:justify-center", maintenanceTypeColors[log.maintenanceType])}>
                                                             {log.maintenanceType}
                                                         </Badge>
-                                                        <span className="text-sm text-muted-foreground line-clamp-1">{log.reason}</span>
                                                     </div>
-                                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                        <User className="h-3 w-3" />
-                                                        <span className="hidden sm:inline">{log.technician}</span>
-                                                    </div>
+                                                    <span className="text-xs text-muted-foreground line-clamp-1 hidden sm:block">{log.reason}</span>
                                                 </div>
                                             </AccordionTrigger>
-                                            <AccordionContent className="pb-4 pt-1">
-                                                <div className="space-y-4 border-t pt-4">
-                                                    <div className="grid grid-cols-2 gap-3 text-sm">
+                                            <AccordionContent className="pb-3 sm:pb-4 pt-1">
+                                                <div className="space-y-3 border-t pt-3">
+                                                    <div className="grid grid-cols-2 gap-2 sm:gap-3 text-xs sm:text-sm">
                                                         {log.location && (
-                                                            <div className="flex items-center gap-2">
-                                                                <MapPin className="h-4 w-4 text-muted-foreground" />
-                                                                <span>Location: {log.location}</span>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <MapPin className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
+                                                                <span className="truncate">{log.location}</span>
                                                             </div>
                                                         )}
                                                         {log.downtime && (
-                                                            <div className="flex items-center gap-2">
-                                                                <Calendar className="h-4 w-4 text-muted-foreground" />
-                                                                <span>{log.downtime}h downtime</span>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
+                                                                <span>{log.downtime}h</span>
                                                             </div>
                                                         )}
                                                         {log.cost && (
-                                                            <div className="flex items-center gap-2">
-                                                                <DollarSign className="h-4 w-4 text-muted-foreground" />
-                                                                <span>Cost: ₦{log.cost.toLocaleString()}</span>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <DollarSign className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
+                                                                <span>₦{log.cost.toLocaleString()}</span>
+                                                            </div>
+                                                        )}
+                                                        {log.technician && (
+                                                            <div className="flex items-center gap-1.5">
+                                                                <User className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
+                                                                <span className="truncate">{log.technician}</span>
                                                             </div>
                                                         )}
                                                     </div>
 
-                                                    <div className="space-y-2 bg-muted/30 p-3 rounded-md">
+                                                    <div className="space-y-2 bg-muted/30 p-2 sm:p-3 rounded-md">
                                                         <div>
                                                             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Work Done</span>
-                                                            <p className="text-sm mt-1">{log.workDone}</p>
+                                                            <p className="text-xs sm:text-sm mt-1">{log.workDone}</p>
                                                         </div>
                                                         {log.partsReplaced && (
                                                             <div className="pt-2 border-t border-dashed">
-                                                                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Parts Replaced</span>
-                                                                <p className="text-sm mt-1">{log.partsReplaced}</p>
+                                                                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Parts</span>
+                                                                <p className="text-xs sm:text-sm mt-1">{log.partsReplaced}</p>
                                                             </div>
                                                         )}
                                                         {log.remarks && (
                                                             <div className="pt-2 border-t border-dashed">
                                                                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Remarks</span>
-                                                                <p className="text-sm mt-1 italic">{log.remarks}</p>
+                                                                <p className="text-xs sm:text-sm mt-1 italic">{log.remarks}</p>
                                                             </div>
                                                         )}
                                                     </div>
 
-                                                    <div className="flex items-center gap-2 text-xs">
-                                                        <Badge variant={log.machineActiveAtTime ? "default" : "secondary"}>
-                                                            {log.machineActiveAtTime ? "Active during maintenance" : "Inactive during maintenance"}
+                                                    <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                                                        <Badge variant={log.machineActiveAtTime ? "default" : "secondary"} className="text-xs">
+                                                            {log.machineActiveAtTime ? "Active" : "Inactive"}
                                                         </Badge>
                                                         {log.serviceReset && (
-                                                            <Badge variant="outline" className="border-green-500 text-green-600">
-                                                                Service Cycle Reset
+                                                            <Badge variant="outline" className="border-green-500 text-green-600 text-xs">
+                                                                Reset
                                                             </Badge>
                                                         )}
                                                     </div>

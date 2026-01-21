@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { ArrowLeft, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -6,6 +7,8 @@ import { EquipmentLog } from "@/types/equipment";
 import { ConsumableUsageLog } from "@/types/consumable";
 import { SiteWideMachineAnalyticsView } from "@/components/sites/SiteWideMachineAnalyticsView";
 import { SiteConsumablesAnalyticsView } from "@/components/sites/SiteConsumablesAnalyticsView";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface SiteAnalyticsPageProps {
     site: Site;
@@ -24,31 +27,59 @@ export const SiteAnalyticsPage = ({
     onBack,
     defaultTab = 'equipment'
 }: SiteAnalyticsPageProps) => {
+    const isMobile = useIsMobile();
+    const [activeTab, setActiveTab] = useState<string>(defaultTab);
+
+    const handleTabChange = (value: string) => {
+        setActiveTab(value);
+    };
+
+    const tabs = [
+        { value: 'equipment', label: 'Equipment' },
+        { value: 'consumables', label: 'Consumables' }
+    ];
+
     return (
         <div className="flex flex-col h-full bg-background animate-fade-in">
-            {/* Header */}
-            <div className="flex items-center gap-4 p-6 border-b">
-                <Button variant="ghost" size="icon" onClick={onBack}>
+            {/* Header - Mobile optimized */}
+            <div className="flex items-center gap-2 sm:gap-4 p-3 sm:p-6 border-b">
+                <Button variant="ghost" size="icon" onClick={onBack} className="shrink-0">
                     <ArrowLeft className="h-5 w-5" />
                 </Button>
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-                        <BarChart3 className="h-6 w-6 text-primary" />
-                        {site.name} Analytics
+                <div className="min-w-0 flex-1">
+                    <h1 className="text-lg sm:text-2xl font-bold tracking-tight flex items-center gap-2 truncate">
+                        <BarChart3 className="h-5 w-5 sm:h-6 sm:w-6 text-primary shrink-0" />
+                        <span className="truncate">{site.name} Analytics</span>
                     </h1>
-                    <p className="text-muted-foreground">
-                        Comprehensive equipment and consumable usage data and insights
+                    <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
+                        Comprehensive equipment and consumable usage data
                     </p>
                 </div>
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-auto p-6">
-                <Tabs defaultValue={defaultTab} className="w-full space-y-6">
-                    <TabsList className="grid w-full max-w-md grid-cols-2">
-                        <TabsTrigger value="equipment">Equipment Analytics</TabsTrigger>
-                        <TabsTrigger value="consumables">Consumables Tracking</TabsTrigger>
-                    </TabsList>
+            <div className="flex-1 overflow-auto p-3 sm:p-6">
+                <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full space-y-4 sm:space-y-6">
+                    {/* Mobile dropdown or desktop tabs */}
+                    {isMobile ? (
+                        <Select value={activeTab} onValueChange={handleTabChange}>
+                            <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Select view" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {tabs.map(tab => (
+                                    <SelectItem key={tab.value} value={tab.value}>
+                                        {tab.label} Analytics
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    ) : (
+                        <TabsList className="grid w-full max-w-md grid-cols-2">
+                            <TabsTrigger value="equipment">Equipment Analytics</TabsTrigger>
+                            <TabsTrigger value="consumables">Consumables Tracking</TabsTrigger>
+                        </TabsList>
+                    )}
 
                     <TabsContent value="equipment" className="space-y-4 animate-in fade-in-50 slide-in-from-bottom-2">
                         <SiteWideMachineAnalyticsView
