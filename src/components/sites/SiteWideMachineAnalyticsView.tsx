@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -6,6 +7,8 @@ import { EquipmentLog } from "@/types/equipment";
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { TrendingUp, TrendingDown, AlertTriangle, Fuel, Clock, Activity, Calendar } from "lucide-react";
 import { format, subDays, startOfDay, eachDayOfInterval } from "date-fns";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface SiteWideMachineAnalyticsViewProps {
     site: Site;
@@ -18,6 +21,9 @@ export const SiteWideMachineAnalyticsView = ({
     equipment,
     equipmentLogs
 }: SiteWideMachineAnalyticsViewProps) => {
+    const isMobile = useIsMobile();
+    const [activeTab, setActiveTab] = useState('overview');
+
     // Filter machines at this site - use String() for safe comparison
     const siteId = String(site.id);
     const siteMachines = equipment.filter(asset =>
@@ -146,9 +152,9 @@ export const SiteWideMachineAnalyticsView = ({
         });
 
         return [
-            { name: 'High Efficiency (≥80%)', value: highEfficiency, color: '#10b981' },
-            { name: 'Medium Efficiency (60-79%)', value: mediumEfficiency, color: '#f59e0b' },
-            { name: 'Low Efficiency (<60%)', value: lowEfficiency, color: '#ef4444' }
+            { name: 'High (≥80%)', value: highEfficiency, color: '#10b981' },
+            { name: 'Medium (60-79%)', value: mediumEfficiency, color: '#f59e0b' },
+            { name: 'Low (<60%)', value: lowEfficiency, color: '#ef4444' }
         ];
     };
 
@@ -165,7 +171,7 @@ export const SiteWideMachineAnalyticsView = ({
                 type: 'critical',
                 icon: AlertTriangle,
                 title: 'Low Efficiency Alert',
-                description: `${efficiencyDist[2].value} machine(s) are operating below 60% efficiency. Review maintenance schedules and operational procedures.`,
+                description: `${efficiencyDist[2].value} machine(s) operating below 60% efficiency.`,
                 color: 'text-destructive'
             });
         }
@@ -178,7 +184,7 @@ export const SiteWideMachineAnalyticsView = ({
                 type: 'info',
                 icon: Fuel,
                 title: 'Highest Fuel Consumer',
-                description: `${machineBreakdown[0].name} consumes ${machineBreakdown[0].fuel.toFixed(2)}L (${topMachinePercentage.toFixed(0)}% of total site fuel usage).`,
+                description: `${machineBreakdown[0].name} uses ${machineBreakdown[0].fuel.toFixed(2)}L (${topMachinePercentage.toFixed(0)}% of total).`,
                 color: 'text-primary'
             });
         }
@@ -189,7 +195,7 @@ export const SiteWideMachineAnalyticsView = ({
                 type: 'warning',
                 icon: Clock,
                 title: 'Top Downtime Reason',
-                description: `"${downtimeReasons[0].reason}" caused ${downtimeReasons[0].hours.toFixed(1)} hours of downtime (${downtimeReasons[0].count} incidents).`,
+                description: `"${downtimeReasons[0].reason}" - ${downtimeReasons[0].hours.toFixed(1)}h (${downtimeReasons[0].count} incidents).`,
                 color: 'text-orange-600'
             });
         }
@@ -204,7 +210,7 @@ export const SiteWideMachineAnalyticsView = ({
                 type: 'recommendation',
                 icon: Activity,
                 title: 'Maintenance Optimization',
-                description: `Average downtime per machine-day is ${avgDowntimePerLog.toFixed(1)} hours. Consider preventive maintenance to reduce unplanned downtime.`,
+                description: `Avg downtime ${avgDowntimePerLog.toFixed(1)}h per day. Consider preventive maintenance.`,
                 color: 'text-purple-600'
             });
         }
@@ -221,7 +227,7 @@ export const SiteWideMachineAnalyticsView = ({
                 type: 'positive',
                 icon: TrendingUp,
                 title: 'Excellent Performance',
-                description: `Machine efficiency in the last 7 days is ${recentEfficiency.toFixed(1)}%. Great operational performance!`,
+                description: `7-day efficiency at ${recentEfficiency.toFixed(1)}%. Great work!`,
                 color: 'text-green-600'
             });
         }
@@ -242,70 +248,97 @@ export const SiteWideMachineAnalyticsView = ({
         ? machineBreakdown.reduce((sum, m) => sum + m.efficiency, 0) / machineBreakdown.length
         : 0;
 
+    const tabs = [
+        { value: 'overview', label: 'Overview' },
+        { value: 'trends', label: 'Trends' },
+        { value: 'downtime', label: 'Downtime' },
+        { value: 'insights', label: 'Insights' }
+    ];
+
     return (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
             <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold tracking-tight">Site-Wide Machine Analytics - {site.name}</h2>
+                <h2 className="text-lg sm:text-2xl font-bold tracking-tight truncate">
+                    Machine Analytics - {site.name}
+                </h2>
             </div>
 
-            <Tabs defaultValue="overview" className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
-                    <TabsTrigger value="overview">Overview</TabsTrigger>
-                    <TabsTrigger value="trends">Trends</TabsTrigger>
-                    <TabsTrigger value="downtime">Downtime</TabsTrigger>
-                    <TabsTrigger value="insights">Insights</TabsTrigger>
-                </TabsList>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                {/* Mobile dropdown or desktop tabs */}
+                {isMobile ? (
+                    <Select value={activeTab} onValueChange={setActiveTab}>
+                        <SelectTrigger className="w-full mb-4">
+                            <SelectValue placeholder="Select view" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {tabs.map(tab => (
+                                <SelectItem key={tab.value} value={tab.value}>
+                                    {tab.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                ) : (
+                    <TabsList className="grid w-full grid-cols-4">
+                        {tabs.map(tab => (
+                            <TabsTrigger key={tab.value} value={tab.value}>
+                                {tab.label}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+                )}
 
                 {/* Overview Tab */}
-                <TabsContent value="overview" className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <TabsContent value="overview" className="space-y-4 mt-4">
+                    {/* Stats Cards - Mobile responsive grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                         <Card>
-                            <CardHeader className="pb-3">
-                                <CardTitle className="text-sm font-medium">Total Machines</CardTitle>
+                            <CardHeader className="pb-2 sm:pb-3 p-3 sm:p-6">
+                                <CardTitle className="text-xs sm:text-sm font-medium">Total Machines</CardTitle>
                             </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold">{siteMachines.length}</div>
+                            <CardContent className="p-3 sm:p-6 pt-0">
+                                <div className="text-xl sm:text-2xl font-bold">{siteMachines.length}</div>
                                 <p className="text-xs text-muted-foreground">Active at this site</p>
                             </CardContent>
                         </Card>
 
                         <Card>
-                            <CardHeader className="pb-3">
-                                <CardTitle className="text-sm font-medium">Total Fuel Consumption</CardTitle>
+                            <CardHeader className="pb-2 sm:pb-3 p-3 sm:p-6">
+                                <CardTitle className="text-xs sm:text-sm font-medium">Total Fuel</CardTitle>
                             </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold">{totalFuel.toFixed(2)} L</div>
+                            <CardContent className="p-3 sm:p-6 pt-0">
+                                <div className="text-xl sm:text-2xl font-bold">{totalFuel.toFixed(1)} L</div>
                                 <p className="text-xs text-muted-foreground">All time usage</p>
                             </CardContent>
                         </Card>
 
                         <Card>
-                            <CardHeader className="pb-3">
-                                <CardTitle className="text-sm font-medium">Avg Machine Efficiency</CardTitle>
+                            <CardHeader className="pb-2 sm:pb-3 p-3 sm:p-6">
+                                <CardTitle className="text-xs sm:text-sm font-medium">Avg Efficiency</CardTitle>
                             </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold">{avgEfficiency.toFixed(1)}%</div>
+                            <CardContent className="p-3 sm:p-6 pt-0">
+                                <div className="text-xl sm:text-2xl font-bold">{avgEfficiency.toFixed(1)}%</div>
                                 <p className="text-xs text-muted-foreground">Active days ratio</p>
                             </CardContent>
                         </Card>
                     </div>
 
-                    {/* Efficiency Distribution */}
+                    {/* Efficiency Distribution - Mobile responsive */}
                     <Card>
-                        <CardHeader>
-                            <CardTitle>Machine Efficiency Distribution</CardTitle>
-                            <CardDescription>Performance status across all machines</CardDescription>
+                        <CardHeader className="p-3 sm:p-6">
+                            <CardTitle className="text-sm sm:text-base">Efficiency Distribution</CardTitle>
+                            <CardDescription className="text-xs sm:text-sm">Performance across machines</CardDescription>
                         </CardHeader>
-                        <CardContent>
-                            <ResponsiveContainer width="100%" height={300}>
+                        <CardContent className="p-3 sm:p-6 pt-0">
+                            <ResponsiveContainer width="100%" height={isMobile ? 200 : 300}>
                                 <PieChart>
                                     <Pie
                                         data={efficiencyDistribution}
                                         cx="50%"
                                         cy="50%"
                                         labelLine={false}
-                                        label={(entry) => `${entry.name}: ${entry.value}`}
-                                        outerRadius={100}
+                                        label={isMobile ? undefined : (entry) => `${entry.name}: ${entry.value}`}
+                                        outerRadius={isMobile ? 60 : 100}
                                         fill="#8884d8"
                                         dataKey="value"
                                     >
@@ -314,52 +347,56 @@ export const SiteWideMachineAnalyticsView = ({
                                         ))}
                                     </Pie>
                                     <Tooltip />
+                                    <Legend wrapperStyle={{ fontSize: isMobile ? '10px' : '12px' }} />
                                 </PieChart>
                             </ResponsiveContainer>
                         </CardContent>
                     </Card>
 
-                    {/* Machine Fuel Breakdown */}
+                    {/* Machine Fuel Breakdown - Mobile responsive */}
                     <Card>
-                        <CardHeader>
-                            <CardTitle>Fuel Consumption by Machine</CardTitle>
+                        <CardHeader className="p-3 sm:p-6">
+                            <CardTitle className="text-sm sm:text-base">Fuel by Machine</CardTitle>
                         </CardHeader>
-                        <CardContent>
-                            <ResponsiveContainer width="100%" height={300}>
-                                <BarChart data={machineBreakdown}>
+                        <CardContent className="p-3 sm:p-6 pt-0">
+                            <ResponsiveContainer width="100%" height={isMobile ? 200 : 300}>
+                                <BarChart data={machineBreakdown.slice(0, isMobile ? 5 : 10)}>
                                     <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="name" />
-                                    <YAxis />
+                                    <XAxis dataKey="name" tick={{ fontSize: isMobile ? 10 : 12 }} angle={isMobile ? -45 : 0} textAnchor={isMobile ? "end" : "middle"} height={isMobile ? 60 : 30} />
+                                    <YAxis tick={{ fontSize: isMobile ? 10 : 12 }} />
                                     <Tooltip />
-                                    <Legend />
+                                    {!isMobile && <Legend />}
                                     <Bar dataKey="fuel" fill="hsl(var(--primary))" name="Fuel (L)" />
                                 </BarChart>
                             </ResponsiveContainer>
                         </CardContent>
                     </Card>
 
-                    {/* Machine Performance Table */}
+                    {/* Machine Performance - Mobile card layout */}
                     <Card>
-                        <CardHeader>
-                            <CardTitle>Machine Performance Summary</CardTitle>
+                        <CardHeader className="p-3 sm:p-6">
+                            <CardTitle className="text-sm sm:text-base">Machine Performance</CardTitle>
                         </CardHeader>
-                        <CardContent>
-                            <div className="space-y-3">
+                        <CardContent className="p-3 sm:p-6 pt-0">
+                            <div className="space-y-2 sm:space-y-3">
                                 {machineBreakdown.map((machine) => (
-                                    <div key={machine.name} className="flex items-center justify-between p-3 border rounded-lg">
-                                        <div className="flex-1">
-                                            <p className="font-medium">{machine.name}</p>
-                                            <p className="text-sm text-muted-foreground">
-                                                {machine.fuel.toFixed(2)}L fuel • {machine.downtime.toFixed(1)}h downtime • {machine.activeDays} active days
+                                    <div key={machine.name} className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-3 border rounded-lg gap-2">
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-medium text-sm truncate">{machine.name}</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {machine.fuel.toFixed(1)}L • {machine.downtime.toFixed(1)}h down • {machine.activeDays} active
                                             </p>
                                         </div>
-                                        <Badge variant={machine.efficiency >= 80 ? "default" : machine.efficiency >= 60 ? "secondary" : "destructive"}>
-                                            {machine.efficiency.toFixed(1)}%
+                                        <Badge 
+                                            variant={machine.efficiency >= 80 ? "default" : machine.efficiency >= 60 ? "secondary" : "destructive"}
+                                            className="self-start sm:self-center shrink-0"
+                                        >
+                                            {machine.efficiency.toFixed(0)}%
                                         </Badge>
                                     </div>
                                 ))}
                                 {machineBreakdown.length === 0 && (
-                                    <p className="text-center text-muted-foreground py-8">No machine data available</p>
+                                    <p className="text-center text-muted-foreground py-6 text-sm">No machine data available</p>
                                 )}
                             </div>
                         </CardContent>
@@ -367,34 +404,34 @@ export const SiteWideMachineAnalyticsView = ({
                 </TabsContent>
 
                 {/* Trends Tab */}
-                <TabsContent value="trends" className="space-y-4">
+                <TabsContent value="trends" className="space-y-4 mt-4">
                     <Card>
-                        <CardHeader>
-                            <CardTitle>Fuel & Downtime Trend - Last 30 Days</CardTitle>
-                            <CardDescription>Daily operational patterns</CardDescription>
+                        <CardHeader className="p-3 sm:p-6">
+                            <CardTitle className="text-sm sm:text-base">Fuel & Downtime - 30 Days</CardTitle>
+                            <CardDescription className="text-xs sm:text-sm">Daily patterns</CardDescription>
                         </CardHeader>
-                        <CardContent>
-                            <ResponsiveContainer width="100%" height={400}>
+                        <CardContent className="p-3 sm:p-6 pt-0">
+                            <ResponsiveContainer width="100%" height={isMobile ? 250 : 400}>
                                 <LineChart data={trendData}>
                                     <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="date" />
-                                    <YAxis yAxisId="left" />
-                                    <YAxis yAxisId="right" orientation="right" />
+                                    <XAxis dataKey="date" tick={{ fontSize: isMobile ? 8 : 12 }} interval={isMobile ? 4 : 2} />
+                                    <YAxis yAxisId="left" tick={{ fontSize: isMobile ? 10 : 12 }} />
+                                    <YAxis yAxisId="right" orientation="right" tick={{ fontSize: isMobile ? 10 : 12 }} />
                                     <Tooltip />
-                                    <Legend />
+                                    <Legend wrapperStyle={{ fontSize: isMobile ? '10px' : '12px' }} />
                                     <Line yAxisId="left" type="monotone" dataKey="fuel" stroke="hsl(var(--primary))" name="Fuel (L)" strokeWidth={2} />
-                                    <Line yAxisId="right" type="monotone" dataKey="downtime" stroke="hsl(var(--chart-2))" name="Downtime (hrs)" strokeWidth={2} />
+                                    <Line yAxisId="right" type="monotone" dataKey="downtime" stroke="hsl(var(--chart-2))" name="Downtime (h)" strokeWidth={2} />
                                 </LineChart>
                             </ResponsiveContainer>
                         </CardContent>
                     </Card>
 
                     <Card>
-                        <CardHeader>
-                            <CardTitle>Machine-Specific Trends</CardTitle>
+                        <CardHeader className="p-3 sm:p-6">
+                            <CardTitle className="text-sm sm:text-base">Machine Trends</CardTitle>
                         </CardHeader>
-                        <CardContent>
-                            <div className="space-y-4">
+                        <CardContent className="p-3 sm:p-6 pt-0">
+                            <div className="space-y-2 sm:space-y-4">
                                 {machineBreakdown.slice(0, 5).map((machine) => {
                                     const recentLogs = siteLogs.filter(log =>
                                         log.equipmentId === siteMachines.find(m => m.name === machine.name)?.id &&
@@ -403,16 +440,16 @@ export const SiteWideMachineAnalyticsView = ({
                                     const recentFuel = recentLogs.reduce((sum, log) => sum + (log.dieselEntered || 0), 0);
 
                                     return (
-                                        <div key={machine.name} className="flex items-center justify-between p-3 border rounded-lg">
-                                            <div>
-                                                <p className="font-medium">{machine.name}</p>
-                                                <p className="text-sm text-muted-foreground">
-                                                    Last 7 days: {recentFuel.toFixed(2)}L fuel used
+                                        <div key={machine.name} className="flex items-center justify-between p-2 sm:p-3 border rounded-lg">
+                                            <div className="min-w-0 flex-1">
+                                                <p className="font-medium text-sm truncate">{machine.name}</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    7d: {recentFuel.toFixed(1)}L
                                                 </p>
                                             </div>
-                                            <div className="text-right">
-                                                <p className="text-sm font-medium">{machine.logs} logs</p>
-                                                <p className="text-xs text-muted-foreground">{machine.activeDays} active days</p>
+                                            <div className="text-right shrink-0 ml-2">
+                                                <p className="text-xs sm:text-sm font-medium">{machine.logs} logs</p>
+                                                <p className="text-xs text-muted-foreground">{machine.activeDays} active</p>
                                             </div>
                                         </div>
                                     );
@@ -423,28 +460,28 @@ export const SiteWideMachineAnalyticsView = ({
                 </TabsContent>
 
                 {/* Downtime Tab */}
-                <TabsContent value="downtime" className="space-y-4">
+                <TabsContent value="downtime" className="space-y-4 mt-4">
                     <Card>
-                        <CardHeader>
-                            <CardTitle>Total Downtime</CardTitle>
+                        <CardHeader className="p-3 sm:p-6">
+                            <CardTitle className="text-sm sm:text-base">Total Downtime</CardTitle>
                         </CardHeader>
-                        <CardContent>
-                            <div className="text-3xl font-bold">{totalDowntime.toFixed(2)} hours</div>
-                            <p className="text-sm text-muted-foreground mt-2">Across all machines</p>
+                        <CardContent className="p-3 sm:p-6 pt-0">
+                            <div className="text-2xl sm:text-3xl font-bold">{totalDowntime.toFixed(1)} hours</div>
+                            <p className="text-xs sm:text-sm text-muted-foreground mt-1">Across all machines</p>
                         </CardContent>
                     </Card>
 
                     <Card>
-                        <CardHeader>
-                            <CardTitle>Top Downtime Reasons</CardTitle>
-                            <CardDescription>Most common causes of machine downtime</CardDescription>
+                        <CardHeader className="p-3 sm:p-6">
+                            <CardTitle className="text-sm sm:text-base">Top Downtime Reasons</CardTitle>
+                            <CardDescription className="text-xs sm:text-sm">Most common causes</CardDescription>
                         </CardHeader>
-                        <CardContent>
-                            <ResponsiveContainer width="100%" height={300}>
+                        <CardContent className="p-3 sm:p-6 pt-0">
+                            <ResponsiveContainer width="100%" height={isMobile ? 200 : 300}>
                                 <BarChart data={downtimeReasons} layout="vertical">
                                     <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis type="number" />
-                                    <YAxis dataKey="reason" type="category" width={150} />
+                                    <XAxis type="number" tick={{ fontSize: isMobile ? 10 : 12 }} />
+                                    <YAxis dataKey="reason" type="category" width={isMobile ? 80 : 150} tick={{ fontSize: isMobile ? 9 : 12 }} />
                                     <Tooltip />
                                     <Bar dataKey="hours" fill="hsl(var(--destructive))" name="Hours" />
                                 </BarChart>
@@ -453,29 +490,29 @@ export const SiteWideMachineAnalyticsView = ({
                     </Card>
 
                     <Card>
-                        <CardHeader>
-                            <CardTitle>Downtime Details</CardTitle>
+                        <CardHeader className="p-3 sm:p-6">
+                            <CardTitle className="text-sm sm:text-base">Downtime Details</CardTitle>
                         </CardHeader>
-                        <CardContent>
-                            <div className="space-y-3">
+                        <CardContent className="p-3 sm:p-6 pt-0">
+                            <div className="space-y-2 sm:space-y-3">
                                 {downtimeReasons.map((reason, index) => (
-                                    <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                                        <div>
-                                            <p className="font-medium">{reason.reason}</p>
-                                            <p className="text-sm text-muted-foreground">
+                                    <div key={index} className="flex items-center justify-between p-2 sm:p-3 border rounded-lg">
+                                        <div className="min-w-0 flex-1">
+                                            <p className="font-medium text-sm truncate">{reason.reason}</p>
+                                            <p className="text-xs text-muted-foreground">
                                                 {reason.count} incident{reason.count > 1 ? 's' : ''}
                                             </p>
                                         </div>
-                                        <div className="text-right">
-                                            <p className="font-bold text-lg">{reason.hours.toFixed(2)}h</p>
+                                        <div className="text-right shrink-0 ml-2">
+                                            <p className="font-bold text-sm sm:text-lg">{reason.hours.toFixed(1)}h</p>
                                             <p className="text-xs text-muted-foreground">
-                                                Avg: {(reason.hours / reason.count).toFixed(1)}h per incident
+                                                ~{(reason.hours / reason.count).toFixed(1)}h ea
                                             </p>
                                         </div>
                                     </div>
                                 ))}
                                 {downtimeReasons.length === 0 && (
-                                    <p className="text-center text-muted-foreground py-8">No downtime data available</p>
+                                    <p className="text-center text-muted-foreground py-6 text-sm">No downtime data</p>
                                 )}
                             </div>
                         </CardContent>
@@ -483,41 +520,41 @@ export const SiteWideMachineAnalyticsView = ({
                 </TabsContent>
 
                 {/* Insights Tab */}
-                <TabsContent value="insights" className="space-y-4">
+                <TabsContent value="insights" className="space-y-3 sm:space-y-4 mt-4">
                     {insights.length === 0 ? (
                         <Card>
-                            <CardContent className="text-center py-8 text-muted-foreground">
-                                No insights available yet. Start logging machine operations to see recommendations.
+                            <CardContent className="text-center py-6 text-muted-foreground text-sm">
+                                No insights available yet. Start logging to see recommendations.
                             </CardContent>
                         </Card>
                     ) : (
                         insights.map((insight, index) => (
                             <Card key={index}>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <insight.icon className={`h-5 w-5 ${insight.color}`} />
-                                        {insight.title}
+                                <CardHeader className="p-3 sm:p-6 pb-2">
+                                    <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+                                        <insight.icon className={`h-4 w-4 sm:h-5 sm:w-5 ${insight.color} shrink-0`} />
+                                        <span className="truncate">{insight.title}</span>
                                     </CardTitle>
                                 </CardHeader>
-                                <CardContent>
-                                    <p className="text-muted-foreground">{insight.description}</p>
+                                <CardContent className="p-3 sm:p-6 pt-0">
+                                    <p className="text-xs sm:text-sm text-muted-foreground">{insight.description}</p>
                                 </CardContent>
                             </Card>
                         ))
                     )}
 
                     <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200">
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <Calendar className="h-5 w-5 text-blue-600" />
-                                Operational Tips
+                        <CardHeader className="p-3 sm:p-6 pb-2">
+                            <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+                                <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 shrink-0" />
+                                Tips
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-2 text-sm text-blue-900 dark:text-blue-100">
-                            <p>• Regular maintenance logging helps identify patterns and prevent breakdowns</p>
-                            <p>• Monitor fuel efficiency to detect potential mechanical issues early</p>
-                            <p>• Track downtime reasons to prioritize maintenance improvements</p>
-                            <p>• Maintain 80%+ efficiency for optimal operational performance</p>
+                        <CardContent className="p-3 sm:p-6 pt-0 space-y-1 text-xs sm:text-sm text-blue-900 dark:text-blue-100">
+                            <p>• Regular logging helps identify patterns</p>
+                            <p>• Monitor fuel efficiency for issues</p>
+                            <p>• Track downtime to prioritize fixes</p>
+                            <p>• Aim for 80%+ efficiency</p>
                         </CardContent>
                     </Card>
                 </TabsContent>

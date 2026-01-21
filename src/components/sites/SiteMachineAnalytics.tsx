@@ -10,6 +10,7 @@ import { EquipmentLog } from "@/types/equipment";
 import { BarChart3, TrendingUp, Clock, Fuel, Activity, Calendar, Download } from "lucide-react";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, isWithinInterval, parseISO, differenceInHours, differenceInMinutes } from "date-fns";
 import { generateUnifiedReport } from "@/utils/unifiedReportGenerator";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface SiteMachineAnalyticsProps {
   site: Site;
@@ -41,6 +42,7 @@ export const SiteMachineAnalytics = ({
   equipmentLogs,
   companySettings
 }: SiteMachineAnalyticsProps) => {
+  const isMobile = useIsMobile();
   const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>('monthly');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
@@ -223,15 +225,16 @@ export const SiteMachineAnalytics = ({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6">
+      {/* Header - Mobile responsive */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <BarChart3 className="h-5 w-5" />
-          <h3 className="text-lg font-semibold">Machine Analytics</h3>
+          <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5" />
+          <h3 className="text-base sm:text-lg font-semibold">Machine Analytics</h3>
         </div>
         <div className="flex items-center gap-2">
           <Select value={selectedPeriod} onValueChange={(value) => setSelectedPeriod(value as TimePeriod)}>
-            <SelectTrigger className="w-[120px]">
+            <SelectTrigger className="w-[100px] sm:w-[120px] text-xs sm:text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -241,118 +244,156 @@ export const SiteMachineAnalytics = ({
               <SelectItem value="yearly">Yearly</SelectItem>
             </SelectContent>
           </Select>
-          <Button onClick={generatePDFReport} variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-2" />
-            Export PDF
+          <Button onClick={generatePDFReport} variant="outline" size="sm" className="text-xs sm:text-sm">
+            <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+            {isMobile ? 'PDF' : 'Export PDF'}
           </Button>
         </div>
       </div>
 
-      <div className="text-sm text-muted-foreground">
-        Showing data for: {getPeriodLabel()}
+      <div className="text-xs sm:text-sm text-muted-foreground">
+        {getPeriodLabel()}
       </div>
 
-      {/* Site Overview Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Site Overview Cards - Mobile responsive grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
         <Card>
-          <CardHeader className="flex flex-row items-center space-y-0 pb-2">
-            <Fuel className="h-4 w-4 text-muted-foreground" />
-            <CardTitle className="text-sm font-medium ml-2">Total Fuel Used</CardTitle>
+          <CardHeader className="flex flex-row items-center space-y-0 pb-1 sm:pb-2 p-2 sm:p-6">
+            <Fuel className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
+            <CardTitle className="text-xs sm:text-sm font-medium ml-1.5 sm:ml-2 truncate">Fuel</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{siteAnalytics.totalFuelConsumption.toFixed(2)} L</div>
-            <p className="text-xs text-muted-foreground">Across all machines</p>
+          <CardContent className="p-2 sm:p-6 pt-0">
+            <div className="text-lg sm:text-2xl font-bold">{siteAnalytics.totalFuelConsumption.toFixed(1)} L</div>
+            <p className="text-xs text-muted-foreground hidden sm:block">Across all machines</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center space-y-0 pb-2">
-            <Clock className="h-4 w-4 text-muted-foreground" />
-            <CardTitle className="text-sm font-medium ml-2">Total Downtime</CardTitle>
+          <CardHeader className="flex flex-row items-center space-y-0 pb-1 sm:pb-2 p-2 sm:p-6">
+            <Clock className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
+            <CardTitle className="text-xs sm:text-sm font-medium ml-1.5 sm:ml-2 truncate">Downtime</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{siteAnalytics.totalDowntimeHours.toFixed(2)} hrs</div>
-            <p className="text-xs text-muted-foreground">Maintenance & issues</p>
+          <CardContent className="p-2 sm:p-6 pt-0">
+            <div className="text-lg sm:text-2xl font-bold">{siteAnalytics.totalDowntimeHours.toFixed(1)} hrs</div>
+            <p className="text-xs text-muted-foreground hidden sm:block">Maintenance & issues</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center space-y-0 pb-2">
-            <Activity className="h-4 w-4 text-muted-foreground" />
-            <CardTitle className="text-sm font-medium ml-2">Active Days</CardTitle>
+          <CardHeader className="flex flex-row items-center space-y-0 pb-1 sm:pb-2 p-2 sm:p-6">
+            <Activity className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
+            <CardTitle className="text-xs sm:text-sm font-medium ml-1.5 sm:ml-2 truncate">Active</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{siteAnalytics.totalActiveDays}</div>
-            <p className="text-xs text-muted-foreground">Out of {siteAnalytics.totalLoggedDays} logged</p>
+          <CardContent className="p-2 sm:p-6 pt-0">
+            <div className="text-lg sm:text-2xl font-bold">{siteAnalytics.totalActiveDays}</div>
+            <p className="text-xs text-muted-foreground hidden sm:block">of {siteAnalytics.totalLoggedDays} logged</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center space-y-0 pb-2">
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            <CardTitle className="text-sm font-medium ml-2">Avg Efficiency</CardTitle>
+          <CardHeader className="flex flex-row items-center space-y-0 pb-1 sm:pb-2 p-2 sm:p-6">
+            <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
+            <CardTitle className="text-xs sm:text-sm font-medium ml-1.5 sm:ml-2 truncate">Efficiency</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{siteAnalytics.averageEfficiency.toFixed(1)}%</div>
-            <p className="text-xs text-muted-foreground">Machine utilization</p>
+          <CardContent className="p-2 sm:p-6 pt-0">
+            <div className="text-lg sm:text-2xl font-bold">{siteAnalytics.averageEfficiency.toFixed(0)}%</div>
+            <p className="text-xs text-muted-foreground hidden sm:block">Utilization</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Machine Details Table */}
+      {/* Machine Details - Mobile cards instead of table */}
       <Card>
-        <CardHeader>
-          <CardTitle>Machine Performance Details</CardTitle>
+        <CardHeader className="p-3 sm:p-6">
+          <CardTitle className="text-sm sm:text-base">Machine Performance</CardTitle>
         </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Machine</TableHead>
-                <TableHead>Fuel Used (L)</TableHead>
-                <TableHead>Downtime (hrs)</TableHead>
-                <TableHead>Active Days</TableHead>
-                <TableHead>Efficiency</TableHead>
-                <TableHead>Fuel Efficiency (L/hr)</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+        <CardContent className="p-3 sm:p-6 pt-0">
+          {isMobile ? (
+            // Mobile card view
+            <div className="space-y-2">
               {machineAnalytics.map((machine) => (
-                <TableRow key={machine.equipmentId}>
-                  <TableCell className="font-medium">{machine.equipmentName}</TableCell>
-                  <TableCell>{machine.totalFuelConsumption.toFixed(2)}</TableCell>
-                  <TableCell>{machine.totalDowntimeHours.toFixed(2)}</TableCell>
-                  <TableCell>{machine.activeDays}/{machine.totalLoggedDays}</TableCell>
-                  <TableCell>
-                    <Badge variant={machine.efficiencyPercentage >= 80 ? "default" : machine.efficiencyPercentage >= 60 ? "secondary" : "destructive"}>
-                      {machine.efficiencyPercentage.toFixed(1)}%
+                <div key={machine.equipmentId} className="p-3 border rounded-lg space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-sm truncate flex-1 mr-2">{machine.equipmentName}</span>
+                    <Badge 
+                      variant={machine.efficiencyPercentage >= 80 ? "default" : machine.efficiencyPercentage >= 60 ? "secondary" : "destructive"}
+                      className="text-xs shrink-0"
+                    >
+                      {machine.efficiencyPercentage.toFixed(0)}%
                     </Badge>
-                  </TableCell>
-                  <TableCell>{machine.fuelEfficiency.toFixed(2)}</TableCell>
-                </TableRow>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
+                    <div>
+                      <span className="block font-medium text-foreground">{machine.totalFuelConsumption.toFixed(1)}L</span>
+                      Fuel
+                    </div>
+                    <div>
+                      <span className="block font-medium text-foreground">{machine.totalDowntimeHours.toFixed(1)}h</span>
+                      Downtime
+                    </div>
+                    <div>
+                      <span className="block font-medium text-foreground">{machine.activeDays}/{machine.totalLoggedDays}</span>
+                      Active
+                    </div>
+                  </div>
+                </div>
               ))}
               {machineAnalytics.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                    No machine data available for the selected period
-                  </TableCell>
-                </TableRow>
+                <p className="text-center text-muted-foreground py-6 text-sm">
+                  No machine data for this period
+                </p>
               )}
-            </TableBody>
-          </Table>
+            </div>
+          ) : (
+            // Desktop table view
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Machine</TableHead>
+                  <TableHead>Fuel (L)</TableHead>
+                  <TableHead>Downtime</TableHead>
+                  <TableHead>Active</TableHead>
+                  <TableHead>Efficiency</TableHead>
+                  <TableHead>Fuel Eff.</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {machineAnalytics.map((machine) => (
+                  <TableRow key={machine.equipmentId}>
+                    <TableCell className="font-medium">{machine.equipmentName}</TableCell>
+                    <TableCell>{machine.totalFuelConsumption.toFixed(2)}</TableCell>
+                    <TableCell>{machine.totalDowntimeHours.toFixed(2)}h</TableCell>
+                    <TableCell>{machine.activeDays}/{machine.totalLoggedDays}</TableCell>
+                    <TableCell>
+                      <Badge variant={machine.efficiencyPercentage >= 80 ? "default" : machine.efficiencyPercentage >= 60 ? "secondary" : "destructive"}>
+                        {machine.efficiencyPercentage.toFixed(1)}%
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{machine.fuelEfficiency.toFixed(2)} L/hr</TableCell>
+                  </TableRow>
+                ))}
+                {machineAnalytics.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                      No machine data for the selected period
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
-      {/* Data Retention Note */}
-      <Card className="bg-blue-50 border-blue-200">
-        <CardContent className="p-4">
+      {/* Data Retention Note - Mobile responsive */}
+      <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200">
+        <CardContent className="p-3 sm:p-4">
           <div className="flex items-start gap-2">
-            <Calendar className="h-5 w-5 text-blue-600 mt-0.5" />
+            <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 mt-0.5 shrink-0" />
             <div>
-              <h4 className="font-medium text-blue-900">Data Retention</h4>
-              <p className="text-sm text-blue-700 mt-1">
-                Equipment logs are permanently stored and will be retained even after machines are returned to inventory.
-                Historical analytics data remains accessible for reporting and analysis purposes.
+              <h4 className="font-medium text-blue-900 dark:text-blue-100 text-sm">Data Retention</h4>
+              <p className="text-xs sm:text-sm text-blue-700 dark:text-blue-200 mt-1">
+                Logs are stored permanently for historical analysis.
               </p>
             </div>
           </div>
