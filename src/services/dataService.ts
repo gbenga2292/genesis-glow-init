@@ -1,10 +1,8 @@
 /**
  * Data Service Abstraction Layer
  * 
- * This service automatically detects the runtime environment and routes
- * data operations to the appropriate backend:
- * - Desktop (Electron): Uses window.electronAPI with SQLite
- * - Mobile/Web: Uses Supabase PostgreSQL
+ * This service provides a unified API for data operations.
+ * All platforms (Web, Android, Electron Desktop) use Supabase PostgreSQL.
  */
 
 import { supabase as supabaseClient } from '@/integrations/supabase/client';
@@ -24,6 +22,8 @@ import type {
     Waybill
 } from '@/types/asset';
 import type { EquipmentLog } from '@/types/equipment';
+import type { ConsumableUsageLog } from '@/types/consumable';
+import type { MaintenanceLog } from '@/types/maintenance';
 import {
     transformAssetToDB,
     transformAssetFromDB,
@@ -43,14 +43,11 @@ import {
     transformSiteTransactionFromDB,
     transformVehicleToDB,
     transformVehicleFromDB,
+    transformConsumableLogToDB,
+    transformConsumableLogFromDB,
+    transformMaintenanceLogToDB,
+    transformMaintenanceLogFromDB,
 } from '@/utils/dataTransform';
-
-// Detect if running in Electron
-const isElectron = () => {
-    // FORCE SUPABASE: Return false to make the app behave like web/mobile even on desktop
-    return false;
-    // return typeof window !== 'undefined' && window.electronAPI?.db;
-};
 
 // ============================================================================
 // AUTHENTICATION
@@ -58,11 +55,6 @@ const isElectron = () => {
 
 export const authService = {
     login: async (username: string, password: string): Promise<{ success: boolean; user?: User; message?: string }> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.login(username, password);
-        }
-
-        // Supabase authentication
         try {
             const { data, error } = await supabase
                 .from('users')
@@ -97,10 +89,6 @@ export const authService = {
     },
 
     getUsers: async (): Promise<User[]> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.getUsers();
-        }
-
         const { data, error } = await supabase
             .from('users')
             .select('*')
@@ -119,10 +107,6 @@ export const authService = {
     },
 
     createUser: async (userData: { name: string; username: string; password: string; role: UserRole }): Promise<{ success: boolean; message?: string }> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.createUser(userData);
-        }
-
         // Hash password before storing
         const password_hash = await bcrypt.hash(userData.password, 10);
 
@@ -143,10 +127,6 @@ export const authService = {
     },
 
     updateUser: async (userId: string, userData: { name: string; username: string; role: UserRole; password?: string }): Promise<{ success: boolean; message?: string }> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.updateUser(userId, userData);
-        }
-
         const updateData: any = {
             username: userData.username,
             role: userData.role,
@@ -171,10 +151,6 @@ export const authService = {
     },
 
     deleteUser: async (userId: string): Promise<{ success: boolean; message?: string }> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.deleteUser(userId);
-        }
-
         const { error } = await supabase
             .from('users')
             .delete()
@@ -194,24 +170,20 @@ export const authService = {
 
 export const assetService = {
     getAssets: async (): Promise<Asset[]> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.getAssets();
-        }
-
         const { data, error } = await supabase
             .from('assets')
             .select('*')
             .order('created_at', { ascending: false });
 
-        if (error) throw error;
+        if (error) {
+            console.error('Supabase getAssets error:', error);
+            throw error;
+        }
+        console.log('Supabase getAssets data:', data);
         return (data || []).map(transformAssetFromDB);
     },
 
     createAsset: async (asset: Partial<Asset>): Promise<Asset> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.createAsset(asset);
-        }
-
         const dbAsset = transformAssetToDB(asset);
         const { data, error } = await supabase
             .from('assets')
@@ -224,10 +196,6 @@ export const assetService = {
     },
 
     updateAsset: async (id: string | number, asset: Partial<Asset>): Promise<Asset> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.updateAsset(id.toString(), asset);
-        }
-
         const dbAsset = transformAssetToDB(asset);
         const { data, error } = await supabase
             .from('assets')
@@ -241,10 +209,6 @@ export const assetService = {
     },
 
     deleteAsset: async (id: string | number): Promise<void> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.deleteAsset(id.toString());
-        }
-
         const { error } = await supabase
             .from('assets')
             .delete()
@@ -260,10 +224,6 @@ export const assetService = {
 
 export const siteService = {
     getSites: async (): Promise<Site[]> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.getSites();
-        }
-
         const { data, error } = await supabase
             .from('sites')
             .select('*')
@@ -274,10 +234,6 @@ export const siteService = {
     },
 
     createSite: async (site: Partial<Site>): Promise<Site> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.createSite(site);
-        }
-
         const dbSite = transformSiteToDB(site);
         const { data, error } = await supabase
             .from('sites')
@@ -290,10 +246,6 @@ export const siteService = {
     },
 
     updateSite: async (id: string | number, site: Partial<Site>): Promise<Site> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.updateSite(id.toString(), site);
-        }
-
         const dbSite = transformSiteToDB(site);
         const { data, error } = await supabase
             .from('sites')
@@ -307,10 +259,6 @@ export const siteService = {
     },
 
     deleteSite: async (id: string | number): Promise<void> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.deleteSite(id.toString());
-        }
-
         const { error } = await supabase
             .from('sites')
             .delete()
@@ -326,10 +274,6 @@ export const siteService = {
 
 export const employeeService = {
     getEmployees: async (): Promise<Employee[]> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.getEmployees();
-        }
-
         const { data, error } = await supabase
             .from('employees')
             .select('*')
@@ -340,10 +284,6 @@ export const employeeService = {
     },
 
     createEmployee: async (employee: Partial<Employee>): Promise<Employee> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.createEmployee(employee);
-        }
-
         const dbEmployee = transformEmployeeToDB(employee);
         const { data, error } = await supabase
             .from('employees')
@@ -356,10 +296,6 @@ export const employeeService = {
     },
 
     updateEmployee: async (id: string | number, employee: Partial<Employee>): Promise<Employee> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.updateEmployee(id.toString(), employee);
-        }
-
         const dbEmployee = transformEmployeeToDB(employee);
         const { data, error } = await supabase
             .from('employees')
@@ -373,10 +309,6 @@ export const employeeService = {
     },
 
     deleteEmployee: async (id: string | number): Promise<void> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.deleteEmployee(id.toString());
-        }
-
         const { error } = await supabase
             .from('employees')
             .delete()
@@ -392,10 +324,6 @@ export const employeeService = {
 
 export const vehicleService = {
     getVehicles: async (): Promise<Vehicle[]> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.getVehicles();
-        }
-
         const { data, error } = await supabase
             .from('vehicles')
             .select('*')
@@ -406,10 +334,6 @@ export const vehicleService = {
     },
 
     createVehicle: async (vehicle: Partial<Vehicle>): Promise<Vehicle> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.createVehicle(vehicle);
-        }
-
         const dbVehicle = transformVehicleToDB(vehicle);
         const { data, error } = await supabase
             .from('vehicles')
@@ -422,10 +346,6 @@ export const vehicleService = {
     },
 
     updateVehicle: async (id: string | number, vehicle: Partial<Vehicle>): Promise<Vehicle> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.updateVehicle(id.toString(), vehicle);
-        }
-
         const dbVehicle = transformVehicleToDB(vehicle);
         const { data, error } = await supabase
             .from('vehicles')
@@ -439,10 +359,6 @@ export const vehicleService = {
     },
 
     deleteVehicle: async (id: string | number): Promise<void> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.deleteVehicle(id.toString());
-        }
-
         const { error } = await supabase
             .from('vehicles')
             .delete()
@@ -458,24 +374,31 @@ export const vehicleService = {
 
 export const quickCheckoutService = {
     getQuickCheckouts: async (): Promise<QuickCheckout[]> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.getQuickCheckouts();
-        }
+        // Fetch checkouts, assets, and employees to enrich the data
+        const [checkoutsResult, assetsResult, employeesResult] = await Promise.all([
+            supabase
+                .from('quick_checkouts')
+                .select('*')
+                .order('checkout_date', { ascending: false }),
+            supabase
+                .from('assets')
+                .select('id, name'),
+            supabase
+                .from('employees')
+                .select('id, name')
+        ]);
 
-        const { data, error } = await supabase
-            .from('quick_checkouts')
-            .select('*')
-            .order('checkout_date', { ascending: false });
-
-        if (error) throw error;
-        return (data || []).map(transformQuickCheckoutFromDB);
+        if (checkoutsResult.error) throw checkoutsResult.error;
+        
+        const assets = assetsResult.data || [];
+        const employees = employeesResult.data || [];
+        
+        return (checkoutsResult.data || []).map(checkout => 
+            transformQuickCheckoutFromDB(checkout, assets, employees)
+        );
     },
 
     createQuickCheckout: async (checkout: Partial<QuickCheckout>): Promise<QuickCheckout> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.createQuickCheckout(checkout);
-        }
-
         const dbCheckout = transformQuickCheckoutToDB(checkout);
         const { data, error } = await supabase
             .from('quick_checkouts')
@@ -484,14 +407,23 @@ export const quickCheckoutService = {
             .single();
 
         if (error) throw error;
-        return transformQuickCheckoutFromDB(data);
+        
+        // Fetch asset and employee for enrichment
+        const [assetResult, employeeResult] = await Promise.all([
+            supabase.from('assets').select('id, name').eq('id', data.asset_id).single(),
+            data.employee_id 
+                ? supabase.from('employees').select('id, name').eq('id', data.employee_id).single()
+                : Promise.resolve({ data: null })
+        ]);
+        
+        return transformQuickCheckoutFromDB(
+            data, 
+            assetResult.data ? [assetResult.data] : [], 
+            employeeResult.data ? [employeeResult.data] : []
+        );
     },
 
     updateQuickCheckout: async (id: string | number, checkout: Partial<QuickCheckout>): Promise<QuickCheckout> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.updateQuickCheckout(id.toString(), checkout);
-        }
-
         const dbCheckout = transformQuickCheckoutToDB(checkout);
         const { data, error } = await supabase
             .from('quick_checkouts')
@@ -501,14 +433,23 @@ export const quickCheckoutService = {
             .single();
 
         if (error) throw error;
-        return transformQuickCheckoutFromDB(data);
+        
+        // Fetch asset and employee for enrichment
+        const [assetResult, employeeResult] = await Promise.all([
+            supabase.from('assets').select('id, name').eq('id', data.asset_id).single(),
+            data.employee_id 
+                ? supabase.from('employees').select('id, name').eq('id', data.employee_id).single()
+                : Promise.resolve({ data: null })
+        ]);
+        
+        return transformQuickCheckoutFromDB(
+            data, 
+            assetResult.data ? [assetResult.data] : [], 
+            employeeResult.data ? [employeeResult.data] : []
+        );
     },
 
     deleteQuickCheckout: async (id: string | number): Promise<void> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.deleteQuickCheckout(id.toString());
-        }
-
         const { error } = await supabase
             .from('quick_checkouts')
             .delete()
@@ -524,10 +465,6 @@ export const quickCheckoutService = {
 
 export const waybillService = {
     getWaybills: async (): Promise<Waybill[]> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.getWaybills();
-        }
-
         const { data, error } = await supabase
             .from('waybills')
             .select('*')
@@ -538,10 +475,6 @@ export const waybillService = {
     },
 
     createWaybill: async (waybill: Partial<Waybill>): Promise<Waybill> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.createWaybill(waybill);
-        }
-
         const dbWaybill = transformWaybillToDB(waybill);
         const { data, error } = await supabase
             .from('waybills')
@@ -554,10 +487,6 @@ export const waybillService = {
     },
 
     updateWaybill: async (id: string, waybill: Partial<Waybill>): Promise<Waybill> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.updateWaybill(id, waybill);
-        }
-
         const dbWaybill = transformWaybillToDB(waybill);
         const { data, error } = await supabase
             .from('waybills')
@@ -571,10 +500,6 @@ export const waybillService = {
     },
 
     deleteWaybill: async (id: string): Promise<void> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.deleteWaybill(id);
-        }
-
         const { error } = await supabase
             .from('waybills')
             .delete()
@@ -590,10 +515,6 @@ export const waybillService = {
 
 export const equipmentLogService = {
     getEquipmentLogs: async (): Promise<EquipmentLog[]> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.getEquipmentLogs();
-        }
-
         const { data, error } = await supabase
             .from('equipment_logs')
             .select('*')
@@ -604,10 +525,6 @@ export const equipmentLogService = {
     },
 
     createEquipmentLog: async (log: Partial<EquipmentLog>): Promise<EquipmentLog> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.createEquipmentLog(log);
-        }
-
         const dbLog = transformEquipmentLogToDB(log);
         const { data, error } = await supabase
             .from('equipment_logs')
@@ -620,10 +537,6 @@ export const equipmentLogService = {
     },
 
     updateEquipmentLog: async (id: number, log: Partial<EquipmentLog>): Promise<EquipmentLog> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.updateEquipmentLog(id.toString(), log);
-        }
-
         const dbLog = transformEquipmentLogToDB(log);
         const { data, error } = await supabase
             .from('equipment_logs')
@@ -637,12 +550,108 @@ export const equipmentLogService = {
     },
 
     deleteEquipmentLog: async (id: number): Promise<void> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.deleteEquipmentLog(id.toString());
-        }
-
         const { error } = await supabase
             .from('equipment_logs')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+    }
+};
+
+// ============================================================================
+// CONSUMABLE LOGS
+// ============================================================================
+
+export const consumableLogService = {
+    getConsumableLogs: async (): Promise<ConsumableUsageLog[]> => {
+        const { data, error } = await supabase
+            .from('consumable_logs')
+            .select('*')
+            .order('date', { ascending: false });
+
+        if (error) throw error;
+        return (data || []).map(transformConsumableLogFromDB);
+    },
+
+    createConsumableLog: async (log: Partial<ConsumableUsageLog>): Promise<ConsumableUsageLog> => {
+        const dbLog = transformConsumableLogToDB(log);
+        const { data, error } = await supabase
+            .from('consumable_logs')
+            .insert(dbLog)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return transformConsumableLogFromDB(data);
+    },
+
+    updateConsumableLog: async (id: string, log: Partial<ConsumableUsageLog>): Promise<ConsumableUsageLog> => {
+        const dbLog = transformConsumableLogToDB(log);
+        const { data, error } = await supabase
+            .from('consumable_logs')
+            .update({ ...dbLog, updated_at: new Date().toISOString() })
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return transformConsumableLogFromDB(data);
+    },
+
+    deleteConsumableLog: async (id: string): Promise<void> => {
+        const { error } = await supabase
+            .from('consumable_logs')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+    }
+};
+
+// ============================================================================
+// MAINTENANCE LOGS
+// ============================================================================
+
+export const maintenanceLogService = {
+    getMaintenanceLogs: async (): Promise<MaintenanceLog[]> => {
+        const { data, error } = await supabase
+            .from('maintenance_logs')
+            .select('*')
+            .order('date_started', { ascending: false });
+
+        if (error) throw error;
+        return (data || []).map(transformMaintenanceLogFromDB);
+    },
+
+    createMaintenanceLog: async (log: Partial<MaintenanceLog>): Promise<MaintenanceLog> => {
+        const dbLog = transformMaintenanceLogToDB(log);
+        const { data, error } = await supabase
+            .from('maintenance_logs')
+            .insert(dbLog)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return transformMaintenanceLogFromDB(data);
+    },
+
+    updateMaintenanceLog: async (id: string, log: Partial<MaintenanceLog>): Promise<MaintenanceLog> => {
+        const dbLog = transformMaintenanceLogToDB(log);
+        const { data, error } = await supabase
+            .from('maintenance_logs')
+            .update({ ...dbLog, updated_at: new Date().toISOString() })
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return transformMaintenanceLogFromDB(data);
+    },
+
+    deleteMaintenanceLog: async (id: string): Promise<void> => {
+        const { error } = await supabase
+            .from('maintenance_logs')
             .delete()
             .eq('id', id);
 
@@ -656,10 +665,6 @@ export const equipmentLogService = {
 
 export const companySettingsService = {
     getCompanySettings: async (): Promise<CompanySettings> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.getCompanySettings();
-        }
-
         const { data, error } = await supabase
             .from('company_settings')
             .select('*')
@@ -671,10 +676,6 @@ export const companySettingsService = {
     },
 
     updateCompanySettings: async (settings: Partial<CompanySettings>): Promise<CompanySettings> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.updateCompanySettings((settings as any).id?.toString() || '1', settings);
-        }
-
         // Get the first (and only) settings record
         const { data: existing } = await supabase
             .from('company_settings')
@@ -711,10 +712,6 @@ export const companySettingsService = {
 
 export const siteTransactionService = {
     getSiteTransactions: async (): Promise<SiteTransaction[]> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.getSiteTransactions();
-        }
-
         const { data, error } = await supabase
             .from('site_transactions')
             .select('*')
@@ -725,11 +722,6 @@ export const siteTransactionService = {
     },
 
     createSiteTransaction: async (transaction: Partial<SiteTransaction>): Promise<SiteTransaction> => {
-        if (isElectron()) {
-            await window.electronAPI.db.addSiteTransaction(transaction);
-            return transaction as SiteTransaction;
-        }
-
         const dbTransaction = transformSiteTransactionToDB(transaction);
         const { data, error } = await supabase
             .from('site_transactions')
@@ -748,10 +740,6 @@ export const siteTransactionService = {
 
 export const activityService = {
     getActivities: async (): Promise<Activity[]> => {
-        if (isElectron()) {
-            return await window.electronAPI.db.getActivities();
-        }
-
         const { data, error } = await supabase
             .from('activities')
             .select('*')
@@ -762,11 +750,6 @@ export const activityService = {
     },
 
     createActivity: async (activity: Partial<Activity>): Promise<void> => {
-        if (isElectron()) {
-            await window.electronAPI.db.createActivity(activity);
-            return;
-        }
-
         const dbActivity = transformActivityToDB(activity);
         const { error } = await supabase
             .from('activities')
@@ -776,11 +759,6 @@ export const activityService = {
     },
 
     clearActivities: async (): Promise<void> => {
-        if (isElectron()) {
-            await window.electronAPI.db.clearActivities();
-            return;
-        }
-
         const { error } = await supabase
             .from('activities')
             .delete()
@@ -800,7 +778,56 @@ export const dataService = {
     quickCheckouts: quickCheckoutService,
     waybills: waybillService,
     equipmentLogs: equipmentLogService,
+    consumableLogs: consumableLogService,
+    maintenanceLogs: maintenanceLogService,
     companySettings: companySettingsService,
     siteTransactions: siteTransactionService,
-    activities: activityService
+    activities: activityService,
+
+    // ============================================================================
+    // METRICS SNAPSHOTS
+    // ============================================================================
+    metrics: {
+        getTodaySnapshot: async () => {
+            const today = new Date().toISOString().split('T')[0];
+            const { data, error } = await supabase
+                .from('metrics_snapshots')
+                .select('*')
+                .eq('snapshot_date', today)
+                .maybeSingle();
+
+            if (error) throw error;
+            return data;
+        },
+
+        createSnapshot: async (data: any) => {
+            const today = new Date().toISOString().split('T')[0];
+            const { error } = await supabase
+                .from('metrics_snapshots')
+                .upsert({
+                    snapshot_date: today,
+                    total_assets: data.total_assets || 0,
+                    total_quantity: data.total_quantity || 0,
+                    outstanding_waybills: data.outstanding_waybills || 0,
+                    outstanding_checkouts: data.outstanding_checkouts || 0,
+                    out_of_stock: data.out_of_stock || 0,
+                    low_stock: data.low_stock || 0
+                }, { onConflict: 'snapshot_date' });
+
+            if (error) throw error;
+        },
+
+        getHistory: async (days: number = 7) => {
+            const date = new Date();
+            date.setDate(date.getDate() - days);
+            const { data, error } = await supabase
+                .from('metrics_snapshots')
+                .select('*')
+                .gte('snapshot_date', date.toISOString().split('T')[0])
+                .order('snapshot_date', { ascending: true });
+
+            if (error) throw error;
+            return data || [];
+        }
+    }
 };

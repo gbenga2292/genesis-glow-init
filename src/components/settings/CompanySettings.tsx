@@ -23,6 +23,7 @@ import { useAuth, User, UserRole } from "@/contexts/AuthContext";
 import { SyncStatusPanel } from "./SyncStatusPanel";
 import { EmployeeAnalytics } from "./EmployeeAnalytics";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { dataService } from "@/services/dataService";
 
 interface CompanySettingsProps {
   settings: CompanySettingsType;
@@ -227,85 +228,27 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
     (async () => {
       try {
-        if (window.electronAPI && window.electronAPI.db && window.electronAPI.db.getSavedApiKeys) {
-          const savedKeys = await window.electronAPI.db.getSavedApiKeys();
-          if (!isActive) return;
+        if (!isActive) return;
 
-          const keysMap: Record<string, any> = {};
-          savedKeys.forEach((key: any) => {
-            keysMap[key.key_name] = key;
-          });
-          setSavedApiKeys(keysMap);
+        // Initialize directly from settings prop
+        if (settings && (settings as any)?.ai?.remote) {
+          const remote = (settings as any).ai.remote;
+          const r = remote.enabled;
+          setAiEnabled(r !== false && r !== 0 && r !== '0' && r !== 'false');
+          setAiProvider(remote.provider || 'openai');
+          setAiApiKey(remote.apiKey || '');
+          setAiEndpoint(remote.endpoint || '');
 
-          // Find active or previously selected key
-          const active = savedKeys.find((k: any) => k.is_active);
-          const settingsSelected = (settings as any)?.ai?.remote?.selectedSavedKey;
-
-          let keyToLoad = null;
-          if (settingsSelected && keysMap[settingsSelected]) {
-            keyToLoad = keysMap[settingsSelected];
-            setSelectedSavedKey(settingsSelected);
-          } else if (active) {
-            keyToLoad = active;
-            setSelectedSavedKey(active.key_name);
-          } else {
-            setSelectedSavedKey('');
+          if (remote.model) {
+            setAiModel(remote.model);
           }
-
-          // Auto-load the selected client's details if found
-          if (keyToLoad) {
-            const provider = keyToLoad.provider || 'openai';
-            const apiKey = keyToLoad.api_key || keyToLoad.apiKey || '';
-            const endpoint = keyToLoad.endpoint || '';
-            const model = keyToLoad.model || '';
-
-            setAiProvider(provider);
-            setAiApiKey(apiKey);
-            setAiEndpoint(endpoint);
-            // Preserve in-memory aiModel if loaded model is empty
-            if (model) {
-              setAiModel(model);
-            }
-
-            const remoteSettings = (settings as any)?.ai?.remote;
-            if (remoteSettings?.enabled !== undefined) {
-              const r = remoteSettings.enabled;
-              // Handle boolean, number (0/1), and string ('0'/'false') variations
-              setAiEnabled(r !== false && r !== 0 && r !== '0' && r !== 'false');
-            } else {
-              setAiEnabled(true);
-            }
-
-            // Do not auto-fetch models on init - user must click 'Fetch Models' button
-            setHasInitializedFromSettings(true);
-          } else if (settings && (settings as any)?.ai?.remote) {
-            // Fallback to settings if no saved key found
-            const remote = (settings as any).ai.remote;
-
-            const r = remote.enabled;
-            // Handle boolean, number (0/1), and string ('0'/'false') variations
-            setAiEnabled(r !== false && r !== 0 && r !== '0' && r !== 'false');
-
-            setAiProvider(remote.provider || 'openai');
-            setAiApiKey(remote.apiKey || '');
-            setAiEndpoint(remote.endpoint || '');
-            // Preserve in-memory aiModel if remote.model is empty
-            if (remote.model) {
-              setAiModel(remote.model);
-            }
-            setHasInitializedFromSettings(true);
-          }
+          setHasInitializedFromSettings(true);
         }
       } catch (err) {
-        if (!isActive) return;
-        logger.error('Failed to load saved API keys', err);
-        // Fallback to localStorage
-        const savedKeys = localStorage.getItem('ai_api_keys');
-        if (savedKeys) {
-          setSavedApiKeys(JSON.parse(savedKeys));
-        }
+        logger.error('Failed to load AI settings', err);
       }
     })();
+
 
     return () => { isActive = false; };
   }, [settings, hasInitializedFromSettings]);
@@ -446,38 +389,28 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     if (!employeeName.trim()) return;
 
     try {
-      if (window.electronAPI && window.electronAPI.db) {
-        // Persist to DB (timestamps handled by DB)
-        await window.electronAPI.db.createEmployee({
-          name: employeeName.trim(),
-          role: employeeRole,
-          email: employeeEmail.trim() || undefined,
-          status: 'active',
-        });
-        // Reload from DB to ensure IDs and timestamps are correct
-        const latest = await window.electronAPI.db.getEmployees();
-        const mapped = latest.map((item: any) => ({
-          ...item,
-          createdAt: new Date(item.createdAt),
-          updatedAt: new Date(item.updatedAt),
-          delistedDate: item.delistedDate ? new Date(item.delistedDate) : undefined,
-        }));
-        onEmployeesChange(mapped);
-      } else {
-        // Fallback (non-Electron)
-        onEmployeesChange([
-          ...employees,
-          {
-            id: Date.now().toString(),
-            name: employeeName.trim(),
-            role: employeeRole,
-            email: employeeEmail.trim() || undefined,
-            status: 'active',
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          } as Employee,
-        ]);
-      }
+      // Create new employee object
+      const newEmployeeData: Partial<Employee> = {
+        name: employeeName.trim(),
+        role: employeeRole,
+        email: employeeEmail.trim() || undefined,
+        status: 'active',
+      };
+
+      // Use dataService to persist
+      const savedEmployee = await dataService.employees.createEmployee(newEmployeeData);
+
+      // Directly update local state with returned object (which has correct timestamps)
+      // Or reload all if preferred, but appending is faster
+      // Format dates for UI consistency
+      const formattedEmployee = {
+        ...savedEmployee,
+        createdAt: new Date(savedEmployee.createdAt),
+        updatedAt: new Date(savedEmployee.updatedAt),
+        delistedDate: savedEmployee.delistedDate ? new Date(savedEmployee.delistedDate) : undefined,
+      };
+
+      onEmployeesChange([...employees, formattedEmployee]);
 
       await logActivity({
         action: 'add_employee',
@@ -515,10 +448,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     };
 
     try {
-      // Save to database first if available
-      if (window.electronAPI && window.electronAPI.db) {
-        await window.electronAPI.db.updateEmployee(employeeToDelist.id, updatedEmployee);
-      }
+      await dataService.employees.updateEmployee(employeeToDelist.id, updatedEmployee);
 
       const updatedEmployees = employees.map(emp =>
         emp.id === employeeToDelist.id ? updatedEmployee : emp
@@ -553,11 +483,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
   const handleRemoveEmployee = async (id: string) => {
     try {
-      // Delete from database first if available
-      // Delete from database first if available
-      if (window.electronAPI && window.electronAPI.db) {
-        await window.electronAPI.db.deleteEmployee(id);
-      }
+      await dataService.employees.deleteEmployee(id);
 
       onEmployeesChange(employees.filter(emp => emp.id !== id));
 
@@ -579,21 +505,15 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     if (!vehicleName.trim()) return;
 
     try {
-      if (window.electronAPI && window.electronAPI.db) {
-        await window.electronAPI.db.createVehicle({ name: vehicleName.trim(), status: 'active' });
-        const latest = await window.electronAPI.db.getVehicles();
-        const mapped = latest.map((item: any) => ({
-          ...item,
-          createdAt: new Date(item.created_at || item.createdAt),
-          updatedAt: new Date(item.updated_at || item.updatedAt),
-        }));
-        onVehiclesChange(mapped);
-      } else {
-        onVehiclesChange([
-          ...vehicles,
-          { id: Date.now().toString(), name: vehicleName.trim(), status: 'active', createdAt: new Date(), updatedAt: new Date() } as Vehicle,
-        ]);
-      }
+      const savedVehicle = await dataService.vehicles.createVehicle({ name: vehicleName.trim(), status: 'active' });
+
+      const formattedVehicle = {
+        ...savedVehicle,
+        createdAt: new Date(savedVehicle.createdAt),
+        updatedAt: new Date(savedVehicle.updatedAt),
+      };
+
+      onVehiclesChange([...vehicles, formattedVehicle]);
 
       await logActivity({
         action: 'create',
@@ -619,10 +539,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
   const handleRemoveVehicle = async (id: string) => {
     try {
-      // Delete from database first if available
-      if (window.electronAPI && window.electronAPI.db) {
-        await window.electronAPI.db.deleteVehicle(id);
-      }
+      await dataService.vehicles.deleteVehicle(id);
 
       onVehiclesChange(vehicles.filter(v => v.id !== id));
 
@@ -663,10 +580,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     };
 
     try {
-      // Save to database first if available
-      if (window.electronAPI && window.electronAPI.db) {
-        await window.electronAPI.db.updateEmployee(editingEmployeeId, updatedEmployee);
-      }
+      await dataService.employees.updateEmployee(editingEmployeeId, updatedEmployee);
 
       const updatedEmployees = employees.map(emp =>
         emp.id === editingEmployeeId ? updatedEmployee : emp
@@ -720,20 +634,16 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     if (!vehicle) return;
 
     try {
-      if (window.electronAPI && window.electronAPI.db) {
-        await window.electronAPI.db.updateVehicle(vehicle.id, { name: tempVehicleName.trim() });
-        const latest = await window.electronAPI.db.getVehicles();
-        const mapped = latest.map((item: any) => ({
-          ...item,
-          createdAt: new Date(item.created_at || item.createdAt),
-          updatedAt: new Date(item.updated_at || item.updatedAt),
-        }));
-        onVehiclesChange(mapped);
-      } else {
-        const updatedVehicles = [...vehicles];
-        updatedVehicles[editingVehicleIndex] = { ...vehicle, name: tempVehicleName.trim(), updatedAt: new Date() } as Vehicle;
-        onVehiclesChange(updatedVehicles);
-      }
+      await dataService.vehicles.updateVehicle(vehicle.id, { name: tempVehicleName.trim() });
+
+      const updatedVehicles = [...vehicles];
+      updatedVehicles[editingVehicleIndex] = {
+        ...vehicle,
+        name: tempVehicleName.trim(),
+        updatedAt: new Date()
+      } as Vehicle;
+
+      onVehiclesChange(updatedVehicles);
 
       await logActivity({
         action: 'update',
@@ -787,26 +697,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         // Merge AI config with existing form data
         const updated = { ...(formData as any), ai: aiConfigToSave };
 
-        // Try to update if ID exists, otherwise create new record
-        let savedSettings: any = null;
-        if ((formData as any)?.id && window?.electronAPI?.db?.updateCompanySettings) {
-          const result = await window.electronAPI.db.updateCompanySettings((formData as any).id, updated);
-          savedSettings = Array.isArray(result) ? result[0] : result;
-          logger.info('AI settings updated to DB (existing record)', { data: { savedSettings } });
-        } else if (window?.electronAPI?.db?.updateCompanySettings) {
-          // updateCompanySettings now handles creation if ID is missing
-          const result = await window.electronAPI.db.updateCompanySettings(null, updated);
-          savedSettings = Array.isArray(result) ? result[0] : result;
-          logger.info('AI settings saved to DB (new record created)', { data: { savedSettings } });
-        }
+        // Save using dataService
+        const savedSettings = await dataService.companySettings.updateCompanySettings(updated);
+        logger.info('AI settings saved to Supabase', { data: { savedSettings } });
 
-        // Reload fresh settings from DB and pass back to parent to ensure consistency
-        if (window?.electronAPI?.db?.getCompanySettings) {
-          const reloadedSettings = await window.electronAPI.db.getCompanySettings();
-          // Update parent state with the fresh data from DB
-          onSave(reloadedSettings || updated);
-          console.log('Reloaded company settings from DB after save', reloadedSettings);
-        }
+        // Update parent state with the fresh data
+        onSave(savedSettings);
 
         // Show success message
         toast({
@@ -814,7 +710,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           description: "Your AI configuration has been persisted."
         });
       } catch (err) {
-        logger.error('Failed to persist AI settings to DB', err);
+        logger.error('Failed to persist AI settings', err);
         toast({
           title: "Save Failed",
           description: "Failed to save AI settings. Please try again.",
@@ -2199,11 +2095,11 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     const tabs = [
       { value: "company", label: "Company Info", shortLabel: "Company", icon: <Building className="h-4 w-4" /> },
     ];
-    
+
     if (hasPermission('manage_users')) {
       tabs.push({ value: "users", label: "User Management", shortLabel: "Users", icon: <Users className="h-4 w-4" /> });
     }
-    
+
     if (currentUser?.role !== 'staff') {
       tabs.push(
         { value: "employees", label: "Employees", shortLabel: "Staff", icon: <UserPlus className="h-4 w-4" /> },
@@ -2212,9 +2108,9 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         { value: "data", label: "Data Management", shortLabel: "Data", icon: <Database className="h-4 w-4" /> }
       );
     }
-    
+
     tabs.push({ value: "sync", label: "Sync Status", shortLabel: "Sync", icon: <Database className="h-4 w-4" /> });
-    
+
     return tabs;
   }, [currentUser?.role, hasPermission]);
 
@@ -2265,9 +2161,9 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           <div className="overflow-x-auto hide-scrollbar">
             <TabsList className="inline-flex h-auto min-w-max md:grid md:w-full md:grid-cols-4 lg:grid-cols-7 gap-1">
               {settingsTabs.map((tab) => (
-                <TabsTrigger 
-                  key={tab.value} 
-                  value={tab.value} 
+                <TabsTrigger
+                  key={tab.value}
+                  value={tab.value}
                   className="flex items-center gap-1.5 px-3 py-2 text-xs md:text-sm whitespace-nowrap"
                 >
                   {tab.icon}
@@ -2470,279 +2366,279 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       {/* User Management Tab */}
       {activeSettingsTab === "users" && hasPermission('manage_users') && (
         <div className="space-y-4 md:space-y-6 mt-4">
-            <Card className="border-0 shadow-soft">
-              <CardHeader className="pb-3 md:pb-6">
-                <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
-                  <Users className="h-5 w-5" />
-                  User Management
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
-                  <h4 className="font-medium text-sm md:text-base">Manage Users</h4>
-                  <div className="flex gap-2 flex-wrap">
-                    <Button onClick={() => setIsAddUserDialogOpen(true)} className="gap-2 flex-1 sm:flex-none" size={isMobile ? "sm" : "default"}>
-                      <UserPlus className="h-4 w-4" />
-                      Add User
-                    </Button>
-                    <Button variant="outline" onClick={() => setShowPermissionsTable(!showPermissionsTable)} size={isMobile ? "sm" : "default"} className="flex-1 sm:flex-none text-xs sm:text-sm">
-                      {showPermissionsTable ? 'List View' : 'Table View'}
-                    </Button>
-                  </div>
+          <Card className="border-0 shadow-soft">
+            <CardHeader className="pb-3 md:pb-6">
+              <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                <Users className="h-5 w-5" />
+                User Management
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
+                <h4 className="font-medium text-sm md:text-base">Manage Users</h4>
+                <div className="flex gap-2 flex-wrap">
+                  <Button onClick={() => setIsAddUserDialogOpen(true)} className="gap-2 flex-1 sm:flex-none" size={isMobile ? "sm" : "default"}>
+                    <UserPlus className="h-4 w-4" />
+                    Add User
+                  </Button>
+                  <Button variant="outline" onClick={() => setShowPermissionsTable(!showPermissionsTable)} size={isMobile ? "sm" : "default"} className="flex-1 sm:flex-none text-xs sm:text-sm">
+                    {showPermissionsTable ? 'List View' : 'Table View'}
+                  </Button>
                 </div>
+              </div>
 
-                {/* User Permissions Table (Desktop Only) */}
-                {!isMobile && showPermissionsTable ? (
-                  <div className="space-y-2">
-                    <h4 className="font-medium">User Permissions</h4>
-                    {users.length === 0 ? (
-                      <p className="text-muted-foreground">No users created yet.</p>
-                    ) : (
-                      <div className="border rounded-lg overflow-hidden">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Name</TableHead>
-                              <TableHead>Username</TableHead>
-                              <TableHead>Role</TableHead>
-                              <TableHead>Actions</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {users.map((user, idx) => (
-                              <TableRow key={user.id || user.username || idx}>
-                                {editingUserId === user.id ? (
-                                  <>
-                                    <TableCell>
-                                      <Input
-                                        value={editUserName}
-                                        onChange={(e) => setEditUserName(e.target.value)}
-                                        placeholder="Full Name"
-                                      />
-                                    </TableCell>
-                                    <TableCell>
-                                      <Input
-                                        value={editUserUsername}
-                                        onChange={(e) => setEditUserUsername(e.target.value)}
-                                        placeholder="Username"
-                                      />
-                                    </TableCell>
-                                    <TableCell>
-                                      <Select value={editUserRole} onValueChange={(value: UserRole) => setEditUserRole(value)}>
-                                        <SelectTrigger>
-                                          <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="admin">Admin</SelectItem>
-                                          <SelectItem value="data_entry_supervisor">Data Entry Supervisor</SelectItem>
-                                          <SelectItem value="regulatory">Regulatory</SelectItem>
-                                          <SelectItem value="manager">Manager</SelectItem>
-                                          <SelectItem value="staff">Staff</SelectItem>
-                                        </SelectContent>
-                                      </Select>
-                                    </TableCell>
+              {/* User Permissions Table (Desktop Only) */}
+              {!isMobile && showPermissionsTable ? (
+                <div className="space-y-2">
+                  <h4 className="font-medium">User Permissions</h4>
+                  {users.length === 0 ? (
+                    <p className="text-muted-foreground">No users created yet.</p>
+                  ) : (
+                    <div className="border rounded-lg overflow-hidden">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Name</TableHead>
+                            <TableHead>Username</TableHead>
+                            <TableHead>Role</TableHead>
+                            <TableHead>Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {users.map((user, idx) => (
+                            <TableRow key={user.id || user.username || idx}>
+                              {editingUserId === user.id ? (
+                                <>
+                                  <TableCell>
+                                    <Input
+                                      value={editUserName}
+                                      onChange={(e) => setEditUserName(e.target.value)}
+                                      placeholder="Full Name"
+                                    />
+                                  </TableCell>
+                                  <TableCell>
+                                    <Input
+                                      value={editUserUsername}
+                                      onChange={(e) => setEditUserUsername(e.target.value)}
+                                      placeholder="Username"
+                                    />
+                                  </TableCell>
+                                  <TableCell>
+                                    <Select value={editUserRole} onValueChange={(value: UserRole) => setEditUserRole(value)}>
+                                      <SelectTrigger>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="admin">Admin</SelectItem>
+                                        <SelectItem value="data_entry_supervisor">Data Entry Supervisor</SelectItem>
+                                        <SelectItem value="regulatory">Regulatory</SelectItem>
+                                        <SelectItem value="manager">Manager</SelectItem>
+                                        <SelectItem value="staff">Staff</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </TableCell>
 
-                                    <TableCell>
-                                      <div className="flex gap-1">
-                                        <Button size="sm" onClick={handleSaveUserEdit}>Save</Button>
-                                        <Button size="sm" variant="outline" onClick={handleCancelUserEdit}>Cancel</Button>
-                                      </div>
-                                    </TableCell>
-                                  </>
-                                ) : (
-                                  <>
-                                    <TableCell>{user.name}</TableCell>
-                                    <TableCell>@{user.username}</TableCell>
-                                    <TableCell className="capitalize">{user.role.replace('_', ' ')}</TableCell>
-                                    <TableCell>
-                                      <div className="flex gap-1">
-                                        <Button size="sm" variant="outline" onClick={() => handleEditUser(user.id)}>
-                                          <Edit className="h-3 w-3" />
+                                  <TableCell>
+                                    <div className="flex gap-1">
+                                      <Button size="sm" onClick={handleSaveUserEdit}>Save</Button>
+                                      <Button size="sm" variant="outline" onClick={handleCancelUserEdit}>Cancel</Button>
+                                    </div>
+                                  </TableCell>
+                                </>
+                              ) : (
+                                <>
+                                  <TableCell>{user.name}</TableCell>
+                                  <TableCell>@{user.username}</TableCell>
+                                  <TableCell className="capitalize">{user.role.replace('_', ' ')}</TableCell>
+                                  <TableCell>
+                                    <div className="flex gap-1">
+                                      <Button size="sm" variant="outline" onClick={() => handleEditUser(user.id)}>
+                                        <Edit className="h-3 w-3" />
+                                      </Button>
+                                      {user.id !== 'admin' && (
+                                        <Button size="sm" variant="destructive" onClick={() => handleDeleteUser(user.id)}>
+                                          <UserMinus className="h-3 w-3" />
                                         </Button>
-                                        {user.id !== 'admin' && (
-                                          <Button size="sm" variant="destructive" onClick={() => handleDeleteUser(user.id)}>
-                                            <UserMinus className="h-3 w-3" />
-                                          </Button>
-                                        )}
-                                      </div>
-                                    </TableCell>
-                                  </>
-                                )}
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <h4 className="font-medium">Existing Users</h4>
-                    {users.length === 0 ? (
-                      <p className="text-muted-foreground">No users created yet.</p>
-                    ) : (
-                      <div className="space-y-2 max-h-96 overflow-y-auto">
-                        {users.map(user => (
-                          <div key={user.id} className={`flex items-center justify-between border p-3 rounded ${isMobile ? 'flex-col items-stretch gap-4' : ''}`}>
-                            {editingUserId === user.id ? (
-                              <div className={`flex gap-2 flex-1 ${isMobile ? 'flex-col' : ''}`}>
-                                <Input
-                                  value={editUserName}
-                                  onChange={(e) => setEditUserName(e.target.value)}
-                                  placeholder="Full Name"
-                                  className="flex-1"
-                                />
-                                <Input
-                                  value={editUserUsername}
-                                  onChange={(e) => setEditUserUsername(e.target.value)}
-                                  placeholder="Username"
-                                  className="flex-1"
-                                />
-                                <Input
-                                  type="password"
-                                  value={editUserPassword}
-                                  onChange={(e) => setEditUserPassword(e.target.value)}
-                                  placeholder="New Password (optional)"
-                                  className="flex-1"
-                                />
-                                <Select value={editUserRole} onValueChange={(value: UserRole) => setEditUserRole(value)}>
-                                  <SelectTrigger className="w-32">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="admin">Admin</SelectItem>
-                                    <SelectItem value="data_entry_supervisor">Data Entry Supervisor</SelectItem>
-                                    <SelectItem value="regulatory">Regulatory</SelectItem>
-                                    <SelectItem value="manager">Manager</SelectItem>
-                                    <SelectItem value="staff">Staff</SelectItem>
-                                  </SelectContent>
-                                </Select>
-
-                                <Button size="sm" onClick={handleSaveUserEdit}>Save</Button>
-                                <Button size="sm" variant="outline" onClick={handleCancelUserEdit}>Cancel</Button>
-                              </div>
-                            ) : (
-                              <>
-                                <div>
-                                  <div className="font-medium">{user.name}</div>
-                                  <div className="text-sm text-muted-foreground">
-                                    @{user.username} • {user.role.replace('_', ' ')}
-                                  </div>
-                                </div>
-                                <div className="flex gap-1">
-                                  <Button size="sm" variant="outline" onClick={() => handleEditUser(user.id)}>
-                                    <Edit className="h-3 w-3" />
-                                  </Button>
-                                  {user.id !== 'admin' && (
-                                    <Button size="sm" variant="destructive" onClick={() => handleDeleteUser(user.id)}>
-                                      <UserMinus className="h-3 w-3" />
-                                    </Button>
-                                  )}
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Dialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add New User</DialogTitle>
-                  <DialogDescription>Enter the details for the new user.</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <Select value={newUserName} onValueChange={(value) => setNewUserName(value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select Employee" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {employees.filter(employee => employee.status === 'active').map(employee => (
-                        <SelectItem key={employee.id} value={employee.name}>
-                          {employee.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    value={newUserUsername}
-                    onChange={(e) => setNewUserUsername(e.target.value)}
-                    placeholder="Username"
-                  />
-                  <Input
-                    type="password"
-                    value={newUserPassword}
-                    onChange={(e) => setNewUserPassword(e.target.value)}
-                    placeholder="Password"
-                  />
-                  <Select value={newUserRole} onValueChange={(value: UserRole) => setNewUserRole(value)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="data_entry_supervisor">Data Entry Supervisor</SelectItem>
-                      <SelectItem value="regulatory">Regulatory</SelectItem>
-                      <SelectItem value="manager">Manager</SelectItem>
-                      <SelectItem value="staff">Staff</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsAddUserDialogOpen(false)}>Cancel</Button>
-                  <Button onClick={handleCreateUser}>Create User</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-
-            {/* Live Restore Progress Dialog */}
-            <Dialog open={isRestoringLive} onOpenChange={(v) => { if (!v) setIsRestoringLive(false); }}>
-              <DialogContent className="max-w-lg">
-                <DialogHeader>
-                  <DialogTitle>Restoring Data</DialogTitle>
-                  <DialogDescription>
-                    The restore is running — progress updates will appear here.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-3 py-2">
-                  <div className="text-sm">Phase: <strong>{restoreProgress.phase}</strong></div>
-                  <div className="text-sm">Status: {restoreProgress.message || ''}</div>
-                  <div className="text-sm">Completed: {restoreProgress.done || 0}{restoreProgress.total ? ` / ${restoreProgress.total}` : ''}</div>
-                  {restoreProgress.errors && restoreProgress.errors.length > 0 && (
-                    <div className="pt-2">
-                      <div className="font-medium">Errors</div>
-                      <ul className="text-xs text-destructive max-h-40 overflow-auto">
-                        {restoreProgress.errors.map((e: any, i: number) => (
-                          <li key={i} className="truncate">{e.section}: {e.id || ''} — {String(e.error || e.message || e)}</li>
-                        ))}
-                      </ul>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                </>
+                              )}
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
                     </div>
                   )}
                 </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => { setIsRestoringLive(false); }}>
-                    Close
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+              ) : (
+                <div className="space-y-2">
+                  <h4 className="font-medium">Existing Users</h4>
+                  {users.length === 0 ? (
+                    <p className="text-muted-foreground">No users created yet.</p>
+                  ) : (
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {users.map(user => (
+                        <div key={user.id} className={`flex items-center justify-between border p-3 rounded ${isMobile ? 'flex-col items-stretch gap-4' : ''}`}>
+                          {editingUserId === user.id ? (
+                            <div className={`flex gap-2 flex-1 ${isMobile ? 'flex-col' : ''}`}>
+                              <Input
+                                value={editUserName}
+                                onChange={(e) => setEditUserName(e.target.value)}
+                                placeholder="Full Name"
+                                className="flex-1"
+                              />
+                              <Input
+                                value={editUserUsername}
+                                onChange={(e) => setEditUserUsername(e.target.value)}
+                                placeholder="Username"
+                                className="flex-1"
+                              />
+                              <Input
+                                type="password"
+                                value={editUserPassword}
+                                onChange={(e) => setEditUserPassword(e.target.value)}
+                                placeholder="New Password (optional)"
+                                className="flex-1"
+                              />
+                              <Select value={editUserRole} onValueChange={(value: UserRole) => setEditUserRole(value)}>
+                                <SelectTrigger className="w-32">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="admin">Admin</SelectItem>
+                                  <SelectItem value="data_entry_supervisor">Data Entry Supervisor</SelectItem>
+                                  <SelectItem value="regulatory">Regulatory</SelectItem>
+                                  <SelectItem value="manager">Manager</SelectItem>
+                                  <SelectItem value="staff">Staff</SelectItem>
+                                </SelectContent>
+                              </Select>
 
-            <div className="flex justify-end">
-              <Button
-                onClick={handleSave}
-                className="bg-gradient-primary hover:scale-105 transition-all duration-300 shadow-medium"
-                disabled={isLoading}
-              >
-                <Save className="h-4 w-4 mr-2" />
-                Save Settings
-              </Button>
-            </div>
+                              <Button size="sm" onClick={handleSaveUserEdit}>Save</Button>
+                              <Button size="sm" variant="outline" onClick={handleCancelUserEdit}>Cancel</Button>
+                            </div>
+                          ) : (
+                            <>
+                              <div>
+                                <div className="font-medium">{user.name}</div>
+                                <div className="text-sm text-muted-foreground">
+                                  @{user.username} • {user.role.replace('_', ' ')}
+                                </div>
+                              </div>
+                              <div className="flex gap-1">
+                                <Button size="sm" variant="outline" onClick={() => handleEditUser(user.id)}>
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                                {user.id !== 'admin' && (
+                                  <Button size="sm" variant="destructive" onClick={() => handleDeleteUser(user.id)}>
+                                    <UserMinus className="h-3 w-3" />
+                                  </Button>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Dialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add New User</DialogTitle>
+                <DialogDescription>Enter the details for the new user.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <Select value={newUserName} onValueChange={(value) => setNewUserName(value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Employee" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employees.filter(employee => employee.status === 'active').map(employee => (
+                      <SelectItem key={employee.id} value={employee.name}>
+                        {employee.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  value={newUserUsername}
+                  onChange={(e) => setNewUserUsername(e.target.value)}
+                  placeholder="Username"
+                />
+                <Input
+                  type="password"
+                  value={newUserPassword}
+                  onChange={(e) => setNewUserPassword(e.target.value)}
+                  placeholder="Password"
+                />
+                <Select value={newUserRole} onValueChange={(value: UserRole) => setNewUserRole(value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="data_entry_supervisor">Data Entry Supervisor</SelectItem>
+                    <SelectItem value="regulatory">Regulatory</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="staff">Staff</SelectItem>
+                  </SelectContent>
+                </Select>
+
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsAddUserDialogOpen(false)}>Cancel</Button>
+                <Button onClick={handleCreateUser}>Create User</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Live Restore Progress Dialog */}
+          <Dialog open={isRestoringLive} onOpenChange={(v) => { if (!v) setIsRestoringLive(false); }}>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Restoring Data</DialogTitle>
+                <DialogDescription>
+                  The restore is running — progress updates will appear here.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 py-2">
+                <div className="text-sm">Phase: <strong>{restoreProgress.phase}</strong></div>
+                <div className="text-sm">Status: {restoreProgress.message || ''}</div>
+                <div className="text-sm">Completed: {restoreProgress.done || 0}{restoreProgress.total ? ` / ${restoreProgress.total}` : ''}</div>
+                {restoreProgress.errors && restoreProgress.errors.length > 0 && (
+                  <div className="pt-2">
+                    <div className="font-medium">Errors</div>
+                    <ul className="text-xs text-destructive max-h-40 overflow-auto">
+                      {restoreProgress.errors.map((e: any, i: number) => (
+                        <li key={i} className="truncate">{e.section}: {e.id || ''} — {String(e.error || e.message || e)}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setIsRestoringLive(false); }}>
+                  Close
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <div className="flex justify-end">
+            <Button
+              onClick={handleSave}
+              className="bg-gradient-primary hover:scale-105 transition-all duration-300 shadow-medium"
+              disabled={isLoading}
+            >
+              <Save className="h-4 w-4 mr-2" />
+              Save Settings
+            </Button>
+          </div>
         </div>
       )}
 

@@ -178,16 +178,6 @@ export const ReturnWaybillForm = ({
 
   const formContent = (
     <>
-      {!isEditMode && (
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <MapPin className="h-5 w-5" />
-            Prepare Return Waybill - {site.name}
-          </DialogTitle>
-          <p className="text-muted-foreground">{site.location}</p>
-        </DialogHeader>
-      )}
-
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Driver and Vehicle */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -207,25 +197,25 @@ export const ReturnWaybillForm = ({
             </Select>
           </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="vehicle">Vehicle *</Label>
-              <Select value={vehicle} onValueChange={setVehicle}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select vehicle" />
-                </SelectTrigger>
-                <SelectContent>
-                  {vehicles && vehicles.length > 0 ? (
-                    vehicles.map((vehicleOption) => (
-                      <SelectItem key={vehicleOption.id} value={vehicleOption.name}>
-                        {vehicleOption.name}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <SelectItem value="no-vehicles" disabled>No vehicles available</SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="vehicle">Vehicle *</Label>
+            <Select value={vehicle} onValueChange={setVehicle}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select vehicle" />
+              </SelectTrigger>
+              <SelectContent>
+                {vehicles && vehicles.length > 0 ? (
+                  vehicles.map((vehicleOption) => (
+                    <SelectItem key={vehicleOption.id} value={vehicleOption.name}>
+                      {vehicleOption.name}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="no-vehicles" disabled>No vehicles available</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* Purpose, Service, and Return Date */}
@@ -334,31 +324,31 @@ export const ReturnWaybillForm = ({
         </div>
 
         {/* Summary */}
-          {selectedItems.length > 0 && (
-            <div className="p-4 bg-primary/5 rounded-lg">
-              <h4 className="font-medium mb-2">Return Summary</h4>
-              <div className="space-y-2">
-                {selectedItems.map((item) => {
-                  const material = materialsAtSite.find(m => m.assetId === item.assetId);
-                  return (
-                    <div key={item.assetId} className="flex justify-between items-center text-sm">
-                      <span>{material?.itemName}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="w-16 text-center font-medium">{item.quantity}</span>
-                        <span>{material?.unit}</span>
-                      </div>
+        {selectedItems.length > 0 && (
+          <div className="p-4 bg-primary/5 rounded-lg">
+            <h4 className="font-medium mb-2">Return Summary</h4>
+            <div className="space-y-2">
+              {selectedItems.map((item) => {
+                const material = materialsAtSite.find(m => m.assetId === item.assetId);
+                return (
+                  <div key={item.assetId} className="flex justify-between items-center text-sm">
+                    <span>{material?.itemName}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="w-16 text-center font-medium">{item.quantity}</span>
+                      <span>{material?.unit}</span>
                     </div>
-                  );
-                })}
-              </div>
-              <div className="border-t pt-2 mt-2">
-                <div className="flex justify-between font-medium">
-                  <span>Total Items:</span>
-                  <span>{selectedItems.reduce((sum, item) => sum + item.quantity, 0)}</span>
-                </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="border-t pt-2 mt-2">
+              <div className="flex justify-between font-medium">
+                <span>Total Items:</span>
+                <span>{selectedItems.reduce((sum, item) => sum + item.quantity, 0)}</span>
               </div>
             </div>
-          )}
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex justify-end gap-4 pt-4">

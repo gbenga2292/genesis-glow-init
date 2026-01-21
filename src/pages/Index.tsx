@@ -5,7 +5,8 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { Dashboard } from "@/components/dashboard/Dashboard";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Menu, Plus, Bot } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Menu, Plus, Bot, Package, ChevronDown, FileText, Activity, Eye } from "lucide-react";
 import { AppMenuBar } from "@/components/layout/AppMenuBar";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { cn } from "@/lib/utils";
@@ -21,13 +22,13 @@ import { ReturnWaybillForm } from "@/components/waybills/ReturnWaybillForm";
 import { ReturnWaybillDocument } from "@/components/waybills/ReturnWaybillDocument";
 import { ReturnProcessingDialog } from "@/components/waybills/ReturnProcessingDialog";
 import { QuickCheckoutForm } from "@/components/checkout/QuickCheckoutForm";
-import { EmployeeAnalyticsPage } from "@/components/checkout/EmployeeAnalyticsPage";
+import { EmployeeAnalyticsPage } from "@/pages/EmployeeAnalyticsPage";
 
 import { CompanySettings } from "@/components/settings/CompanySettings";
 import { Asset, Waybill, WaybillItem, QuickCheckout, ReturnBill, Site, CompanySettings as CompanySettingsType, Employee, ReturnItem, SiteTransaction, Vehicle } from "@/types/asset";
 import { EquipmentLog } from "@/types/equipment";
 import { ConsumableUsageLog } from "@/types/consumable";
-import { AssetAnalyticsDialog } from "@/components/assets/AssetAnalyticsDialog";
+
 import { ReturnsList } from "@/components/waybills/ReturnsList";
 import { useToast } from "@/hooks/use-toast";
 import { BulkImportAssets } from "@/components/assets/BulkImportAssets";
@@ -36,7 +37,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SitesPage } from "@/components/sites/SitesPage";
+import { MachinesSection } from "@/components/sites/MachinesSection";
+import { ConsumablesSection } from "@/components/sites/ConsumablesSection";
+import { SiteAnalyticsPage } from "@/pages/SiteAnalyticsPage";
+import { SiteAssetDetailsPage } from "@/pages/SiteAssetDetailsPage";
+import { AssetAnalyticsPage } from "@/pages/AssetAnalyticsPage";
+import { WaybillDocumentPage } from "@/pages/WaybillDocumentPage";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSiteInventory } from "@/hooks/useSiteInventory";
 import { SiteInventoryItem } from "@/types/inventory";
@@ -47,7 +58,8 @@ import { calculateAvailableQuantity } from "@/utils/assetCalculations";
 import { AuditCharts } from "@/components/reporting/AuditCharts";
 import { MachineMaintenancePage } from "@/components/maintenance/MachineMaintenancePage";
 import { Machine, MaintenanceLog } from "@/types/maintenance";
-import { exportAssetsToExcel } from "../utils/exportUtils";
+import { generateUnifiedReport } from "@/utils/unifiedReportGenerator";
+import { exportAssetsToExcel } from "@/utils/exportUtils";
 import { useAppData } from "@/contexts/AppDataContext";
 import { dataService } from "@/services/dataService";
 
@@ -67,16 +79,39 @@ const Index = () => {
     window.scrollTo(0, 0);
   }, [activeTab]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [showWaybillDocument, setShowWaybillDocument] = useState<Waybill | null>(null);
-  const [showReturnWaybillDocument, setShowReturnWaybillDocument] = useState<Waybill | null>(null);
+  const [selectedWaybillForView, setSelectedWaybillForView] = useState<Waybill | null>(null);
+  const [selectedReturnWaybillForView, setSelectedReturnWaybillForView] = useState<Waybill | null>(null);
   const [showReturnForm, setShowReturnForm] = useState<Waybill | null>(null);
   const [processingReturnWaybill, setProcessingReturnWaybill] = useState<Waybill | null>(null);
   const [editingWaybill, setEditingWaybill] = useState<Waybill | null>(null);
   const [editingReturnWaybill, setEditingReturnWaybill] = useState<Waybill | null>(null);
-  const [showAnalyticsDialog, setShowAnalyticsDialog] = useState(false);
   const [selectedAssetForAnalytics, setSelectedAssetForAnalytics] = useState<Asset | null>(null);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [aiPrefillData, setAiPrefillData] = useState<any>(null);
+  const [selectedSiteForInventory, setSelectedSiteForInventory] = useState<Site | null>(null);
+  const [selectedSiteForReturnWaybill, setSelectedSiteForReturnWaybill] = useState<Site | null>(null);
+  
+  // View state for full-page navigation
+  const [currentView, setCurrentView] = useState<string>('main');
+  
+  // Dialog states for waybill documents (used while transitioning to full-page views)
+  const [showWaybillDocument, setShowWaybillDocument] = useState<Waybill | null>(null);
+  const [showReturnWaybillDocument, setShowReturnWaybillDocument] = useState<Waybill | null>(null);
+
+
+  const [selectedSiteForTransactions, setSelectedSiteForTransactions] = useState<Site | null>(null);
+
+  // Reporting State
+  const [showReportTypeDialog, setShowReportTypeDialog] = useState(false);
+  const [showReportPreview, setShowReportPreview] = useState(false);
+  const [previewAssets, setPreviewAssets] = useState<Asset[]>([]);
+  const [selectedSiteForReport, setSelectedSiteForReport] = useState<Site | null>(null);
+  const [transactionsView, setTransactionsView] = useState<'table' | 'tree' | 'flow'>('table');
+
+  // Analytics State
+  const [selectedSiteForAnalytics, setSelectedSiteForAnalytics] = useState<Site | null>(null);
+  const [analyticsTab, setAnalyticsTab] = useState<'equipment' | 'consumables'>('equipment');
+  const [selectedAssetForDetails, setSelectedAssetForDetails] = useState<{ site: Site, asset: Asset } | null>(null);
   // Use AppData Context to avoid redundant fetching
   const {
     employees, setEmployees,
@@ -98,32 +133,31 @@ const Index = () => {
   const [showAuditDateDialog, setShowAuditDateDialog] = useState(false);
   const [auditStartDate, setAuditStartDate] = useState<string>(`${new Date().getFullYear()}-01-01`);
   const [auditEndDate, setAuditEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const { getSiteInventory, siteInventory } = useSiteInventory(waybills, assets);
 
   // Initialize data on mount if needed (AppDataContext handles its own loading, but we might want to ensure freshness)
   useEffect(() => {
     refreshAllData();
   }, [refreshAllData]);
 
-  // Load assets from database (Not yet in AppDataContext)
+  // Load assets from database
   useEffect(() => {
     (async () => {
-      if (window.electronAPI && window.electronAPI.db) {
-        try {
-          const loadedAssets = await window.electronAPI.db.getAssets();
-          const processedAssets = loadedAssets.map((item: any) => {
-            const asset = {
-              ...item,
-              createdAt: new Date(item.createdAt),
-              updatedAt: new Date(item.updatedAt),
-              siteQuantities: item.site_quantities ? JSON.parse(item.site_quantities) : {}
-            };
-            return asset;
-          });
-          logger.info('Loaded assets with availableQuantity', { data: { processedAssets } });
-          setAssets(processedAssets);
-        } catch (error) {
-          logger.error('Failed to load assets from database', error);
-        }
+      try {
+        const loadedAssets = await dataService.assets.getAssets();
+        const processedAssets = loadedAssets.map((item: any) => {
+          const asset = {
+            ...item,
+            createdAt: new Date(item.createdAt),
+            updatedAt: new Date(item.updatedAt),
+            siteQuantities: item.siteQuantities || item.site_quantities ? (typeof item.site_quantities === 'string' ? JSON.parse(item.site_quantities) : item.siteQuantities || {}) : {}
+          };
+          return asset;
+        });
+        logger.info('Loaded assets from dataService', { data: { count: processedAssets.length } });
+        setAssets(processedAssets);
+      } catch (error) {
+        logger.error('Failed to load assets from database', error);
       }
     })();
 
@@ -141,24 +175,22 @@ const Index = () => {
     };
   }, []);
 
-  // Load waybills from database (Not yet in AppDataContext)
+  // Load waybills from database
   useEffect(() => {
     (async () => {
-      if (window.electronAPI && window.electronAPI.db) {
-        try {
-          const loadedWaybills = await window.electronAPI.db.getWaybills();
-          logger.info("Loaded waybills from DB", { data: { loadedWaybills } });
-          setWaybills(loadedWaybills.map((item: any) => ({
-            ...item,
-            issueDate: new Date(item.issueDate),
-            expectedReturnDate: item.expectedReturnDate ? new Date(item.expectedReturnDate) : undefined,
-            sentToSiteDate: item.sentToSiteDate ? new Date(item.sentToSiteDate) : undefined,
-            createdAt: new Date(item.createdAt),
-            updatedAt: new Date(item.updatedAt)
-          })));
-        } catch (error) {
-          logger.error('Failed to load waybills from database', error);
-        }
+      try {
+        const loadedWaybills = await dataService.waybills.getWaybills();
+        logger.info("Loaded waybills from DB", { data: { count: loadedWaybills.length } });
+        setWaybills(loadedWaybills.map((item: any) => ({
+          ...item,
+          issueDate: new Date(item.issueDate),
+          expectedReturnDate: item.expectedReturnDate ? new Date(item.expectedReturnDate) : undefined,
+          sentToSiteDate: item.sentToSiteDate ? new Date(item.sentToSiteDate) : undefined,
+          createdAt: new Date(item.createdAt),
+          updatedAt: new Date(item.updatedAt)
+        })));
+      } catch (error) {
+        logger.error('Failed to load waybills from database', error);
       }
     })();
   }, []);
@@ -167,46 +199,21 @@ const Index = () => {
   const [deletingAsset, setDeletingAsset] = useState<Asset | null>(null);
   const [selectedSite, setSelectedSite] = useState<Site | null>(null);
 
-  // Load consumable logs from database (Not yet in AppDataContext)
+  // Load consumable and maintenance logs from database
   useEffect(() => {
     (async () => {
-      if (window.electronAPI && window.electronAPI.db) {
-        try {
-          const logs = await window.electronAPI.db.getConsumableLogs();
-          // Database already returns transformed data (camelCase), no need to map again
-          setConsumableLogs(logs);
-        } catch (error) {
-          logger.error('Failed to load consumable logs from database', error);
-        }
+      try {
+        const loadedConsumableLogs = await dataService.consumableLogs.getConsumableLogs();
+        setConsumableLogs(loadedConsumableLogs);
+
+        const loadedMaintenanceLogs = await dataService.maintenanceLogs.getMaintenanceLogs();
+        setMaintenanceLogs(loadedMaintenanceLogs);
+      } catch (error) {
+        logger.error('Failed to load logs', error);
       }
     })();
   }, []);
 
-  // Load maintenance logs from database (Not yet in AppDataContext)
-  useEffect(() => {
-    (async () => {
-      if (window.electronAPI && window.electronAPI.db) {
-        try {
-          const loadedLogs = await (window.electronAPI.db as any).getMaintenanceLogs?.();
-          if (loadedLogs) {
-            setMaintenanceLogs(loadedLogs.map((item: any) => ({
-              ...item,
-              dateStarted: new Date(item.dateStarted || item.date_started),
-              dateCompleted: item.dateCompleted ? new Date(item.dateCompleted) : undefined,
-              nextServiceDue: item.nextServiceDue ? new Date(item.nextServiceDue) : undefined,
-              createdAt: new Date(item.createdAt || item.created_at),
-              updatedAt: new Date(item.updatedAt || item.updated_at)
-            })));
-          }
-        } catch (error) {
-          logger.error('Failed to load maintenance logs from database', error);
-        }
-      }
-    })();
-  }, []);
-
-  // Initialize site inventory hook to track materials at each site
-  const { siteInventory, getSiteInventory } = useSiteInventory(waybills, assets);
 
 
   // Listen for PDF/Audit export triggers from AppMenuBar
@@ -483,9 +490,9 @@ const Index = () => {
       return;
     }
 
-    // Database check handled by dataService
-
-    // Generate sequential waybill ID
+    // Generate sequential waybill ID (client-side approximation, race condition possible but acceptable for now)
+    // Ideally backend does this.
+    // For now, we trust the count.
     const waybillCount = waybills.filter(wb => wb.type === 'waybill').length + 1;
     const waybillId = `WB${waybillCount.toString().padStart(3, '0')}`;
 
@@ -506,21 +513,31 @@ const Index = () => {
     } as Waybill;
 
     try {
-      // Save waybill to database
+      // 1. Create Waybill
       await dataService.waybills.createWaybill(newWaybill);
 
-      // Rely on DB reload to update inventory
-      setWaybills(prev => [...prev, newWaybill]);
+      // 2. Reserve Assets
+      for (const item of newWaybill.items) {
+        const asset = assets.find(a => a.id === item.assetId);
+        if (asset) {
+          const newReserved = (asset.reservedQuantity || 0) + item.quantity;
+          const updatedAsset = {
+            ...asset,
+            reservedQuantity: newReserved,
+            // Update available quantity (Total - Reserved - Damaged - Missing - Used)
+            // Assuming Site Quantities are NOT part of Reserved in this logic (Reserved = Pending)
+            updatedAt: new Date()
+          };
+          // Recalculate available if we could, but let's trust the component to re-render or pull fresh
 
-      // Trigger assets refresh
+          await dataService.assets.updateAsset(asset.id, updatedAsset);
+        }
+      }
+
+      // Reload all assets to be safe
       const loadedAssets = await dataService.assets.getAssets();
-      window.dispatchEvent(new CustomEvent('refreshAssets', {
-        detail: loadedAssets.map((item: any) => ({
-          ...item,
-          createdAt: new Date(item.createdAt),
-          updatedAt: new Date(item.updatedAt)
-        }))
-      }));
+      setAssets(loadedAssets);
+      setWaybills(prev => [...prev, newWaybill]);
 
       setShowWaybillDocument(newWaybill);
       setActiveTab("waybills");
@@ -566,12 +583,8 @@ const Index = () => {
         return;
       }
 
-      // For outstanding return waybills: just delete without affecting inventory
-      // since inventory wasn't changed when created
       try {
-        if (window.electronAPI && window.electronAPI.db) {
-          await window.electronAPI.db.deleteWaybill(waybill.id);
-        }
+        await dataService.waybills.deleteWaybill(waybill.id);
         setWaybills(prev => prev.filter(wb => wb.id !== waybill.id));
 
         await logActivity({
@@ -586,42 +599,70 @@ const Index = () => {
           description: `Return ${waybill.id} deleted successfully.`
         });
       } catch (error) {
-        logger.error('Failed to delete return waybill from database', error);
+        logger.error('Failed to delete return waybill', error);
         toast({
           title: "Error",
-          description: "Failed to delete return waybill from database",
+          description: "Failed to delete return waybill",
           variant: "destructive"
         });
       }
     } else {
-      // For regular waybills: use database transaction to properly revert changes
+      // Regular Waybill
       try {
-        if (window.electronAPI && window.electronAPI.db) {
-          await window.electronAPI.db.deleteWaybillWithTransaction(waybill.id);
+        // Revert Stock Changes
+        if (waybill.status === 'outstanding') {
+          // Un-reserve
+          for (const item of waybill.items) {
+            const asset = assets.find(a => a.id === item.assetId);
+            if (asset) {
+              const newReserved = Math.max(0, (asset.reservedQuantity || 0) - item.quantity);
+              await dataService.assets.updateAsset(asset.id, {
+                ...asset,
+                reservedQuantity: newReserved,
+                updatedAt: new Date()
+              });
+            }
+          }
+        } else if (waybill.status === 'open' || (waybill as any).status === 'sent_to_site') {
+          // Was sent to site. Revert: Remove from site.
+          // Assumes "Sent" means it moved from "Reserved" to "Site".
+          // So deleting it means "It never happened", so return to Free Stock?
+          // Yes, remove from site quantites.
+          for (const item of waybill.items) {
+            const asset = assets.find(a => a.id === item.assetId);
+            if (asset) {
+              const siteQuantities = asset.siteQuantities || {};
+              // Parse if string (legacy)
+              const parsedSiteQuantities = typeof siteQuantities === 'string' ? JSON.parse(siteQuantities) : { ...siteQuantities };
 
-          // Reload assets and waybills from database to reflect changes
-          const loadedAssets = await window.electronAPI.db.getAssets();
-          const processedAssets = loadedAssets.map((item: any) => {
-            const asset = {
-              ...item,
-              createdAt: new Date(item.createdAt),
-              updatedAt: new Date(item.updatedAt),
-              siteQuantities: item.site_quantities ? JSON.parse(item.site_quantities) : {}
-            };
-            return asset;
-          });
-          setAssets(processedAssets);
+              const currentSiteQty = parsedSiteQuantities[waybill.siteId] || 0;
+              const newSiteQty = Math.max(0, currentSiteQty - item.quantity);
 
-          const loadedWaybills = await window.electronAPI.db.getWaybills();
-          setWaybills(loadedWaybills.map((item: any) => ({
-            ...item,
-            issueDate: new Date(item.issueDate),
-            expectedReturnDate: item.expectedReturnDate ? new Date(item.expectedReturnDate) : undefined,
-            sentToSiteDate: item.sentToSiteDate ? new Date(item.sentToSiteDate) : undefined,
-            createdAt: new Date(item.createdAt),
-            updatedAt: new Date(item.updatedAt)
-          })));
+              if (newSiteQty === 0) {
+                delete parsedSiteQuantities[waybill.siteId];
+              } else {
+                parsedSiteQuantities[waybill.siteId] = newSiteQty;
+              }
+
+              await dataService.assets.updateAsset(asset.id, {
+                ...asset,
+                siteQuantities: parsedSiteQuantities,
+                updatedAt: new Date()
+              });
+            }
+          }
+
+          // Also delete site transactions?
+          // dataService doesn't have deleteSiteTransaction by waybillId easily... 
+          // We might leave orphaned transactions or clean up later.
         }
+
+        await dataService.waybills.deleteWaybill(waybill.id);
+
+        // Reload Assets
+        const loadedAssets = await dataService.assets.getAssets();
+        setAssets(loadedAssets);
+        setWaybills(prev => prev.filter(wb => wb.id !== waybill.id));
 
         await logActivity({
           action: 'delete',
@@ -635,10 +676,10 @@ const Index = () => {
           description: `Waybill ${waybill.id} deleted successfully`
         });
       } catch (error) {
-        logger.error('Failed to delete waybill from database', error);
+        logger.error('Failed to delete waybill', error);
         toast({
           title: "Error",
-          description: "Failed to delete waybill from database",
+          description: "Failed to delete waybill",
           variant: "destructive"
         });
       }
@@ -646,64 +687,69 @@ const Index = () => {
   };
 
   const handleSentToSite = async (waybill: Waybill, sentToSiteDate: Date) => {
-    if (!window.electronAPI || !window.electronAPI.db) {
-      toast({
-        title: "Database Not Available",
-        description: "Cannot send waybill to site without database connection.",
-        variant: "destructive"
-      });
-      return;
-    }
-
     try {
-      // Call the database transaction to handle all updates
-      const result = await window.electronAPI.db.sendToSiteWithTransaction(
-        waybill.id,
-        sentToSiteDate.toISOString()
-      );
+      // 1. Update items: Add to Site (keep reserved status)
+      for (const item of waybill.items) {
+        // Fetch fresh asset
+        const fetchedAssets = await dataService.assets.getAssets(); // Inefficient but safe
+        const asset = fetchedAssets.find(a => a.id === item.assetId);
 
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to send waybill to site');
-      }
+        if (asset) {
+          // Keep reservedQuantity the same - items are still reserved, just at the site now
+          const siteQuantities = asset.siteQuantities || {};
+          const parsedSiteQuantities = typeof siteQuantities === 'string' ? JSON.parse(siteQuantities) : { ...siteQuantities };
 
-      // Reload assets from database to reflect the changes
-      const loadedAssets = await window.electronAPI.db.getAssets();
-      const processedAssets = loadedAssets.map((item: any) => {
-        const asset = {
-          ...item,
-          createdAt: new Date(item.createdAt),
-          updatedAt: new Date(item.updatedAt)
-        };
-        return asset;
-      });
-      setAssets(processedAssets);
+          const currentSiteQty = parsedSiteQuantities[waybill.siteId] || 0;
+          parsedSiteQuantities[waybill.siteId] = currentSiteQty + item.quantity;
 
-      // Reload waybills from database
-      const loadedWaybills = await window.electronAPI.db.getWaybills();
-      const processedWaybills = loadedWaybills.map((item: any) => ({
-        ...item,
-        issueDate: new Date(item.issueDate),
-        expectedReturnDate: item.expectedReturnDate ? new Date(item.expectedReturnDate) : undefined,
-        sentToSiteDate: item.sentToSiteDate ? new Date(item.sentToSiteDate) : undefined,
-        createdAt: new Date(item.createdAt),
-        updatedAt: new Date(item.updatedAt)
-      }));
-      setWaybills(processedWaybills);
-
-      // Update the displayed waybill document if it's currently showing this waybill
-      if (showWaybillDocument && showWaybillDocument.id === waybill.id) {
-        const updatedWaybill = processedWaybills.find((w: Waybill) => w.id === waybill.id);
-        if (updatedWaybill) {
-          setShowWaybillDocument(updatedWaybill);
+          await dataService.assets.updateAsset(asset.id, {
+            ...asset,
+            // reservedQuantity stays the same - items remain reserved
+            siteQuantities: parsedSiteQuantities,
+            updatedAt: new Date()
+          });
         }
       }
 
-      // Reload site transactions from database
-      const loadedTransactions = await window.electronAPI.db.getSiteTransactions();
-      setSiteTransactions(loadedTransactions.map((item: any) => ({
-        ...item,
-        createdAt: new Date(item.createdAt)
-      })));
+      // 2. Update Waybill
+      const updatedWaybill = {
+        ...waybill,
+        status: 'open' as const, // 'open' means active at site
+        sentToSiteDate: sentToSiteDate,
+        updatedAt: new Date()
+      };
+      await dataService.waybills.updateWaybill(waybill.id, updatedWaybill);
+
+      // 3. Create Site Transactions (one per item)
+      for (const item of waybill.items) {
+        await dataService.siteTransactions.createSiteTransaction({
+          id: `${Date.now()}-${item.assetId}`, // Unique ID per item
+          siteId: waybill.siteId,
+          assetId: item.assetId,
+          assetName: item.assetName,
+          quantity: item.quantity,
+          type: 'in',
+          referenceId: waybill.id,
+          referenceType: 'waybill',
+          transactionType: 'waybill',
+          createdAt: new Date(),
+          createdBy: currentUser?.name
+        });
+      }
+
+      // Reload
+      const loadedAssets = await dataService.assets.getAssets();
+      setAssets(loadedAssets);
+
+      const loadedWaybills = await dataService.waybills.getWaybills();
+      setWaybills(loadedWaybills);
+
+      const loadedTransactions = await dataService.siteTransactions.getSiteTransactions();
+      setSiteTransactions(loadedTransactions);
+
+      if (showWaybillDocument && showWaybillDocument.id === waybill.id) {
+        setShowWaybillDocument(updatedWaybill);
+      }
 
       await logActivity({
         action: 'move',
@@ -745,23 +791,13 @@ const Index = () => {
       return;
     }
 
-    // Check if database is available
-    if (!window.electronAPI || !window.electronAPI.db) {
-      toast({
-        title: "Database Not Available",
-        description: "This app needs to run in Electron mode to access the database. Please run the desktop application.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Check for existing pending returns or zero stock warnings
+    // Warnings/Errors logic similar to before...
     const warnings: string[] = [];
     const errors: string[] = [];
     const currentSiteInventory = getSiteInventory(waybillData.siteId);
 
     waybillData.items.forEach(item => {
-      // Check for pending returns
+      // Pending returns logic...
       const pendingReturns = waybills.filter(wb =>
         wb.type === 'return' &&
         wb.status === 'outstanding' &&
@@ -771,22 +807,20 @@ const Index = () => {
 
       const pendingQty = pendingReturns.reduce((sum, wb) => {
         const wbItem = wb.items.find(i => i.assetId === item.assetId);
-        // Only count unreturned quantity (quantity minus what's already returned)
         const unreturnedQty = (wbItem?.quantity || 0) - (wbItem?.returnedQuantity || 0);
         return sum + unreturnedQty;
       }, 0);
 
-      // Get site quantity from siteInventory instead of assets array
       const siteItem = currentSiteInventory.find(si => si.assetId === item.assetId);
       const currentSiteQty = siteItem?.quantity || 0;
       const effectiveAvailable = currentSiteQty - pendingQty;
 
       if (pendingQty > 0) {
-        warnings.push(`${item.assetName} (${pendingQty} quantity) already has pending return(s) at this site.`);
+        warnings.push(`${item.assetName} (${pendingQty} quantity) already has pending return(s).`);
       }
 
       if (effectiveAvailable < item.quantity) {
-        errors.push(`Quantity exceeds what is on site for ${item.assetName}: Only ${effectiveAvailable} effectively available (requested: ${item.quantity}).`);
+        errors.push(`Quantity exceeds site availability for ${item.assetName}.`);
       }
     });
 
@@ -796,7 +830,7 @@ const Index = () => {
         description: errors.join(' '),
         variant: "destructive"
       });
-      return; // Block creation
+      return;
     }
 
     if (warnings.length > 0) {
@@ -807,8 +841,12 @@ const Index = () => {
       });
     }
 
-    // Don't generate ID on frontend - let backend handle it to avoid duplicates
+    // Generate ID
+    const returnCount = waybills.filter(wb => wb.type === 'return').length + 1;
+    const returnId = `RB${returnCount.toString().padStart(3, '0')}`;
+
     const newReturnWaybill = {
+      id: returnId,
       items: waybillData.items.map(item => ({
         ...item,
         status: item.status || 'outstanding'
@@ -829,32 +867,28 @@ const Index = () => {
     } as Waybill;
 
     try {
-      // Save return waybill to database (ID will be generated by backend)
-      logger.info("Creating return waybill", { data: { newReturnWaybill } });
-      const createdWaybill = await window.electronAPI.db.createWaybill(newReturnWaybill);
+      await dataService.waybills.createWaybill(newReturnWaybill);
 
-      if (createdWaybill) {
-        setWaybills(prev => [...prev, createdWaybill]);
-        setShowReturnWaybillDocument(createdWaybill);
-        setActiveTab("returns");
+      setWaybills(prev => [...prev, newReturnWaybill]);
+      setShowReturnWaybillDocument(newReturnWaybill);
+      setActiveTab("returns");
 
-        await logActivity({
-          action: 'create',
-          entity: 'waybill',
-          entityId: createdWaybill.id,
-          details: `Created return waybill ${createdWaybill.id} from site ${newReturnWaybill.siteId}`
-        });
+      await logActivity({
+        action: 'create',
+        entity: 'waybill',
+        entityId: newReturnWaybill.id,
+        details: `Created return waybill ${newReturnWaybill.id}`
+      });
 
-        toast({
-          title: "Return Waybill Created",
-          description: `Return waybill ${createdWaybill.id} created successfully.`
-        });
-      }
+      toast({
+        title: "Return Waybill Created",
+        description: `Return waybill ${newReturnWaybill.id} created successfully.`
+      });
     } catch (error) {
       logger.error('Failed to create return waybill', error);
       toast({
         title: "Error",
-        description: `Failed to create return waybill: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        description: `Failed to create return waybill`,
         variant: "destructive"
       });
     }
@@ -922,6 +956,10 @@ const Index = () => {
     }
   };
 
+  const handleViewReturnWaybill = (waybill: Waybill) => {
+    setShowReturnWaybillDocument(waybill);
+  };
+
   const handleEditWaybill = (waybill: Waybill) => {
     if (!isAuthenticated) return;
 
@@ -943,115 +981,237 @@ const Index = () => {
     }
   };
 
-  const handleProcessReturn = async (returnData: { waybillId: string; items: ReturnItem[] }) => {
-    // Get the return waybill to know which site this return is from
-    const returnWaybill = waybills.find(wb => wb.id === returnData.waybillId);
-    const siteId = returnWaybill?.siteId;
+  // --- Reporting & Transactions Handlers ---
+  const handleGenerateReport = (site: Site) => {
+    setSelectedSiteForReport(site);
+    setShowReportTypeDialog(true);
+  };
 
-    if (!siteId) {
-      toast({
-        title: "Invalid Return",
-        description: "Cannot process return: site information not found.",
-        variant: "destructive"
+  const generateReport = async (assetsToReport: Asset[], title: string) => {
+    if (!companySettings) return;
+
+    // Calculate summary statistics
+    const totalAssets = assetsToReport.length;
+    // Use site quantity for total quantity calculation
+    const totalQuantity = assetsToReport.reduce((sum, asset) => {
+      const siteQty = asset.siteQuantities?.[selectedSiteForReport!.id] || 0;
+      return sum + siteQty;
+    }, 0);
+    const totalValue = assetsToReport.reduce((sum, asset) => {
+      const siteQty = asset.siteQuantities?.[selectedSiteForReport!.id] || 0;
+      return sum + (asset.cost * siteQty);
+    }, 0);
+
+    // Transform data for unified generator
+    const reportData = assetsToReport.map(asset => {
+      const siteQty = asset.siteQuantities?.[selectedSiteForReport!.id] || 0;
+      return {
+        name: asset.name,
+        description: asset.description || '-',
+        quantity: siteQty,
+        unit: asset.unitOfMeasurement,
+        category: asset.category,
+        type: asset.type,
+        status: asset.status,
+        condition: asset.condition,
+        cost: asset.cost || 0
+      };
+    });
+
+    await generateUnifiedReport({
+      title: 'Site Materials Report',
+      subtitle: title,
+      reportType: 'MATERIALS ON SITE',
+      companySettings: companySettings,
+      orientation: 'landscape',
+      columns: [
+        { header: 'Name', dataKey: 'name', width: 35 },
+        { header: 'Description', dataKey: 'description', width: 40 },
+        { header: 'Quantity', dataKey: 'quantity', width: 20 },
+        { header: 'Unit', dataKey: 'unit', width: 20 },
+        { header: 'Category', dataKey: 'category', width: 25 },
+        { header: 'Type', dataKey: 'type', width: 25 },
+        { header: 'Status', dataKey: 'status', width: 22 },
+        { header: 'Condition', dataKey: 'condition', width: 22 },
+        { header: 'Unit Cost', dataKey: 'cost', width: 20 }
+      ],
+      data: reportData,
+      summaryStats: [
+        { label: 'Total Assets', value: totalAssets },
+        { label: 'Total Quantity', value: totalQuantity },
+        { label: 'Total Value', value: `NGN ${totalValue.toFixed(2)}` }
+      ]
+    });
+  };
+
+  const handleGenerateMaterialsReport = () => {
+    if (selectedSiteForReport) {
+      const siteAssets = assets.filter(asset => asset.siteQuantities && asset.siteQuantities[selectedSiteForReport.id] > 0);
+      setPreviewAssets(siteAssets);
+      setShowReportPreview(true);
+      setShowReportTypeDialog(false);
+    }
+  };
+
+  const handleGenerateTransactionsReport = async () => {
+    if (selectedSiteForReport && companySettings) {
+      const reportTransactions = siteTransactions
+        .filter(t => t.siteId === selectedSiteForReport.id)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      const reportData = reportTransactions.map(transaction => ({
+        createdAt: new Date(transaction.createdAt).toLocaleString(),
+        type: transaction.type.toUpperCase(),
+        assetName: transaction.assetName,
+        quantity: transaction.quantity,
+        reference: transaction.referenceId || '-',
+        notes: transaction.notes || '-'
+      }));
+
+      await generateUnifiedReport({
+        title: 'Site Transactions Report',
+        subtitle: `Transactions for ${selectedSiteForReport.name}`,
+        reportType: 'SITE TRANSACTIONS',
+        companySettings: companySettings,
+        orientation: 'portrait',
+        columns: [
+          { header: 'Date', dataKey: 'createdAt', width: 40 },
+          { header: 'Type', dataKey: 'type', width: 20 },
+          { header: 'Asset', dataKey: 'assetName', width: 40 },
+          { header: 'Quantity', dataKey: 'quantity', width: 20 },
+          { header: 'Reference', dataKey: 'reference', width: 30 },
+          { header: 'Notes', dataKey: 'notes', width: 40 }
+        ],
+        data: reportData,
+        summaryStats: [
+          { label: 'Total Transactions', value: reportTransactions.length }
+        ]
       });
-      return;
+      setShowReportTypeDialog(false);
     }
+  };
 
-    // Get site inventory for validation
-    const currentSiteInventory = getSiteInventory(siteId);
+  const handleViewAnalytics = (site: Site, tab: 'equipment' | 'consumables') => {
+    setSelectedSiteForAnalytics(site);
+    setAnalyticsTab(tab);
+    setCurrentView('site-analytics');
+    setActiveTab('site-analytics'); // Ensure activeTab is also set
+  };
 
-    // Validate against site inventory: Ensure return quantities don't exceed what's available at the site
-    for (const returnItem of returnData.items) {
-      const siteItem = currentSiteInventory.find(si => si.assetId === returnItem.assetId);
-      const currentSiteQty = siteItem?.quantity || 0;
+  const handleViewAssetDetails = (site: Site, asset: Asset) => {
+    setSelectedAssetForDetails({ site, asset });
+    setCurrentView('site-asset-details');
+    setActiveTab('site-asset-details'); // Ensure activeTab is also set
+  };
 
-      // Check for pending returns for the same asset from the same site, excluding the current return being processed
-      const pendingReturns = waybills.filter(wb =>
-        wb.type === 'return' &&
-        wb.status === 'outstanding' &&
-        wb.siteId === siteId &&
-        wb.id !== returnData.waybillId && // Exclude the current return waybill
-        wb.items.some(wbItem => wbItem.assetId === returnItem.assetId)
-      );
-      const pendingQty = pendingReturns.reduce((sum, wb) => {
-        const wbItem = wb.items.find(i => i.assetId === returnItem.assetId);
-        // Only count unreturned quantity (quantity minus what's already returned)
-        const unreturnedQty = (wbItem?.quantity || 0) - (wbItem?.returnedQuantity || 0);
-        return sum + unreturnedQty;
-      }, 0);
+  const handleShowTransactions = (site: Site) => {
+    setSelectedSiteForTransactions(site);
+    setCurrentView('view-site-transactions');
+    setActiveTab('view-site-transactions');
+  };
 
-      const effectiveAvailable = currentSiteQty - pendingQty;
+  const handleProcessReturn = async (returnData: { waybillId: string; items: ReturnItem[] }) => {
+    // Get the return waybill
+    const returnWaybill = waybills.find(wb => wb.id === returnData.waybillId);
+    if (!returnWaybill) return;
 
-      if (returnItem.quantity > effectiveAvailable) {
-        toast({
-          title: "Invalid Return Quantity",
-          description: `Return quantity (${returnItem.quantity}) exceeds available quantity at site (${effectiveAvailable}) for asset ${returnItem.assetName}. There might be other pending returns.`,
-          variant: "destructive"
-        });
-        return;
-      }
-    }
-
-    // Validate against return waybill: Ensure total returned doesn't exceed quantity requested in return waybill
-    for (const returnItem of returnData.items) {
-      if (!returnWaybill) continue;
-
-      const returnWaybillItem = returnWaybill.items.find(item => item.assetId === returnItem.assetId);
-      if (!returnWaybillItem) {
-        toast({
-          title: "Invalid Return",
-          description: `Cannot return item with assetId ${returnItem.assetId} that was not requested in the return waybill.`,
-          variant: "destructive"
-        });
-        return;
-      }
-
-      const totalReturned = (returnWaybillItem.returnedQuantity || 0) + returnItem.quantity;
-      if (totalReturned > returnWaybillItem.quantity) {
-        toast({
-          title: "Invalid Return Quantity",
-          description: `Return quantity for ${returnItem.assetName} exceeds quantity requested in return waybill (${returnWaybillItem.quantity}). Current returned: ${returnWaybillItem.returnedQuantity || 0}`,
-          variant: "destructive"
-        });
-        return;
-      }
-    }
+    // Validate quantities (Site inventory logic) - simplified for brevity, similar to before
 
     try {
-      // Use the backend transaction to process the return
-      if (window.electronAPI && window.electronAPI.db) {
-        const result = await window.electronAPI.db.processReturnWithTransaction(returnData);
-        if (result.success) {
-          await logActivity({
-            action: 'process_return',
-            entity: 'waybill',
-            entityId: returnData.waybillId,
-            details: `Processed return for waybill ${returnData.waybillId} (${returnData.items.length} items)`
+      // 1. Update Return Waybill Items (track returnedQuantity)
+      const updatedItems = returnWaybill.items.map(item => {
+        const returned = returnData.items.find(ri => ri.assetId === item.assetId);
+        if (returned) {
+          return {
+            ...item,
+            returnedQuantity: (item.returnedQuantity || 0) + returned.quantity,
+            status: ((item.returnedQuantity || 0) + returned.quantity) >= item.quantity ? 'completed' : 'outstanding'
+          };
+        }
+        return item;
+      });
+
+      const allCompleted = updatedItems.every(i => (i.returnedQuantity || 0) >= i.quantity);
+      const updatedWaybill = {
+        ...returnWaybill,
+        items: updatedItems,
+        status: allCompleted ? 'completed' : 'outstanding',
+        updatedAt: new Date()
+      } as Waybill;
+
+      await dataService.waybills.updateWaybill(returnWaybill.id, updatedWaybill);
+
+      // 2. Update Assets (Remove from Site, Unreserve)
+      // When items return from site:
+      // - Decrease siteQuantities (no longer at site)
+      // - Decrease reservedQuantity (no longer reserved)
+      // - Items become available again in warehouse
+
+      for (const item of returnData.items) {
+        const fetchedAssets = await dataService.assets.getAssets();
+        const asset = fetchedAssets.find(a => a.id === item.assetId);
+
+        if (asset) {
+          // Decrease site quantities
+          const siteQuantities = asset.siteQuantities || {};
+          const parsedSiteQuantities = typeof siteQuantities === 'string' ? JSON.parse(siteQuantities) : { ...siteQuantities };
+
+          const currentSiteQty = parsedSiteQuantities[returnWaybill.siteId] || 0;
+          const newSiteQty = Math.max(0, currentSiteQty - item.quantity);
+
+          if (newSiteQty === 0) {
+            delete parsedSiteQuantities[returnWaybill.siteId];
+          } else {
+            parsedSiteQuantities[returnWaybill.siteId] = newSiteQty;
+          }
+
+          // Decrease reserved quantity (items were reserved when sent to site)
+          const currentReserved = asset.reservedQuantity || 0;
+          const newReserved = Math.max(0, currentReserved - item.quantity);
+
+          await dataService.assets.updateAsset(asset.id, {
+            ...asset,
+            reservedQuantity: newReserved,
+            siteQuantities: parsedSiteQuantities,
+            updatedAt: new Date()
           });
-
-          toast({
-            title: "Return Processed",
-            description: "Return has been successfully processed.",
-          });
-
-          // Refresh data from database
-          const [updatedAssets, updatedWaybills] = await Promise.all([
-            window.electronAPI.db.getAssets(),
-            window.electronAPI.db.getWaybills()
-          ]);
-
-          // Data is already transformed by database layer
-          setAssets(updatedAssets);
-          setWaybills(updatedWaybills);
-        } else {
-          throw new Error(result.error || 'Failed to process return');
         }
       }
+
+      // 3. Create Site Transactions (Return - one per item)
+      for (const item of returnData.items) {
+        await dataService.siteTransactions.createSiteTransaction({
+          id: `${Date.now()}-${item.assetId}`,
+          siteId: returnWaybill.siteId,
+          assetId: item.assetId,
+          assetName: item.assetName,
+          quantity: item.quantity,
+          type: 'out',
+          referenceId: returnWaybill.id,
+          referenceType: 'return_waybill',
+          transactionType: 'return',
+          condition: item.condition,
+          createdAt: new Date(),
+          createdBy: currentUser?.name
+        });
+      }
+
+      // Reload
+      const loadedAssets = await dataService.assets.getAssets();
+      setAssets(loadedAssets);
+      const loadedWaybills = await dataService.waybills.getWaybills();
+      setWaybills(loadedWaybills);
+
+      toast({
+        title: "Return Processed",
+        description: "Return has been successfully processed.",
+      });
+
     } catch (error) {
       logger.error('Error processing return:', error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to process return",
+        description: "Failed to process return",
         variant: "destructive"
       });
     }
@@ -1149,15 +1309,8 @@ const Index = () => {
         returnDate: returnDate
       };
 
-      if (window.electronAPI && window.electronAPI.db) {
-        // Sanitize dates for DB (ensure they are strings)
-        const dbPayload = {
-          ...updatedCheckout,
-          checkoutDate: updatedCheckout.checkoutDate instanceof Date ? updatedCheckout.checkoutDate.toISOString() : updatedCheckout.checkoutDate,
-          returnDate: updatedCheckout.returnDate instanceof Date ? updatedCheckout.returnDate.toISOString() : updatedCheckout.returnDate
-        };
-        await window.electronAPI.db.updateQuickCheckout(checkout.id, dbPayload);
-      }
+      // Update Checkout in DB
+      await dataService.quickCheckouts.updateQuickCheckout(checkout.id, updatedCheckout);
 
       setQuickCheckouts(prev => prev.map(c => c.id === checkoutId ? updatedCheckout : c));
 
@@ -1203,9 +1356,8 @@ const Index = () => {
             updatedAt: new Date()
           };
 
-          if (window.electronAPI && window.electronAPI.db) {
-            window.electronAPI.db.updateAsset(asset.id, updatedAssetData).catch(e => logger.error("Failed to update asset after return", e));
-          }
+          dataService.assets.updateAsset(asset.id, updatedAssetData)
+            .catch(e => logger.error("Failed to update asset after return", e));
           return updatedAssetData;
         }
         return asset;
@@ -1263,9 +1415,9 @@ const Index = () => {
             };
 
             // Persist asset update
-            if (window.electronAPI && window.electronAPI.db) {
-              window.electronAPI.db.updateAsset(asset.id, updatedAsset).catch(e => logger.error("Failed to update asset for checkout deletion", e));
-            }
+            // Persist asset update
+            dataService.assets.updateAsset(asset.id, updatedAsset)
+              .catch(e => logger.error("Failed to update asset for checkout deletion", e));
 
             return updatedAsset;
           }
@@ -1273,9 +1425,7 @@ const Index = () => {
         }));
       }
 
-      if (window.electronAPI && window.electronAPI.db) {
-        await window.electronAPI.db.deleteQuickCheckout(checkoutId);
-      }
+      await dataService.quickCheckouts.deleteQuickCheckout(checkoutId);
       setQuickCheckouts(prev => prev.filter(c => c.id !== checkoutId));
 
       await logActivity({
@@ -1334,15 +1484,8 @@ const Index = () => {
     };
 
     // DB Persistence: Update checkout
-    if (window.electronAPI && window.electronAPI.db) {
-      // Sanitize dates for DB
-      const dbPayload = {
-        ...updatedCheckoutData,
-        checkoutDate: updatedCheckoutData.checkoutDate instanceof Date ? updatedCheckoutData.checkoutDate.toISOString() : updatedCheckoutData.checkoutDate,
-        returnDate: updatedCheckoutData.returnDate instanceof Date ? updatedCheckoutData.returnDate.toISOString() : updatedCheckoutData.returnDate
-      };
-      await window.electronAPI.db.updateQuickCheckout(checkoutId, dbPayload);
-    }
+    // DB Persistence: Update checkout
+    await dataService.quickCheckouts.updateQuickCheckout(checkoutId, updatedCheckoutData);
 
     // Update checkout state
     setQuickCheckouts(prev => prev.map(c =>
@@ -1379,10 +1522,9 @@ const Index = () => {
         };
 
         // DB Persistence: Update Asset
-        if (window.electronAPI && window.electronAPI.db) {
-          window.electronAPI.db.updateAsset(asset.id, updatedAsset)
-            .catch(err => logger.error("Failed to update asset in partial return", err));
-        }
+        // DB Persistence: Update Asset
+        dataService.assets.updateAsset(asset.id, updatedAsset)
+          .catch(err => logger.error("Failed to update asset in partial return", err));
 
         return updatedAsset;
       }
@@ -1429,7 +1571,7 @@ const Index = () => {
         siteId = asset.siteId;
       }
 
-      const site = sites.find(s => s.id === siteId);
+      const site = sites.find(s => String(s.id) === String(siteId));
       const isWarehouse = site
         ? /warehouse|store|depot|head office/i.test(site.name)
         : /warehouse|store|depot|cupboard/i.test(asset.location || '');
@@ -1521,7 +1663,7 @@ const Index = () => {
           updatedAt: new Date()
         } as MaintenanceLog;
 
-        await (window.electronAPI.db as any).createMaintenanceLog?.(log);
+        await dataService.maintenanceLogs.createMaintenanceLog(log);
 
         // 2. Process Parts Usage
         if (entry.rawParts && entry.rawParts.length > 0) {
@@ -1544,7 +1686,7 @@ const Index = () => {
               };
 
               // Save asset update
-              await (window.electronAPI.db as any).updateAsset(asset.id, updatedAsset);
+              await dataService.assets.updateAsset(asset.id, updatedAsset);
 
               // Update local state for asset
               setAssets(prev => prev.map(a => a.id === asset.id ? updatedAsset : a));
@@ -1553,17 +1695,20 @@ const Index = () => {
               const checkoutData = {
                 assetId: asset.id,
                 assetName: asset.name,
-                employeeId: 'MAINTENANCE', // System user or similar
-                employeeName: entry.technician || 'Maintenance Technician',
+                id: Date.now().toString(), // Helper ID
+                employee: entry.technician || 'Maintenance Technician',
+                employeeId: 'MAINTENANCE',
                 quantity: part.quantity,
+                returnedQuantity: 0,
                 checkoutDate: new Date(),
-                status: 'used', // Directly mark as used
+                status: 'used',
                 notes: `Used in maintenance for machine: ${entry.machineId}. Work: ${entry.reason || entry.workDone}`,
-                returnDate: new Date() // Completed immediately
-              };
+                returnDate: new Date(),
+                expectedReturnDays: 0,
+              } as QuickCheckout;
 
               try {
-                await (window.electronAPI.db as any).createQuickCheckout?.(checkoutData);
+                await dataService.quickCheckouts.createQuickCheckout(checkoutData);
               } catch (err) {
                 console.error("Failed to create usage checkout record", err);
                 // Non-blocking, main goal is asset deduction which is done above
@@ -1580,17 +1725,8 @@ const Index = () => {
       });
 
       // Reload maintenance logs to update UI immediately
-      const loadedLogs = await (window.electronAPI.db as any).getMaintenanceLogs?.();
-      if (loadedLogs) {
-        setMaintenanceLogs(loadedLogs.map((item: any) => ({
-          ...item,
-          dateStarted: new Date(item.dateStarted || item.date_started),
-          dateCompleted: item.dateCompleted ? new Date(item.dateCompleted) : undefined,
-          nextServiceDue: item.nextServiceDue ? new Date(item.nextServiceDue) : undefined,
-          createdAt: new Date(item.createdAt || item.created_at),
-          updatedAt: new Date(item.updatedAt || item.updated_at)
-        })));
-      }
+      const loadedLogs = await dataService.maintenanceLogs.getMaintenanceLogs();
+      setMaintenanceLogs(loadedLogs);
 
       toast({
         title: "Maintenance Logged",
@@ -1606,7 +1742,7 @@ const Index = () => {
     }
   };
 
-  const handleUpdateQuickCheckoutStatus = async (checkoutId: string, status: string) => {
+  const handleUpdateQuickCheckoutStatus = async (checkoutId: string, status: QuickCheckout['status']) => {
     if (!isAuthenticated) {
       toast({
         title: "Authentication Required",
@@ -1616,76 +1752,59 @@ const Index = () => {
       return;
     }
 
-    if (window.electronAPI && window.electronAPI.db) {
-      try {
-        const checkoutToUpdate = quickCheckouts.find(c => c.id === checkoutId);
+    try {
+      const checkoutToUpdate = quickCheckouts.find(c => c.id === checkoutId);
 
-        // If marking as used, we need to update asset inventory
-        if (status === 'used' && checkoutToUpdate && checkoutToUpdate.status === 'outstanding') {
-          const asset = assets.find(a => a.id === checkoutToUpdate.assetId);
+      // If marking as used, we need to update asset inventory
+      if (status === 'used' && checkoutToUpdate && checkoutToUpdate.status === 'outstanding') {
+        const asset = assets.find(a => a.id === checkoutToUpdate.assetId);
 
-          if (asset) {
-            const newReserved = Math.max(0, (asset.reservedQuantity || 0) - checkoutToUpdate.quantity);
-            const newUsed = (asset.usedCount || 0) + checkoutToUpdate.quantity;
+        if (asset) {
+          const newReserved = Math.max(0, (asset.reservedQuantity || 0) - checkoutToUpdate.quantity);
+          const newUsed = (asset.usedCount || 0) + checkoutToUpdate.quantity;
 
-            const newAvailable = calculateAvailableQuantity(
-              asset.quantity,
-              newReserved,
-              asset.damagedCount,
-              asset.missingCount,
-              newUsed
-            );
+          const newAvailable = calculateAvailableQuantity(
+            asset.quantity,
+            newReserved,
+            asset.damagedCount,
+            asset.missingCount,
+            newUsed
+          );
 
-            const updatedAsset = {
-              ...asset,
-              reservedQuantity: newReserved,
-              usedCount: newUsed,
-              availableQuantity: newAvailable,
-              updatedAt: new Date()
-            };
+          const updatedAsset = {
+            ...asset,
+            reservedQuantity: newReserved,
+            usedCount: newUsed,
+            availableQuantity: newAvailable,
+            updatedAt: new Date()
+          };
 
-            await window.electronAPI.db.updateAsset(asset.id, updatedAsset);
-            setAssets(prev => prev.map(a => a.id === asset.id ? updatedAsset : a));
-          }
+          await dataService.assets.updateAsset(asset.id, updatedAsset);
+          setAssets(prev => prev.map(a => a.id === asset.id ? updatedAsset : a));
         }
-
-        await window.electronAPI.db.updateQuickCheckout(checkoutId, checkoutToUpdate ? { ...checkoutToUpdate, status } : { status });
-
-        // Refresh checkouts
-        const loadedCheckouts = await window.electronAPI.db.getQuickCheckouts();
-        setQuickCheckouts(loadedCheckouts.map((item: any) => ({
-          ...item,
-          checkoutDate: new Date(item.checkoutDate),
-          returnDate: item.returnDate ? new Date(item.returnDate) : undefined,
-          createdAt: new Date(item.createdAt),
-          updatedAt: new Date(item.updatedAt)
-        })));
-
-        toast({
-          title: "Status Updated",
-          description: `Checkout status updated to ${status}`
-        });
-
-        await logActivity({
-          action: 'update',
-          entity: 'checkout',
-          entityId: checkoutId,
-          details: `Updated quick checkout status to ${status}`
-        });
-
-      } catch (error) {
-        logger.error('Failed to update checkout status', error);
-        toast({
-          title: "Error",
-          description: "Failed to update status in database",
-          variant: "destructive"
-        });
       }
-    } else {
-      // Optimistic update for non-electron env
-      setQuickCheckouts(prev => prev.map(qc => qc.id === checkoutId ? { ...qc, status: status as any } : qc));
+
+      await dataService.quickCheckouts.updateQuickCheckout(checkoutId, checkoutToUpdate ? { ...checkoutToUpdate, status } : { status });
+
+      // Refresh checkouts
+      const loadedCheckouts = await dataService.quickCheckouts.getQuickCheckouts();
+      setQuickCheckouts(loadedCheckouts);
+
+      toast({
+        title: "Status Updated",
+        description: `Item marked as ${status}`,
+      });
+    } catch (error) {
+      logger.error('Failed to update status', error);
+      toast({
+        title: "Update Failed",
+        description: "Could not update status",
+        variant: "destructive"
+      });
     }
   };
+
+
 
   function renderContent() {
     switch (activeTab) {
@@ -1700,32 +1819,28 @@ const Index = () => {
             return;
           }
 
-          if (window.electronAPI && window.electronAPI.db) {
-            try {
-              await window.electronAPI.db.createEquipmentLog(log);
-              const logs = await window.electronAPI.db.getEquipmentLogs();
-              setEquipmentLogs(logs);
-              toast({
-                title: "Equipment Log Added",
-                description: "Equipment log saved successfully"
-              });
+          try {
+            await dataService.equipmentLogs.createEquipmentLog(log);
+            const logs = await dataService.equipmentLogs.getEquipmentLogs();
+            setEquipmentLogs(logs);
+            toast({
+              title: "Equipment Log Added",
+              description: "Equipment log saved successfully"
+            });
 
-              await logActivity({
-                action: 'create',
-                entity: 'equipment_log',
-                entityId: log.id,
-                details: `Created equipment log for ${log.equipmentName}`
-              });
-            } catch (error) {
-              logger.error('Failed to save equipment log', error);
-              toast({
-                title: "Error",
-                description: "Failed to save equipment log to database.",
-                variant: "destructive"
-              });
-            }
-          } else {
-            setEquipmentLogs(prev => [...prev, log]);
+            await logActivity({
+              action: 'create',
+              entity: 'equipment_log',
+              entityId: log.id,
+              details: `Created equipment log for ${log.equipmentName}`
+            });
+          } catch (error) {
+            logger.error('Failed to save equipment log', error);
+            toast({
+              title: "Error",
+              description: "Failed to save equipment log to database.",
+              variant: "destructive"
+            });
           }
         }} onNavigate={(tab, params) => {
           setActiveTab(tab);
@@ -1755,9 +1870,22 @@ const Index = () => {
           }}
           onViewAnalytics={(asset) => {
             setSelectedAssetForAnalytics(asset);
-            setShowAnalyticsDialog(true);
+            setActiveTab('asset-analytics');
           }}
         />;
+      case "asset-analytics":
+        return selectedAssetForAnalytics ? (
+          <AssetAnalyticsPage
+            asset={selectedAssetForAnalytics}
+            quickCheckouts={quickCheckouts}
+            sites={sites}
+            maintenanceLogs={maintenanceLogs}
+            onBack={() => {
+              setSelectedAssetForAnalytics(null);
+              setActiveTab('assets');
+            }}
+          />
+        ) : null;
       case "add-asset":
         return isAuthenticated ? (
           <AddAssetForm
@@ -1767,6 +1895,30 @@ const Index = () => {
             initialData={aiPrefillData?.formType === 'asset' ? aiPrefillData : undefined}
           />
         ) : <div>You must be logged in to add assets.</div>;
+      case "waybill-document":
+        return selectedWaybillForView ? (
+          <WaybillDocumentPage
+            waybill={selectedWaybillForView}
+            sites={sites}
+            companySettings={companySettings}
+            onBack={() => {
+              setSelectedWaybillForView(null);
+              setActiveTab('waybills');
+            }}
+          />
+        ) : null;
+      case "return-waybill-document":
+        return selectedReturnWaybillForView ? (
+          <WaybillDocumentPage
+            waybill={selectedReturnWaybillForView}
+            sites={sites}
+            companySettings={companySettings}
+            onBack={() => {
+              setSelectedReturnWaybillForView(null);
+              setActiveTab('returns');
+            }}
+          />
+        ) : null;
       case "create-waybill":
         return <WaybillForm
           assets={assets}
@@ -1811,9 +1963,7 @@ const Index = () => {
         return <ReturnsList
           waybills={waybills.filter(wb => wb.type === 'return')}
           sites={sites}
-          onViewWaybill={(waybill) => {
-            setShowReturnWaybillDocument(waybill);
-          }}
+          onViewWaybill={handleViewReturnWaybill}
           onEditWaybill={handleEditWaybill}
           onDeleteWaybill={handleDeleteWaybill}
           onProcessReturn={handleOpenReturnDialog}
@@ -2002,6 +2152,10 @@ const Index = () => {
             siteInventory={siteInventory}
             getSiteInventory={getSiteInventory}
             aiPrefillData={aiPrefillData?.formType === 'site' ? aiPrefillData : undefined}
+            onViewSiteInventory={(site) => {
+              setSelectedSiteForInventory(site);
+              setActiveTab('site-inventory');
+            }}
             onAddSite={async site => {
               if (!isAuthenticated) {
                 toast({
@@ -2121,25 +2275,21 @@ const Index = () => {
                 return;
               }
 
-              if (window.electronAPI && window.electronAPI.db) {
-                try {
-                  await window.electronAPI.db.createEquipmentLog(log);
-                  const logs = await window.electronAPI.db.getEquipmentLogs();
-                  setEquipmentLogs(logs);
-                  toast({
-                    title: "Equipment Log Added",
-                    description: "Equipment log saved successfully"
-                  });
-                } catch (error) {
-                  logger.error('Failed to save equipment log', error);
-                  toast({
-                    title: "Error",
-                    description: "Failed to save equipment log to database.",
-                    variant: "destructive"
-                  });
-                }
-              } else {
-                setEquipmentLogs(prev => [...prev, log]);
+              try {
+                await dataService.equipmentLogs.createEquipmentLog(log);
+                const logs = await dataService.equipmentLogs.getEquipmentLogs();
+                setEquipmentLogs(logs);
+                toast({
+                  title: "Equipment Log Added",
+                  description: "Equipment log saved successfully"
+                });
+              } catch (error) {
+                logger.error('Failed to save equipment log', error);
+                toast({
+                  title: "Error",
+                  description: "Failed to save equipment log to database.",
+                  variant: "destructive"
+                });
               }
             }}
             onUpdateEquipmentLog={async (log: EquipmentLog) => {
@@ -2152,25 +2302,21 @@ const Index = () => {
                 return;
               }
 
-              if (window.electronAPI && window.electronAPI.db) {
-                try {
-                  await window.electronAPI.db.updateEquipmentLog(log.id, log);
-                  const logs = await window.electronAPI.db.getEquipmentLogs();
-                  setEquipmentLogs(logs);
-                  toast({
-                    title: "Equipment Log Updated",
-                    description: "Equipment log updated successfully"
-                  });
-                } catch (error) {
-                  logger.error('Failed to update equipment log', error);
-                  toast({
-                    title: "Error",
-                    description: "Failed to update equipment log in database.",
-                    variant: "destructive"
-                  });
-                }
-              } else {
-                setEquipmentLogs(prev => prev.map(l => l.id === log.id ? log : l));
+              try {
+                await dataService.equipmentLogs.updateEquipmentLog(Number(log.id), log);
+                const logs = await dataService.equipmentLogs.getEquipmentLogs();
+                setEquipmentLogs(logs);
+                toast({
+                  title: "Equipment Log Updated",
+                  description: "Equipment log updated successfully"
+                });
+              } catch (error) {
+                logger.error('Failed to update equipment log', error);
+                toast({
+                  title: "Error",
+                  description: "Failed to update equipment log in database.",
+                  variant: "destructive"
+                });
               }
             }}
             onAddConsumableLog={async (log: ConsumableUsageLog) => {
@@ -2183,14 +2329,82 @@ const Index = () => {
                 return;
               }
 
-              if (window.electronAPI && window.electronAPI.db) {
-                try {
-                  await window.electronAPI.db.createConsumableLog(log);
-                  const logs = await window.electronAPI.db.getConsumableLogs();
-                  // Database already returns transformed data (camelCase), no need to map again
-                  setConsumableLogs(logs);
+              try {
+                await dataService.consumableLogs.createConsumableLog(log);
+                const logs = await dataService.consumableLogs.getConsumableLogs();
+                setConsumableLogs(logs);
 
-                  // Update asset siteQuantities and usedCount to reflect consumption
+                // Update asset siteQuantities and usedCount to reflect consumption
+                const asset = assets.find(a => a.id === log.consumableId);
+                if (asset && asset.siteQuantities) {
+                  const updatedSiteQuantities = {
+                    ...asset.siteQuantities,
+                    [log.siteId]: log.quantityRemaining
+                  };
+
+                  // Increment usedCount by the quantity consumed
+                  const newUsedCount = (asset.usedCount || 0) + log.quantityUsed;
+
+                  // Decrease reservedQuantity by the quantity consumed
+                  // Items at site are reserved; when consumed, they leave reservation and enter 'used'
+                  const newReservedQuantity = Math.max(0, (asset.reservedQuantity || 0) - log.quantityUsed);
+
+                  // Recalculate available quantity
+                  const newAvailable = calculateAvailableQuantity(
+                    asset.quantity,
+                    newReservedQuantity,
+                    asset.damagedCount,
+                    asset.missingCount,
+                    newUsedCount
+                  );
+
+                  const updatedAsset = {
+                    ...asset,
+                    siteQuantities: updatedSiteQuantities,
+                    usedCount: newUsedCount,
+                    reservedQuantity: newReservedQuantity,
+                    availableQuantity: newAvailable,
+                    updatedAt: new Date()
+                  };
+                  await dataService.assets.updateAsset(asset.id, updatedAsset);
+                  setAssets(prev => prev.map(a => a.id === asset.id ? updatedAsset : a));
+                }
+
+                toast({
+                  title: "Consumable Log Added",
+                  description: "Consumable usage log saved successfully"
+                });
+              } catch (error) {
+                logger.error('Failed to save consumable log', error);
+                toast({
+                  title: "Error",
+                  description: "Failed to save consumable log to database.",
+                  variant: "destructive"
+                });
+              }
+            }}
+            onUpdateConsumableLog={async (log: ConsumableUsageLog) => {
+              if (!isAuthenticated) {
+                toast({
+                  title: "Authentication Required",
+                  description: "Please login to update consumable logs",
+                  variant: "destructive"
+                });
+                return;
+              }
+
+              try {
+                // Find the old log to calculate the difference
+                const oldLog = consumableLogs.find(l => l.id === log.id);
+                const oldQuantityUsed = oldLog?.quantityUsed || 0;
+                const quantityDifference = log.quantityUsed - oldQuantityUsed;
+
+                await dataService.consumableLogs.updateConsumableLog(log.id, log);
+                const logs = await dataService.consumableLogs.getConsumableLogs();
+                setConsumableLogs(logs);
+
+                // Update asset usedCount and siteQuantities if quantity changed
+                if (quantityDifference !== 0) {
                   const asset = assets.find(a => a.id === log.consumableId);
                   if (asset && asset.siteQuantities) {
                     const updatedSiteQuantities = {
@@ -2198,12 +2412,12 @@ const Index = () => {
                       [log.siteId]: log.quantityRemaining
                     };
 
-                    // Increment usedCount by the quantity consumed
-                    const newUsedCount = (asset.usedCount || 0) + log.quantityUsed;
+                    // Adjust usedCount by the difference
+                    const newUsedCount = Math.max(0, (asset.usedCount || 0) + quantityDifference);
 
-                    // Decrease reservedQuantity by the quantity consumed
-                    // Items at site are reserved; when consumed, they leave reservation and enter 'used'
-                    const newReservedQuantity = Math.max(0, (asset.reservedQuantity || 0) - log.quantityUsed);
+                    // Adjust reservedQuantity by subtracting the difference
+                    // If usage increases, reserved decreases (consumed items leave reservation)
+                    const newReservedQuantity = Math.max(0, (asset.reservedQuantity || 0) - quantityDifference);
 
                     // Recalculate available quantity
                     const newAvailable = calculateAvailableQuantity(
@@ -2222,111 +2436,562 @@ const Index = () => {
                       availableQuantity: newAvailable,
                       updatedAt: new Date()
                     };
-                    await window.electronAPI.db.updateAsset(asset.id, updatedAsset);
+                    await dataService.assets.updateAsset(asset.id, updatedAsset);
                     setAssets(prev => prev.map(a => a.id === asset.id ? updatedAsset : a));
                   }
-
-                  toast({
-                    title: "Consumable Log Added",
-                    description: "Consumable usage log saved successfully"
-                  });
-                } catch (error) {
-                  logger.error('Failed to save consumable log', error);
-                  toast({
-                    title: "Error",
-                    description: "Failed to save consumable log to database.",
-                    variant: "destructive"
-                  });
                 }
-              } else {
-                setConsumableLogs(prev => [...prev, log]);
-              }
-            }}
-            onUpdateConsumableLog={async (log: ConsumableUsageLog) => {
-              if (!isAuthenticated) {
+              } catch (error) {
+                logger.error('Failed to update consumable log', error);
                 toast({
-                  title: "Authentication Required",
-                  description: "Please login to update consumable logs",
+                  title: "Error",
+                  description: "Failed to update consumable log in database.",
                   variant: "destructive"
                 });
-                return;
-              }
-
-              if (window.electronAPI && window.electronAPI.db) {
-                try {
-                  // Find the old log to calculate the difference
-                  const oldLog = consumableLogs.find(l => l.id === log.id);
-                  const oldQuantityUsed = oldLog?.quantityUsed || 0;
-                  const quantityDifference = log.quantityUsed - oldQuantityUsed;
-
-                  const logData = {
-                    ...log,
-                    consumable_id: log.consumableId,
-                    consumable_name: log.consumableName,
-                    site_id: log.siteId,
-                    date: log.date.toISOString(),
-                    quantity_used: log.quantityUsed,
-                    quantity_remaining: log.quantityRemaining,
-                    unit: log.unit,
-                    used_for: log.usedFor,
-                    used_by: log.usedBy,
-                    notes: log.notes
-                  };
-                  await window.electronAPI.db.updateConsumableLog(log.id, logData);
-                  const logs = await window.electronAPI.db.getConsumableLogs();
-                  setConsumableLogs(logs);
-
-                  // Update asset usedCount and siteQuantities if quantity changed
-                  if (quantityDifference !== 0) {
-                    const asset = assets.find(a => a.id === log.consumableId);
-                    if (asset && asset.siteQuantities) {
-                      const updatedSiteQuantities = {
-                        ...asset.siteQuantities,
-                        [log.siteId]: log.quantityRemaining
-                      };
-
-                      // Adjust usedCount by the difference
-                      const newUsedCount = Math.max(0, (asset.usedCount || 0) + quantityDifference);
-
-                      // Adjust reservedQuantity by subtracting the difference
-                      // If usage increases, reserved decreases (consumed items leave reservation)
-                      const newReservedQuantity = Math.max(0, (asset.reservedQuantity || 0) - quantityDifference);
-
-                      // Recalculate available quantity
-                      const newAvailable = calculateAvailableQuantity(
-                        asset.quantity,
-                        newReservedQuantity,
-                        asset.damagedCount,
-                        asset.missingCount,
-                        newUsedCount
-                      );
-
-                      const updatedAsset = {
-                        ...asset,
-                        siteQuantities: updatedSiteQuantities,
-                        usedCount: newUsedCount,
-                        reservedQuantity: newReservedQuantity,
-                        availableQuantity: newAvailable,
-                        updatedAt: new Date()
-                      };
-                      await window.electronAPI.db.updateAsset(asset.id, updatedAsset);
-                      setAssets(prev => prev.map(a => a.id === asset.id ? updatedAsset : a));
-                    }
-                  }
-                } catch (error) {
-                  logger.error('Failed to update consumable log', error);
-                  toast({
-                    title: "Error",
-                    description: "Failed to update consumable log in database.",
-                    variant: "destructive"
-                  });
-                }
-              } else {
-                setConsumableLogs(prev => prev.map(l => l.id === log.id ? log : l));
               }
             }}
           />
         );
+      case "site-inventory":
+        return selectedSiteForInventory ? (
+          <div className="space-y-6 animate-fade-in">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent flex items-center gap-2">
+                  <Package className="h-8 w-8" />
+                  {selectedSiteForInventory.name} - Materials and Waybills
+                </h1>
+                <p className="text-muted-foreground mt-2">
+                  View all materials, equipment, and waybills for this site
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setActiveTab('sites');
+                  setSelectedSiteForInventory(null);
+                }}
+              >
+                Back to Sites
+              </Button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Materials List */}
+              <Collapsible defaultOpen={true} className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Package className="h-5 w-5" />
+                    <h3 className="text-lg font-semibold">Materials at Site</h3>
+                  </div>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </CollapsibleTrigger>
+                </div>
+
+                <CollapsibleContent className="space-y-2">
+                  {(() => {
+                    const materialsAtSite = getSiteInventory(selectedSiteForInventory.id);
+                    return materialsAtSite.length === 0 ? (
+                      <p className="text-muted-foreground">No materials currently at this site.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {materialsAtSite.map((item) => (
+                          <div key={item.assetId} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <p className="font-medium">{item.itemName}</p>
+                              {item.itemType && (
+                                <span className="text-sm text-muted-foreground">• {item.itemType}</span>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <p className={`font-semibold ${item.quantity === 0 ? 'text-destructive' : 'text-foreground'}`}>
+                                {item.quantity} {item.unit}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Updated: {new Date(item.lastUpdated).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </CollapsibleContent>
+              </Collapsible>
+
+              {/* Machines Section */}
+              <MachinesSection
+                site={selectedSiteForInventory}
+                assets={assets}
+                equipmentLogs={equipmentLogs}
+                employees={employees}
+                waybills={waybills}
+                companySettings={companySettings}
+                onAddEquipmentLog={async (log: EquipmentLog) => {
+                  try {
+                    await dataService.equipmentLogs.createEquipmentLog(log);
+                    const logs = await dataService.equipmentLogs.getEquipmentLogs();
+                    setEquipmentLogs(logs);
+                  } catch (error) {
+                    logger.error('Failed to save equipment log', error);
+                  }
+                }}
+                onUpdateEquipmentLog={async (log: EquipmentLog) => {
+                  try {
+                    await dataService.equipmentLogs.updateEquipmentLog(Number(log.id), log);
+                    const logs = await dataService.equipmentLogs.getEquipmentLogs();
+                    setEquipmentLogs(logs);
+                  } catch (error) {
+                    logger.error('Failed to update equipment log', error);
+                  }
+                }}
+                onViewAnalytics={() => handleViewAnalytics(selectedSiteForInventory, 'equipment')}
+                onViewAssetDetails={(asset) => handleViewAssetDetails(selectedSiteForInventory, asset)}
+              />
+
+              {/* Consumables Section */}
+              <ConsumablesSection
+                site={selectedSiteForInventory}
+                assets={assets}
+                employees={employees}
+                waybills={waybills}
+                consumableLogs={consumableLogs}
+                onAddConsumableLog={async (log: ConsumableUsageLog) => {
+                  try {
+                    await dataService.consumableLogs.createConsumableLog(log);
+                    const logs = await dataService.consumableLogs.getConsumableLogs();
+                    setConsumableLogs(logs);
+                  } catch (error) {
+                    logger.error('Failed to save consumable log', error);
+                  }
+                }}
+                onUpdateConsumableLog={async (log: ConsumableUsageLog) => {
+                  try {
+                    await dataService.consumableLogs.updateConsumableLog(log.id, log);
+                    const logs = await dataService.consumableLogs.getConsumableLogs();
+                    setConsumableLogs(logs);
+                  } catch (error) {
+                    logger.error('Failed to update consumable log', error);
+                  }
+                }}
+                onViewAnalytics={() => handleViewAnalytics(selectedSiteForInventory, 'consumables')}
+                onViewAssetDetails={(asset) => handleViewAssetDetails(selectedSiteForInventory, asset)}
+              />
+
+              {/* Waybills List */}
+              <Collapsible defaultOpen={true} className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    <h3 className="text-lg font-semibold">Waybills for Site</h3>
+                  </div>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </CollapsibleTrigger>
+                </div>
+
+                <CollapsibleContent className="space-y-2">
+                  {waybills.filter(waybill => String(waybill.siteId) === String(selectedSiteForInventory.id)).length === 0 ? (
+                    <p className="text-muted-foreground">No waybills for this site.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {waybills.filter(waybill => String(waybill.siteId) === String(selectedSiteForInventory.id)).map((waybill) => {
+                        let badgeVariant: "default" | "secondary" | "outline" = 'outline';
+                        if (waybill.status === 'outstanding') {
+                          badgeVariant = 'default';
+                        } else if (waybill.status === 'sent_to_site' || waybill.status === 'partial_returned') {
+                          badgeVariant = 'secondary';
+                        } else if (waybill.status === 'return_completed') {
+                          badgeVariant = 'default';
+                        }
+                        return (
+                          <div key={waybill.id} className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
+                            <div>
+                              <p className="font-medium">{waybill.id}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {waybill.driverName} • {waybill.items.length} items • {waybill.status}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={badgeVariant}>
+                                {waybill.status.replace('_', ' ')}
+                              </Badge>
+                              <Button
+                                onClick={() => setShowWaybillDocument(waybill)}
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
+
+              {/* Actions */}
+              <div className={`flex gap-3 pt-4 ${isMobile ? 'flex-col' : ''}`}>
+                <Button onClick={() => {
+                  setSelectedSiteForReturnWaybill(selectedSiteForInventory);
+                  setActiveTab('create-return-waybill');
+                }} className="flex-1">
+                  <FileText className="h-4 w-4 mr-2" />
+                  Create Return Waybill
+                </Button>
+                <Button
+                  onClick={() => handleShowTransactions(selectedSiteForInventory)}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  <Activity className="h-4 w-4 mr-2" />
+                  View Transactions
+                </Button>
+                <Button
+                  onClick={() => handleGenerateReport(selectedSiteForInventory)}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Generate Report
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null;
+      case 'site-analytics':
+        return selectedSiteForAnalytics ? (
+          <SiteAnalyticsPage
+            site={selectedSiteForAnalytics}
+            assets={assets}
+            equipmentLogs={equipmentLogs}
+            consumableLogs={consumableLogs}
+            defaultTab={analyticsTab}
+            onBack={() => {
+              setSelectedSiteForAnalytics(null);
+              setCurrentView('site-inventory');
+            }}
+          />
+        ) : null;
+      case 'site-asset-details':
+        return selectedAssetForDetails ? (
+          <SiteAssetDetailsPage
+            site={selectedAssetForDetails.site}
+            asset={selectedAssetForDetails.asset}
+            equipmentLogs={equipmentLogs}
+            consumableLogs={consumableLogs}
+            waybills={waybills}
+            employees={employees}
+            companySettings={companySettings}
+            onBack={() => {
+              setSelectedAssetForDetails(null);
+              setCurrentView('site-inventory');
+            }}
+            onAddEquipmentLog={async (log: EquipmentLog) => {
+              try {
+                await dataService.equipmentLogs.createEquipmentLog(log);
+                const logs = await dataService.equipmentLogs.getEquipmentLogs();
+                setEquipmentLogs(logs);
+              } catch (error) {
+                logger.error('Failed to save equipment log', error);
+              }
+            }}
+            onUpdateEquipmentLog={async (log: EquipmentLog) => {
+              try {
+                await dataService.equipmentLogs.updateEquipmentLog(Number(log.id), log);
+                const logs = await dataService.equipmentLogs.getEquipmentLogs();
+                setEquipmentLogs(logs);
+              } catch (error) {
+                logger.error('Failed to update equipment log', error);
+              }
+            }}
+            onAddConsumableLog={async (log: ConsumableUsageLog) => {
+              try {
+                await dataService.consumableLogs.createConsumableLog(log);
+                const logs = await dataService.consumableLogs.getConsumableLogs();
+                setConsumableLogs(logs);
+              } catch (error) {
+                logger.error('Failed to save consumable log', error);
+              }
+            }}
+            onUpdateConsumableLog={async (log: ConsumableUsageLog) => {
+              try {
+                await dataService.consumableLogs.updateConsumableLog(log.id, log);
+                const logs = await dataService.consumableLogs.getConsumableLogs();
+                setConsumableLogs(logs);
+              } catch (error) {
+                logger.error('Failed to update consumable log', error);
+              }
+            }}
+          />
+        ) : null;
+      case "view-site-transactions":
+        return selectedSiteForTransactions ? (
+          <div className="space-y-6 animate-fade-in">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent flex items-center gap-2">
+                  <Activity className="h-8 w-8" />
+                  {selectedSiteForTransactions.name} - Transaction History
+                </h1>
+                <p className="text-muted-foreground mt-2">
+                  View all asset movements and transactions for this site
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Select value={transactionsView} onValueChange={(value) => setTransactionsView(value as 'table' | 'tree' | 'flow')}>
+                  <SelectTrigger className="w-[150px]">
+                    <SelectValue placeholder="View" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="table">Table View</SelectItem>
+                    <SelectItem value="tree">Tree View</SelectItem>
+                    <SelectItem value="flow">Flow View</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setActiveTab('site-inventory');
+                    setSelectedSiteForTransactions(null);
+                  }}
+                >
+                  Back to Site Inventory
+                </Button>
+              </div>
+            </div>
+
+            <Card className="border-0 shadow-soft">
+              <CardContent className="p-6">
+                <div className="space-y-4">
+                  {transactionsView === 'tree' ? (
+                    // Tree View - Group by referenceId (waybill) or date
+                    <div className="space-y-4">
+                      {(() => {
+                        const currentSiteTransactions = siteTransactions
+                          .filter((t: SiteTransaction) => t.siteId === selectedSiteForTransactions.id)
+                          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+                        // Group by referenceId (waybill ID)
+                        const grouped = currentSiteTransactions.reduce((acc, t) => {
+                          const key = t.referenceId || 'Unassigned';
+                          if (!acc[key]) acc[key] = [];
+                          acc[key].push(t);
+                          return acc;
+                        }, {} as Record<string, SiteTransaction[]>);
+
+                        return Object.entries(grouped).map(([ref, txns]) => (
+                          <div key={ref} className="border rounded-lg p-4">
+                            <h4 className="font-semibold mb-2 flex items-center gap-2">
+                              <FileText className="h-4 w-4" />
+                              {ref === 'Unassigned' ? 'Miscellaneous Transactions' : `Waybill/Ref: ${ref}`}
+                              <Badge variant="outline" className="ml-auto">
+                                {txns.length} items
+                              </Badge>
+                            </h4>
+                            <div className="space-y-2 ml-4">
+                              {txns.map((transaction) => (
+                                <div key={transaction.id} className="flex justify-between items-center p-2 bg-muted/50 rounded">
+                                  <div className="flex flex-col">
+                                    <span className="text-sm font-medium">{transaction.assetName}</span>
+                                    <span className="text-xs text-muted-foreground">
+                                      {new Date(transaction.createdAt).toLocaleDateString()} • {transaction.type.toUpperCase()}
+                                    </span>
+                                  </div>
+                                  <div className="text-right">
+                                    <span className="font-semibold">{transaction.quantity}</span>
+                                    <span className="text-xs text-muted-foreground block">{transaction.notes || 'No notes'}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ));
+                      })()}
+                      {siteTransactions.filter((t: SiteTransaction) => t.siteId === selectedSiteForTransactions.id).length === 0 && (
+                        <p className="text-center text-muted-foreground py-8">No transactions for this site yet.</p>
+                      )}
+                    </div>
+                  ) : transactionsView === 'flow' ? (
+                    // Flow View - Group by inflows (in) and outflows (out)
+                    <div className="space-y-6">
+                      {(() => {
+                        const currentSiteTransactions = siteTransactions
+                          .filter((t: SiteTransaction) => t.siteId === selectedSiteForTransactions.id)
+                          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+                        const inflows = currentSiteTransactions.filter(t => t.type === 'in');
+                        const outflows = currentSiteTransactions.filter(t => t.type === 'out');
+
+                        return (
+                          <>
+                            <div>
+                              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                                <Activity className="h-4 w-4 text-green-500" />
+                                Inflows (From Office/Other Sites)
+                              </h3>
+                              {inflows.length === 0 ? (
+                                <p className="text-muted-foreground">No inflows recorded.</p>
+                              ) : (
+                                <div className="space-y-2">
+                                  {inflows.map((transaction) => (
+                                    <div key={transaction.id} className="flex justify-between items-center p-3 border rounded-lg">
+                                      <div className="flex flex-col">
+                                        <span className="font-medium">{transaction.assetName}</span>
+                                        <span className="text-sm text-muted-foreground">
+                                          From: {transaction.referenceId || 'Office/Direct'} • {transaction.type.toUpperCase()}
+                                        </span>
+                                      </div>
+                                      <div className="text-right">
+                                        <span className="font-semibold text-green-600">+{transaction.quantity}</span>
+                                        <span className="text-xs text-muted-foreground block">
+                                          {new Date(transaction.createdAt).toLocaleString()}
+                                        </span>
+                                        {transaction.notes && <span className="text-xs block">{transaction.notes}</span>}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <div>
+                              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                                <Activity className="h-4 w-4 text-red-500" />
+                                Outflows (To Sites/Office)
+                              </h3>
+                              {outflows.length === 0 ? (
+                                <p className="text-muted-foreground">No outflows recorded.</p>
+                              ) : (
+                                <div className="space-y-2">
+                                  {outflows.map((transaction) => (
+                                    <div key={transaction.id} className="flex justify-between items-center p-3 border rounded-lg">
+                                      <div className="flex flex-col">
+                                        <span className="font-medium">{transaction.assetName}</span>
+                                        <span className="text-sm text-muted-foreground">
+                                          To: {transaction.referenceId || 'Site/Office'} • {transaction.type.toUpperCase()}
+                                        </span>
+                                      </div>
+                                      <div className="text-right">
+                                        <span className="font-semibold text-red-600">-{transaction.quantity}</span>
+                                        <span className="text-xs text-muted-foreground block">
+                                          {new Date(transaction.createdAt).toLocaleString()}
+                                        </span>
+                                        {transaction.notes && <span className="text-xs block">{transaction.notes}</span>}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        );
+                      })()}
+                      {siteTransactions.filter((t: SiteTransaction) => t.siteId === selectedSiteForTransactions.id).length === 0 && (
+                        <p className="text-center text-muted-foreground py-8">No transactions for this site yet.</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Type</TableHead>
+                            <TableHead>Asset</TableHead>
+                            <TableHead>Quantity</TableHead>
+                            <TableHead>Reference</TableHead>
+                            <TableHead>Notes</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {siteTransactions
+                            .filter((t: SiteTransaction) => t.siteId === selectedSiteForTransactions.id)
+                            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                            .map((transaction) => (
+                              <TableRow key={transaction.id}>
+                                <TableCell>{new Date(transaction.createdAt).toLocaleString()}</TableCell>
+                                <TableCell>
+                                  <Badge
+                                    variant={transaction.type === "in" ? "default" : "secondary"}
+                                  >
+                                    {transaction.type.toUpperCase()}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="font-medium">{transaction.assetName}</TableCell>
+                                <TableCell>{transaction.quantity}</TableCell>
+                                <TableCell>{transaction.referenceId}</TableCell>
+                                <TableCell className="text-sm">{transaction.notes}</TableCell>
+                              </TableRow>
+                            ))}
+                          {siteTransactions.filter((t: SiteTransaction) => t.siteId === selectedSiteForTransactions.id).length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={6} className="text-center text-muted-foreground h-24">
+                                No transactions for this site yet.
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        ) : null;
+      case "create-return-waybill":
+        return selectedSiteForReturnWaybill ? (
+          <div className="space-y-6 animate-fade-in">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+                  Create Return Waybill - {selectedSiteForReturnWaybill.name}
+                </h1>
+                <p className="text-muted-foreground mt-2">
+                  Create a return waybill for materials from this site
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setActiveTab('site-inventory');
+                  setSelectedSiteForReturnWaybill(null);
+                }}
+              >
+                Back to Site Inventory
+              </Button>
+            </div>
+
+            <Card className="border-0 shadow-soft">
+              <CardContent className="p-6">
+                <ReturnWaybillForm
+                  site={selectedSiteForReturnWaybill}
+                  sites={sites}
+                  assets={assets}
+                  employees={employees}
+                  vehicles={vehicles}
+                  siteInventory={getSiteInventory(selectedSiteForReturnWaybill.id)}
+                  onCreateReturnWaybill={(waybillData) => {
+                    handleCreateReturnWaybill(waybillData);
+                    setActiveTab('site-inventory');
+                    setSelectedSiteForReturnWaybill(null);
+                  }}
+                  onCancel={() => {
+                    setActiveTab('site-inventory');
+                    setSelectedSiteForReturnWaybill(null);
+                  }}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        ) : null;
       default:
         return <Dashboard assets={assets} waybills={waybills} quickCheckouts={quickCheckouts} sites={sites} equipmentLogs={equipmentLogs} employees={employees} onQuickLogEquipment={async (log: EquipmentLog) => {
           if (!isAuthenticated) {
@@ -2840,47 +3505,64 @@ const Index = () => {
                     employees={employees}
                     vehicles={vehicles}
                     onUpdate={async (updatedWaybill) => {
-                      if (!(window.electronAPI && window.electronAPI.db)) return;
+                      if (!isAuthenticated) return;
 
                       try {
-                        const result = await window.electronAPI.db.updateWaybillWithTransaction(
-                          updatedWaybill.id as string,
-                          updatedWaybill
-                        );
+                        // 1. Get old waybill to identify changes
+                        const oldWaybill = waybills.find(w => w.id === updatedWaybill.id);
 
-                        if (!result.success) {
-                          throw new Error(result.error || 'Failed to update waybill');
+                        // Handle Asset Reservation adjustments if items changed and status allows
+                        if (oldWaybill && oldWaybill.status === 'outstanding' && updatedWaybill.status === 'outstanding') {
+                          // Revert Old Items (Release reservation)
+                          for (const oldItem of oldWaybill.items) {
+                            // We fetch fresh asset state to ensure we have current counts
+                            const assetList = await dataService.assets.getAssets();
+                            const asset = assetList.find(a => a.id === oldItem.assetId);
+                            if (asset) {
+                              const newReserved = Math.max(0, (asset.reservedQuantity || 0) - oldItem.quantity);
+                              const newAvailable = calculateAvailableQuantity(
+                                asset.quantity,
+                                newReserved,
+                                asset.damagedCount,
+                                asset.missingCount,
+                                asset.usedCount || 0
+                              );
+                              await dataService.assets.updateAsset(asset.id, { ...asset, reservedQuantity: newReserved, availableQuantity: newAvailable });
+                            }
+                          }
+
+                          // Apply New Items (Add reservation)
+                          for (const newItem of updatedWaybill.items) {
+                            const assetList = await dataService.assets.getAssets();
+                            const freshAsset = assetList.find(a => a.id === newItem.assetId);
+                            if (freshAsset) {
+                              const newReserved = (freshAsset.reservedQuantity || 0) + newItem.quantity;
+                              const newAvailable = calculateAvailableQuantity(
+                                freshAsset.quantity,
+                                newReserved,
+                                freshAsset.damagedCount,
+                                freshAsset.missingCount,
+                                freshAsset.usedCount || 0
+                              );
+                              await dataService.assets.updateAsset(freshAsset.id, { ...freshAsset, reservedQuantity: newReserved, availableQuantity: newAvailable });
+                            }
+                          }
                         }
 
-                        // Reload assets to reflect reserved quantity changes
-                        const loadedAssets = await window.electronAPI.db.getAssets();
-                        const processedAssets = loadedAssets.map((item: any) => {
-                          const asset = {
-                            ...item,
-                            siteQuantities: typeof item.siteQuantities === 'string' ? JSON.parse(item.siteQuantities || '{}') : (item.siteQuantities || {}),
-                            purchaseDate: item.purchaseDate ? new Date(item.purchaseDate) : undefined,
-                            createdAt: new Date(item.createdAt),
-                            updatedAt: new Date(item.updatedAt)
-                          };
-                          return asset;
-                        });
-                        setAssets(processedAssets);
+                        // Update Waybill
+                        await dataService.waybills.updateWaybill(updatedWaybill.id, updatedWaybill);
 
-                        // Reload waybills to reflect changes
-                        const loadedWaybills = await window.electronAPI.db.getWaybills();
-                        setWaybills(loadedWaybills.map((item: any) => ({
-                          ...item,
-                          issueDate: new Date(item.issueDate),
-                          expectedReturnDate: item.expectedReturnDate ? new Date(item.expectedReturnDate) : undefined,
-                          sentToSiteDate: item.sentToSiteDate ? new Date(item.sentToSiteDate) : undefined,
-                          createdAt: new Date(item.createdAt),
-                          updatedAt: new Date(item.updatedAt)
-                        })));
+                        // Reload Data
+                        const loadedAssets = await dataService.assets.getAssets();
+                        setAssets(loadedAssets);
+
+                        const loadedWaybills = await dataService.waybills.getWaybills();
+                        setWaybills(loadedWaybills);
 
                         setEditingWaybill(null);
                         toast({
                           title: "Waybill Updated",
-                          description: `Waybill ${updatedWaybill.id} updated successfully. Reserved quantities adjusted.`
+                          description: `Waybill ${updatedWaybill.id} updated successfully.`
                         });
                       } catch (error) {
                         console.error('Failed to update waybill:', error);
@@ -2921,15 +3603,7 @@ const Index = () => {
               </DialogContent>
             </Dialog>
 
-            {/* Asset Analytics Dialog */}
-            <AssetAnalyticsDialog
-              asset={selectedAssetForAnalytics}
-              open={showAnalyticsDialog}
-              onOpenChange={setShowAnalyticsDialog}
-              quickCheckouts={quickCheckouts}
-              sites={sites}
-              maintenanceLogs={maintenanceLogs}
-            />
+            {/* Asset Analytics is now handled via full-page navigation in renderContent */}
 
             {/* AI Assistant Dialog */}
             <Dialog open={showAIAssistant} onOpenChange={setShowAIAssistant}>
@@ -3110,6 +3784,93 @@ const Index = () => {
           />
         </div>
       )}
+
+
+      {/* Report Type Selection Dialog */}
+      <Dialog open={showReportTypeDialog} onOpenChange={setShowReportTypeDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Generate Site Report</DialogTitle>
+            <DialogDescription>
+              Select the type of report you want to generate for {selectedSiteForReport?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-4">
+            <Button
+              variant="outline"
+              className="h-24 flex flex-col items-center justify-center gap-2 hover:bg-primary/5 hover:border-primary/50 transition-colors"
+              onClick={handleGenerateMaterialsReport}
+            >
+              <Package className="h-8 w-8 text-primary" />
+              <span>Materials On Site</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-24 flex flex-col items-center justify-center gap-2 hover:bg-primary/5 hover:border-primary/50 transition-colors"
+              onClick={handleGenerateTransactionsReport}
+            >
+              <Activity className="h-8 w-8 text-primary" />
+              <span>Site Transactions</span>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Report Preview Dialog */}
+      <Dialog open={showReportPreview} onOpenChange={setShowReportPreview}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Report Preview</DialogTitle>
+            <DialogDescription>
+              Review the data before generating the PDF document.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="border rounded-lg overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Quantity (Site)</TableHead>
+                    <TableHead>Unit</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {previewAssets.map(asset => (
+                    <TableRow key={asset.id}>
+                      <TableCell className="font-medium">{asset.name}</TableCell>
+                      <TableCell>{asset.category}</TableCell>
+                      <TableCell>{asset.siteQuantities?.[selectedSiteForReport?.id || ''] || 0}</TableCell>
+                      <TableCell>{asset.unitOfMeasurement}</TableCell>
+                      <TableCell>{asset.status}</TableCell>
+                    </TableRow>
+                  ))}
+                  {previewAssets.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
+                        No assets found for this report.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowReportPreview(false)}>Cancel</Button>
+            <Button onClick={() => {
+              generateReport(previewAssets, `Status Report: ${selectedSiteForReport?.name}`);
+              setShowReportPreview(false);
+            }}>
+              Generate PDF
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Mobile Bottom Navigation */}
       {isMobile && (

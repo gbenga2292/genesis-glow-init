@@ -48,9 +48,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return saved ? JSON.parse(saved) : null;
   });
 
-  // Login: Uses unified dataService which automatically detects platform
-  // - Desktop (Electron): Uses local SQLite database
-  // - Mobile/Web: Uses Supabase PostgreSQL
+  // Login: Uses Supabase PostgreSQL for all platforms (Web, Android, Electron Desktop)
   const login = async (username: string, password: string): Promise<{ success: boolean; message?: string }> => {
     try {
       const result = await dataService.auth.login(username, password);

@@ -38,7 +38,7 @@ export const QuickCheckoutForm = ({
   const [formData, setFormData] = useState({
     assetId: '',
     quantity: 1,
-    employee: '',
+    employeeId: '',
     expectedReturnDays: 7
   });
 
@@ -72,16 +72,21 @@ export const QuickCheckoutForm = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.assetId || !formData.employee) {
+    if (!formData.assetId || !formData.employeeId) {
       return;
     }
 
     const asset = assets.find(a => a.id === formData.assetId);
-    if (!asset) return;
+    const selectedEmployee = employees.find(emp => emp.id === formData.employeeId);
+    if (!asset || !selectedEmployee) return;
 
     const checkoutData: Omit<QuickCheckout, 'id'> = {
-      ...formData,
+      assetId: formData.assetId,
       assetName: asset.name,
+      quantity: formData.quantity,
+      expectedReturnDays: formData.expectedReturnDays,
+      employeeId: formData.employeeId,
+      employee: selectedEmployee.name,
       checkoutDate: new Date(),
       status: 'outstanding',
       returnedQuantity: 0
@@ -93,7 +98,7 @@ export const QuickCheckoutForm = ({
     setFormData({
       assetId: '',
       quantity: 1,
-      employee: '',
+      employeeId: '',
       expectedReturnDays: 7
     });
   };
@@ -248,15 +253,15 @@ export const QuickCheckoutForm = ({
               <div className="space-y-2">
                 <Label htmlFor="employee">Employee Name *</Label>
                 <Select
-                  value={formData.employee}
-                  onValueChange={(value) => setFormData({ ...formData, employee: value })}
+                  value={formData.employeeId}
+                  onValueChange={(value) => setFormData({ ...formData, employeeId: value })}
                 >
                   <SelectTrigger className="border-0 bg-muted/50 focus:bg-background transition-all duration-300">
                     <SelectValue placeholder="Select employee" />
                   </SelectTrigger>
                   <SelectContent>
                     {employees.map((employee, index) => (
-                      <SelectItem key={`${employee.id}-${index}`} value={employee.name}>
+                      <SelectItem key={`${employee.id}-${index}`} value={employee.id}>
                         {employee.name} ({employee.role})
                       </SelectItem>
                     ))}
@@ -272,7 +277,7 @@ export const QuickCheckoutForm = ({
               <Button
                 type="submit"
                 className="w-full bg-gradient-primary hover:scale-105 transition-all duration-300 shadow-medium"
-                disabled={!formData.assetId || !formData.employee || !hasPermission('write_quick_checkouts')}
+                disabled={!formData.assetId || !formData.employeeId || !hasPermission('write_quick_checkouts')}
               >
                 <ShoppingCart className="h-4 w-4 mr-2" />
                 Checkout Item
@@ -304,11 +309,17 @@ export const QuickCheckoutForm = ({
                   const asset = assets.find(a => a.id === checkout.assetId);
                   const isConsumable = asset?.type === 'consumable' || asset?.type === 'non-consumable';
 
+                  // Fallback for missing names
+                  const displayAssetName = checkout.assetName || asset?.name || 'Unknown Asset';
+                  const displayEmployeeName = checkout.employee ||
+                    (checkout.employeeId ? employees.find(e => e.id === checkout.employeeId)?.name : null) ||
+                    'Unknown Employee';
+
                   return (
                     <div key={`${checkout.id}-${index}`} className="border rounded-lg p-4 bg-muted/30">
                       <div className="flex justify-between items-start mb-2">
                         <div>
-                          <h4 className="font-medium">{checkout.assetName}</h4>
+                          <h4 className="font-medium">{displayAssetName}</h4>
                           <p className="text-sm text-muted-foreground">
                             Quantity: {checkout.quantity} {checkout.returnedQuantity > 0 && `(Returned: ${checkout.returnedQuantity})`}
                           </p>
@@ -319,7 +330,7 @@ export const QuickCheckoutForm = ({
                       <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
                         <div className="flex items-center gap-1">
                           <User className="h-3 w-3" />
-                          {checkout.employee}
+                          {displayEmployeeName}
                         </div>
                         <div className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
@@ -424,22 +435,30 @@ export const QuickCheckoutForm = ({
               </div>
             ) : (
               <div className="space-y-3">
-                {filteredActivity.slice(0, 10).map((checkout, index) => (
-                  <div key={`${checkout.id}-${index}`} className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
-                    <div>
-                      <p className="font-medium">{checkout.assetName}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {checkout.employee} • {checkout.quantity} units
-                      </p>
+                {filteredActivity.slice(0, 10).map((checkout, index) => {
+                  const asset = assets.find(a => a.id === checkout.assetId);
+                  const displayAssetName = checkout.assetName || asset?.name || 'Unknown Asset';
+                  const displayEmployeeName = checkout.employee ||
+                    (checkout.employeeId ? employees.find(e => e.id === checkout.employeeId)?.name : null) ||
+                    'Unknown Employee';
+
+                  return (
+                    <div key={`${checkout.id}-${index}`} className="flex justify-between items-start p-3 bg-muted/30 rounded-lg">
+                      <div>
+                        <p className="font-medium">{displayAssetName}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {displayEmployeeName} • {checkout.quantity} units
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        {getStatusBadge(checkout.status)}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {checkout.checkoutDate.toLocaleDateString()}
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      {getStatusBadge(checkout.status)}
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {checkout.checkoutDate.toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             );
           })()}

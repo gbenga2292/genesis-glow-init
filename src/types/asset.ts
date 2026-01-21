@@ -48,7 +48,7 @@ export interface Waybill {
   purpose: string;
   service: string;
   returnToSiteId?: string;
-  status: 'outstanding' | 'partial_returned' | 'return_completed' | 'sent_to_site';
+  status: 'outstanding' | 'partial_returned' | 'return_completed' | 'sent_to_site' | 'open';
   type: 'waybill' | 'return';
   createdAt: Date;
   updatedAt: Date;
@@ -75,6 +75,7 @@ export interface QuickCheckout {
   quantity: number;
   returnedQuantity: number;
   employee: string;
+  employeeId?: string;
   checkoutDate: Date;
   expectedReturnDays: number;
   returnDate?: Date;

@@ -46,6 +46,7 @@ import {
 import { logActivity } from "@/utils/activityLogger";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { dataService } from "@/services/dataService";
 import { RestockDialog } from "./RestockDialog";
 import { RestockHistoryDialog } from "./RestockHistoryDialog";
 import { AdvancedFilterSheet, AdvancedFilters } from "./AdvancedFilterSheet";
@@ -324,22 +325,18 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
   };
 
   const handleBulkDelete = async (assetIds: string[]) => {
-    if (!window.electronAPI || !window.electronAPI.db) {
-      throw new Error('Database not available');
-    }
-
     // Delete each asset
     for (const assetId of assetIds) {
-      await window.electronAPI.db.deleteAsset(assetId);
+      await dataService.assets.deleteAsset(assetId);
     }
 
     // Reload assets from database
-    const loadedAssets = await window.electronAPI.db.getAssets();
+    const loadedAssets = await dataService.assets.getAssets();
     const processedAssets = loadedAssets.map((item: any) => ({
       ...item,
       createdAt: new Date(item.createdAt),
       updatedAt: new Date(item.updatedAt),
-      siteQuantities: item.site_quantities ? JSON.parse(item.site_quantities) : {}
+      siteQuantities: item.siteQuantities || item.site_quantities ? (typeof item.site_quantities === 'string' ? JSON.parse(item.site_quantities) : item.siteQuantities || {}) : {}
     }));
 
     // Update parent component
@@ -349,10 +346,6 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
   };
 
   const handleBulkUpdate = async (assetIds: string[], updates: Partial<Asset>) => {
-    if (!window.electronAPI || !window.electronAPI.db) {
-      throw new Error('Database not available');
-    }
-
     // Update each asset
     for (const assetId of assetIds) {
       const asset = assets.find(a => a.id === assetId);
@@ -362,17 +355,17 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
           ...updates,
           updatedAt: new Date()
         };
-        await window.electronAPI.db.updateAsset(assetId, updatedAsset);
+        await dataService.assets.updateAsset(assetId, updatedAsset);
       }
     }
 
     // Reload assets from database
-    const loadedAssets = await window.electronAPI.db.getAssets();
+    const loadedAssets = await dataService.assets.getAssets();
     const processedAssets = loadedAssets.map((item: any) => ({
       ...item,
       createdAt: new Date(item.createdAt),
       updatedAt: new Date(item.updatedAt),
-      siteQuantities: item.site_quantities ? JSON.parse(item.site_quantities) : {}
+      siteQuantities: item.siteQuantities || item.site_quantities ? (typeof item.site_quantities === 'string' ? JSON.parse(item.site_quantities) : item.siteQuantities || {}) : {}
     }));
 
     // Update parent component
@@ -912,9 +905,7 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
               };
 
               // Update in database
-              if (window.electronAPI && window.electronAPI.db) {
-                await window.electronAPI.db.updateAsset(asset.id, updatedAsset);
-              }
+              await dataService.assets.updateAsset(asset.id, updatedAsset);
 
               // Update in local state
               onUpdateAsset(updatedAsset);
@@ -941,8 +932,8 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
               };
 
               // Add to equipment logs if available
-              if (window.electronAPI?.db?.createEquipmentLog) {
-                window.electronAPI.db.createEquipmentLog(restockLog);
+              if (dataService.equipmentLogs) {
+                dataService.equipmentLogs.createEquipmentLog(restockLog);
               }
 
               logActivity({

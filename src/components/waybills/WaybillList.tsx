@@ -64,7 +64,7 @@ export const WaybillList = ({ waybills, sites, onViewWaybill, onEditWaybill, onI
   };
 
   const getSiteName = (siteId: string) => {
-    const site = sites.find(s => s.id === siteId);
+    const site = sites.find(s => String(s.id) === String(siteId));
     return site ? site.name : 'Unknown Site';
   };
 
@@ -159,7 +159,7 @@ export const WaybillList = ({ waybills, sites, onViewWaybill, onEditWaybill, onI
                   >
                     <Eye className="h-4 w-4" />
                   </Button>
-                  {onEditWaybill && waybill.status !== 'sent_to_site' && hasPermission('write_waybills') && currentUser?.role !== 'staff' && (
+                  {onEditWaybill && waybill.status !== 'sent_to_site' && waybill.status !== 'open' && hasPermission('write_waybills') && currentUser?.role !== 'staff' && (
                     <Button
                       onClick={() => onEditWaybill(waybill)}
                       variant="ghost"
@@ -258,7 +258,7 @@ export const WaybillList = ({ waybills, sites, onViewWaybill, onEditWaybill, onI
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
-                        {onEditWaybill && waybill.status !== 'sent_to_site' && hasPermission('write_waybills') && currentUser?.role !== 'staff' && (
+                        {onEditWaybill && waybill.status !== 'sent_to_site' && waybill.status !== 'open' && hasPermission('write_waybills') && currentUser?.role !== 'staff' && (
                           <Button
                             onClick={() => onEditWaybill(waybill)}
                             variant="ghost"

@@ -4,13 +4,26 @@
  * Transform asset data from database format to frontend format
  */
 export function transformAssetFromDB(dbAsset: any): any {
+  // Parse site_quantities safely
+  let siteQuantities = {};
+  if (dbAsset.site_quantities) {
+    try {
+      siteQuantities = typeof dbAsset.site_quantities === 'string'
+        ? JSON.parse(dbAsset.site_quantities)
+        : dbAsset.site_quantities;
+    } catch {
+      siteQuantities = {};
+    }
+  }
+
   return {
     ...dbAsset,
+    id: String(dbAsset.id), // Convert to string for frontend consistency
     unitOfMeasurement: dbAsset.unit_of_measurement || dbAsset.unitOfMeasurement || 'pcs',
     createdAt: new Date(dbAsset.created_at),
     updatedAt: new Date(dbAsset.updated_at),
     purchaseDate: dbAsset.purchase_date ? new Date(dbAsset.purchase_date) : undefined,
-    siteQuantities: dbAsset.site_quantities ? JSON.parse(dbAsset.site_quantities) : {},
+    siteQuantities,
     lowStockLevel: dbAsset.low_stock_level || 10,
     criticalStockLevel: dbAsset.critical_stock_level || 5,
     powerSource: dbAsset.power_source,
@@ -19,6 +32,11 @@ export function transformAssetFromDB(dbAsset: any): any {
     electricityConsumption: dbAsset.electricity_consumption,
     reservedQuantity: dbAsset.reserved_quantity || 0,
     availableQuantity: dbAsset.available_quantity || 0,
+    siteId: dbAsset.site_id,
+    missingCount: dbAsset.missing_count || 0,
+    damagedCount: dbAsset.damaged_count || 0,
+    usedCount: dbAsset.used_count || 0,
+    requiresLogging: dbAsset.requires_logging || false,
   };
 }
 
@@ -40,10 +58,17 @@ export function transformAssetToDB(asset: any): any {
     condition: asset.condition,
     missing_count: asset.missingCount,
     damaged_count: asset.damagedCount,
+    used_count: asset.usedCount,
     low_stock_level: asset.lowStockLevel,
     critical_stock_level: asset.criticalStockLevel,
     purchase_date: asset.purchaseDate,
     cost: asset.cost,
+    // Equipment/Machine specific fields
+    model: asset.model,
+    serial_number: asset.serialNumber,
+    service_interval: asset.serviceInterval,
+    deployment_date: asset.deploymentDate,
+    requires_logging: asset.requiresLogging,
     power_source: asset.powerSource,
     fuel_capacity: asset.fuelCapacity,
     fuel_consumption_rate: asset.fuelConsumptionRate,
@@ -58,12 +83,24 @@ export function transformAssetToDB(asset: any): any {
  * Transform site data from database format to frontend format
  */
 export function transformSiteFromDB(dbSite: any): any {
+  // Parse service field safely
+  let service = undefined;
+  if (dbSite.service) {
+    try {
+      service = typeof dbSite.service === 'string' ? JSON.parse(dbSite.service) : dbSite.service;
+    } catch {
+      service = dbSite.service;
+    }
+  }
+
   return {
     ...dbSite,
+    id: String(dbSite.id), // Convert to string for frontend consistency
     createdAt: new Date(dbSite.created_at),
     updatedAt: new Date(dbSite.updated_at),
-    service: dbSite.service ? JSON.parse(dbSite.service) : undefined,
+    service,
     clientName: dbSite.client_name,
+    contactPerson: dbSite.contact_person,
   };
 }
 
@@ -78,7 +115,7 @@ export function transformSiteToDB(site: any): any {
     client_name: site.clientName,
     contact_person: site.contactPerson,
     phone: site.phone,
-    service: JSON.stringify(site.service || []),
+    service: site.service ? JSON.stringify(site.service) : null,
     status: site.status,
   };
 }
@@ -89,6 +126,7 @@ export function transformSiteToDB(site: any): any {
 export function transformEmployeeFromDB(dbEmployee: any): any {
   return {
     ...dbEmployee,
+    id: String(dbEmployee.id), // Convert to string for frontend consistency
     createdAt: new Date(dbEmployee.created_at),
     updatedAt: new Date(dbEmployee.updated_at),
     delistedDate: dbEmployee.delisted_date ? new Date(dbEmployee.delisted_date) : undefined,
@@ -221,13 +259,14 @@ export function transformWaybillToDB(waybill: any): any {
  */
 export function transformActivityToDB(activity: any): any {
   return {
+    id: activity.id || crypto.randomUUID(), // Generate UUID if not provided
     user_id: activity.userId,
-    user_name: activity.userName,
+    user_name: activity.userName || 'System',
     action: activity.action,
     entity: activity.entity,
     entity_id: activity.entityId,
     details: activity.details,
-    timestamp: activity.timestamp instanceof Date ? activity.timestamp.toISOString() : activity.timestamp,
+    timestamp: activity.timestamp instanceof Date ? activity.timestamp.toISOString() : (activity.timestamp || new Date().toISOString()),
   };
 }
 
@@ -246,34 +285,43 @@ export function transformActivityFromDB(dbActivity: any): any {
 
 /**
  * Transform quick checkout from frontend format to database format
+ * Matches Supabase quick_checkouts table schema:
+ * asset_id, employee_id, quantity, checkout_date, expected_return_days, returned_quantity, status
  */
 export function transformQuickCheckoutToDB(checkout: any): any {
   return {
-    asset_id: checkout.assetId,
-    asset_name: checkout.assetName,
+    asset_id: parseInt(checkout.assetId) || checkout.asset_id,
+    employee_id: checkout.employeeId ? parseInt(checkout.employeeId) : (checkout.employee_id ? parseInt(checkout.employee_id) : null),
     quantity: checkout.quantity,
-    returned_quantity: checkout.returnedQuantity,
-    employee: checkout.employee,
+    returned_quantity: checkout.returnedQuantity || 0,
     checkout_date: checkout.checkoutDate instanceof Date ? checkout.checkoutDate.toISOString() : checkout.checkoutDate,
-    expected_return_days: checkout.expectedReturnDays,
-    return_date: checkout.returnDate instanceof Date ? checkout.returnDate.toISOString() : checkout.returnDate,
-    status: checkout.status,
-    notes: checkout.notes,
+    expected_return_days: checkout.expectedReturnDays || 0,
+    status: checkout.status || 'outstanding',
   };
 }
 
 /**
  * Transform quick checkout from database format to frontend format
+ * Enriches data with asset/employee names from joins
  */
-export function transformQuickCheckoutFromDB(dbCheckout: any): any {
+export function transformQuickCheckoutFromDB(dbCheckout: any, assets?: any[], employees?: any[]): any {
+  // Find asset name from assets array if provided
+  const asset = assets?.find(a => String(a.id) === String(dbCheckout.asset_id));
+  const employee = employees?.find(e => String(e.id) === String(dbCheckout.employee_id));
+  
   return {
-    ...dbCheckout,
-    assetId: dbCheckout.asset_id,
-    assetName: dbCheckout.asset_name,
-    returnedQuantity: dbCheckout.returned_quantity,
+    id: String(dbCheckout.id),
+    assetId: String(dbCheckout.asset_id),
+    assetName: asset?.name || `Asset #${dbCheckout.asset_id}`,
+    employeeId: dbCheckout.employee_id ? String(dbCheckout.employee_id) : undefined,
+    employee: employee?.name || (dbCheckout.employee_id ? `Employee #${dbCheckout.employee_id}` : 'Unknown'),
+    quantity: dbCheckout.quantity,
+    returnedQuantity: dbCheckout.returned_quantity || 0,
     checkoutDate: new Date(dbCheckout.checkout_date),
     expectedReturnDays: dbCheckout.expected_return_days,
-    returnDate: dbCheckout.return_date ? new Date(dbCheckout.return_date) : undefined,
+    status: dbCheckout.status || 'outstanding',
+    createdAt: dbCheckout.created_at ? new Date(dbCheckout.created_at) : new Date(),
+    updatedAt: dbCheckout.updated_at ? new Date(dbCheckout.updated_at) : new Date(),
   };
 }
 
@@ -282,18 +330,19 @@ export function transformQuickCheckoutFromDB(dbCheckout: any): any {
  */
 export function transformSiteTransactionToDB(transaction: any): any {
   return {
-    site_id: transaction.siteId,
-    asset_id: transaction.assetId,
-    asset_name: transaction.assetName,
+    id: transaction.id || crypto.randomUUID(), // Generate UUID if not provided
+    site_id: parseInt(transaction.siteId) || transaction.site_id,
+    asset_id: parseInt(transaction.assetId) || transaction.asset_id,
+    asset_name: transaction.assetName || transaction.asset_name,
     quantity: transaction.quantity,
     type: transaction.type,
-    transaction_type: transaction.transactionType,
-    reference_id: transaction.referenceId,
-    reference_type: transaction.referenceType,
+    transaction_type: transaction.transactionType || transaction.transaction_type,
+    reference_id: transaction.referenceId || transaction.reference_id,
+    reference_type: transaction.referenceType || transaction.reference_type,
     condition: transaction.condition,
     notes: transaction.notes,
-    created_at: transaction.createdAt instanceof Date ? transaction.createdAt.toISOString() : transaction.createdAt,
-    created_by: transaction.createdBy,
+    created_at: transaction.createdAt instanceof Date ? transaction.createdAt.toISOString() : (transaction.createdAt || new Date().toISOString()),
+    created_by: transaction.createdBy || transaction.created_by,
   };
 }
 
@@ -303,8 +352,8 @@ export function transformSiteTransactionToDB(transaction: any): any {
 export function transformSiteTransactionFromDB(dbTransaction: any): any {
   return {
     ...dbTransaction,
-    siteId: dbTransaction.site_id,
-    assetId: dbTransaction.asset_id,
+    siteId: String(dbTransaction.site_id),
+    assetId: String(dbTransaction.asset_id),
     assetName: dbTransaction.asset_name,
     transactionType: dbTransaction.transaction_type,
     referenceId: dbTransaction.reference_id,
@@ -321,7 +370,7 @@ export function transformVehicleToDB(vehicle: any): any {
   return {
     name: vehicle.name,
     type: vehicle.type,
-    registration_number: vehicle.registration_number || vehicle.registrationNumber,
+    registration_number: vehicle.registrationNumber || vehicle.registration_number,
     status: vehicle.status,
   };
 }
@@ -332,7 +381,106 @@ export function transformVehicleToDB(vehicle: any): any {
 export function transformVehicleFromDB(dbVehicle: any): any {
   return {
     ...dbVehicle,
-    createdAt: new Date(dbVehicle.created_at),
-    updatedAt: new Date(dbVehicle.updated_at),
+    id: String(dbVehicle.id), // Convert to string for frontend consistency
+    registrationNumber: dbVehicle.registration_number,
+    createdAt: dbVehicle.created_at ? new Date(dbVehicle.created_at) : new Date(),
+    updatedAt: dbVehicle.updated_at ? new Date(dbVehicle.updated_at) : new Date(),
+  };
+}
+/**
+ * Transform consumable log from database format to frontend format
+ */
+export function transformConsumableLogFromDB(dbLog: any): any {
+  return {
+    ...dbLog,
+    id: String(dbLog.id), // Ensure ID is string
+    consumableId: String(dbLog.consumable_id), // Always string
+    consumableName: dbLog.consumable_name,
+    siteId: String(dbLog.site_id), // Always string
+    date: new Date(dbLog.date),
+    quantityUsed: dbLog.quantity_used,
+    quantityRemaining: dbLog.quantity_remaining,
+    unit: dbLog.unit,
+    usedFor: dbLog.used_for,
+    usedBy: dbLog.used_by,
+    notes: dbLog.notes,
+    createdAt: new Date(dbLog.created_at),
+    updatedAt: new Date(dbLog.updated_at),
+  };
+}
+
+/**
+ * Transform consumable log from frontend format to database format
+ */
+export function transformConsumableLogToDB(log: any): any {
+  return {
+    id: log.id,
+    consumable_id: log.consumableId,
+    consumable_name: log.consumableName,
+    site_id: log.siteId,
+    date: log.date instanceof Date ? log.date.toISOString() : log.date,
+    quantity_used: log.quantityUsed,
+    quantity_remaining: log.quantityRemaining,
+    unit: log.unit,
+    used_for: log.usedFor,
+    used_by: log.usedBy,
+    notes: log.notes,
+    created_at: log.createdAt instanceof Date ? log.createdAt.toISOString() : log.createdAt,
+    updated_at: log.updatedAt instanceof Date ? log.updatedAt.toISOString() : log.updatedAt,
+  };
+}
+
+/**
+ * Transform maintenance log from database format to frontend format
+ */
+export function transformMaintenanceLogFromDB(dbLog: any): any {
+  return {
+    ...dbLog,
+    id: String(dbLog.id),
+    assetId: String(dbLog.machine_id),
+    machineId: String(dbLog.machine_id),
+    maintenanceType: dbLog.maintenance_type,
+    reason: dbLog.reason,
+    dateStarted: new Date(dbLog.date_started),
+    dateCompleted: dbLog.date_completed ? new Date(dbLog.date_completed) : undefined,
+    machineActiveAtTime: Boolean(dbLog.machine_active_at_time),
+    downtime: dbLog.downtime,
+    workDone: dbLog.work_done,
+    partsReplaced: dbLog.parts_replaced,
+    technician: dbLog.technician,
+    cost: dbLog.cost,
+    location: dbLog.location,
+    remarks: dbLog.remarks,
+    serviceReset: Boolean(dbLog.service_reset),
+    nextServiceDue: dbLog.next_service_due ? new Date(dbLog.next_service_due) : undefined,
+    createdAt: new Date(dbLog.created_at),
+    updatedAt: new Date(dbLog.updated_at),
+  };
+}
+
+/**
+ * Transform maintenance log from frontend format to database format
+ */
+export function transformMaintenanceLogToDB(log: any): any {
+  const assetId = log.machineId || log.assetId;
+  return {
+    id: log.id,
+    machine_id: assetId,
+    maintenance_type: log.maintenanceType,
+    reason: log.reason,
+    date_started: log.dateStarted instanceof Date ? log.dateStarted.toISOString() : log.dateStarted,
+    date_completed: log.dateCompleted ? (log.dateCompleted instanceof Date ? log.dateCompleted.toISOString() : log.dateCompleted) : null,
+    machine_active_at_time: log.machineActiveAtTime,
+    downtime: log.downtime,
+    work_done: log.workDone,
+    parts_replaced: log.partsReplaced,
+    technician: log.technician,
+    cost: log.cost,
+    location: log.location,
+    remarks: log.remarks,
+    service_reset: log.serviceReset,
+    next_service_due: log.nextServiceDue ? (log.nextServiceDue instanceof Date ? log.nextServiceDue.toISOString() : log.nextServiceDue) : null,
+    created_at: log.createdAt instanceof Date ? log.createdAt.toISOString() : log.createdAt,
+    updated_at: log.updatedAt instanceof Date ? log.updatedAt.toISOString() : log.updatedAt,
   };
 }

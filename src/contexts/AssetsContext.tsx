@@ -66,22 +66,24 @@ export const AssetsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
 
   const addAsset = async (assetData: Omit<Asset, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const newAsset: Asset = {
+    // Don't set id - let Supabase auto-generate it
+    const newAssetData = {
       ...assetData,
-      id: Date.now().toString(),
       status: assetData.status || 'active',
       condition: assetData.condition || 'good',
-      createdAt: new Date(),
-      updatedAt: new Date()
     };
 
     try {
-      const savedAsset = await dataService.assets.createAsset(newAsset);
-      setAssets(prev => [...prev, savedAsset]);
+      const savedAsset = await dataService.assets.createAsset(newAssetData);
+      setAssets(prev => [...prev, {
+        ...savedAsset,
+        createdAt: new Date(savedAsset.createdAt),
+        updatedAt: new Date(savedAsset.updatedAt)
+      }]);
 
       toast({
         title: "Asset Added",
-        description: `${newAsset.name} has been added successfully`
+        description: `${savedAsset.name} has been added successfully`
       });
     } catch (error) {
       logger.error('Failed to add asset', error);

@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { format } from "date-fns";
+import { dataService } from "@/services/dataService";
 
 interface MetricsSnapshot {
   id?: number;
@@ -25,17 +26,12 @@ export const useMetricsSnapshots = (currentMetrics: CurrentMetrics) => {
   useEffect(() => {
     const createTodaySnapshot = async () => {
       try {
-        if (!window.electronAPI || !window.electronAPI.db) {
-          console.warn('Database not available for metrics snapshot');
-          return;
-        }
-
         // Check if today's snapshot already exists
-        const existing = await window.electronAPI.db.getTodayMetricsSnapshot();
+        const existing = await dataService.metrics.getTodaySnapshot();
 
         // If no snapshot exists for today, create one
         if (!existing) {
-          await window.electronAPI.db.createMetricsSnapshot({
+          await dataService.metrics.createSnapshot({
             total_assets: currentMetrics.totalAssets,
             total_quantity: currentMetrics.totalQuantity,
             outstanding_waybills: currentMetrics.outstandingWaybills,
@@ -55,12 +51,7 @@ export const useMetricsSnapshots = (currentMetrics: CurrentMetrics) => {
 
 export const getMetricsHistory = async (days: number = 7): Promise<MetricsSnapshot[]> => {
   try {
-    if (!window.electronAPI || !window.electronAPI.db) {
-      console.warn('Database not available for metrics history');
-      return [];
-    }
-
-    const data = await window.electronAPI.db.getMetricsSnapshots(days);
+    const data = await dataService.metrics.getHistory(days);
     return data || [];
   } catch (error) {
     console.error("Error fetching metrics history:", error);

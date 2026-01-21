@@ -25,11 +25,11 @@ export const SiteWaybills = ({
   onProcessReturn
 }: SiteWaybillsProps) => {
   const getSiteWaybills = (siteId: string) => {
-    return waybills.filter(waybill => waybill.siteId === siteId);
+    return waybills.filter(waybill => String(waybill.siteId) === String(siteId));
   };
 
   const getSiteAssets = (siteId: string) => {
-    return assets.filter(asset => asset.siteId === siteId);
+    return assets.filter(asset => String(asset.siteId) === String(siteId));
   };
 
   const getOutstandingWaybills = (siteId: string) => {

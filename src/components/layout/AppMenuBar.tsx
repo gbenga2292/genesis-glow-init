@@ -43,6 +43,13 @@ export const AppMenuBar = ({
   const [isMaximized, setIsMaximized] = useState(false);
   const [showAboutDialog, setShowAboutDialog] = useState(false);
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [isElectron, setIsElectron] = useState(false);
+
+  useEffect(() => {
+    // Check if running in Electron environment
+    setIsElectron(!!(window as any).electronAPI);
+  }, []);
 
   const handleMinimize = () => {
     if (window.electronAPI?.window?.minimize) {
@@ -82,6 +89,8 @@ export const AppMenuBar = ({
 
   // Global Keyboard Shortcuts
   useEffect(() => {
+    if (!isElectron) return; // Only enable shortcuts in Electron
+
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ctrl+N: New Asset
       if (e.ctrlKey && e.key === 'n') {
@@ -122,11 +131,13 @@ export const AppMenuBar = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onNewAsset, onExport, onOpenSettings, onRefresh, canCreateAsset]);
+  }, [onNewAsset, onExport, onOpenSettings, onRefresh, canCreateAsset, isElectron]);
 
 
   /* Export Dialog State */
-  const [showExportDialog, setShowExportDialog] = useState(false);
+  // Moved up
+
+  if (!isElectron) return null;
 
   return (
     <>

@@ -2,24 +2,16 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Site, Asset, Employee } from "@/types/asset";
 import { EquipmentLog as EquipmentLogType, DowntimeEntry } from "@/types/equipment";
 import { Wrench, Calendar as CalendarIcon, Plus, Eye, BarChart3, Package, ChevronDown, LineChart } from "lucide-react";
 import { format, isSameDay } from "date-fns";
-import { SiteMachineAnalytics } from "./SiteMachineAnalytics";
-import { SiteWideMachineAnalytics } from "./SiteWideMachineAnalytics";
+
+
 import { useAuth } from "@/contexts/AuthContext";
 import { logActivity } from "@/utils/activityLogger";
-import { createDefaultOperationalLog, applyDefaultTemplate, calculateDieselRefill, getDieselOverdueDays } from "@/utils/defaultLogTemplate";
+import { getDieselOverdueDays } from "@/utils/defaultLogTemplate";
 
 interface MachinesSectionProps {
   site: Site;
@@ -30,6 +22,8 @@ interface MachinesSectionProps {
   companySettings?: any;
   onAddEquipmentLog: (log: EquipmentLogType) => void;
   onUpdateEquipmentLog: (log: EquipmentLogType) => void;
+  onViewAnalytics?: () => void;
+  onViewAssetDetails?: (asset: Asset) => void;
 }
 
 export const MachinesSection = ({
@@ -40,270 +34,28 @@ export const MachinesSection = ({
   waybills,
   companySettings,
   onAddEquipmentLog,
-  onUpdateEquipmentLog
+  onUpdateEquipmentLog,
+  onViewAnalytics,
+  onViewAssetDetails
 }: MachinesSectionProps) => {
   const { hasPermission } = useAuth();
   const [isOpen, setIsOpen] = useState(true);
-  const [showLogDialog, setShowLogDialog] = useState(false);
-  const [showViewDialog, setShowViewDialog] = useState(false);
-  const [showAnalyticsDialog, setShowAnalyticsDialog] = useState(false);
-  const [showSiteWideAnalytics, setShowSiteWideAnalytics] = useState(false);
   const [showItemDialog, setShowItemDialog] = useState(false);
-  const [selectedEquipment, setSelectedEquipment] = useState<Asset | null>(null);
   const [selectedItem, setSelectedItem] = useState<Asset | null>(null);
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const [selectedViewLogs, setSelectedViewLogs] = useState<EquipmentLogType[]>([]);
-  const [logForm, setLogForm] = useState<{
-    active: boolean;
-    downtimeEntries: DowntimeEntry[];
-    maintenanceDetails: string;
-    dieselEntered: string;
-    supervisorOnSite: string;
-    clientFeedback: string;
-    issuesOnSite: string;
-  }>({
-    active: false,
-    downtimeEntries: [{ id: Date.now().toString(), downtime: "", downtimeReason: "", downtimeAction: "", uptime: "" }],
-    maintenanceDetails: "",
-    dieselEntered: "",
-    supervisorOnSite: "",
-    clientFeedback: "",
-    issuesOnSite: ""
-  });
 
-  // Filter equipment for the site - show ALL equipment including those with 0 quantity
+  // Use String() for safe comparison
+  const siteId = String(site.id);
+
+  // Filter equipment for the site - show ALL equipment using siteQuantities or ID match
   // This ensures we can still see and log machines even if they're temporarily removed
   const siteEquipment = assets.filter(asset =>
     asset.type === 'equipment' &&
     asset.requiresLogging === true &&
-    (asset.siteId === site.id || (asset.siteQuantities && asset.siteQuantities[site.id] !== undefined)) // Keep ALL including zero
+    (String(asset.siteId) === siteId || 
+     (asset.siteQuantities && (asset.siteQuantities[siteId] !== undefined || asset.siteQuantities[site.id] !== undefined)))
   );
 
-  const handleEquipmentSelect = (equipment: Asset) => {
-    setSelectedEquipment(equipment);
-    setSelectedDate(new Date());
-    setShowLogDialog(true);
 
-    // Check for existing log for today
-    const existingLog = equipmentLogs.find(log =>
-      log.equipmentId === equipment.id &&
-      format(log.date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
-    );
-
-    if (existingLog) {
-      // Populate form with existing data
-      setLogForm({
-        active: existingLog.active,
-        downtimeEntries: existingLog.downtimeEntries.length > 0 ? existingLog.downtimeEntries : [{ id: Date.now().toString(), downtime: "", downtimeReason: "", downtimeAction: "", uptime: "" }],
-        maintenanceDetails: existingLog.maintenanceDetails || "",
-        dieselEntered: existingLog.dieselEntered?.toString() || "",
-        supervisorOnSite: existingLog.supervisorOnSite || "",
-        clientFeedback: existingLog.clientFeedback || "",
-        issuesOnSite: existingLog.issuesOnSite || ""
-      });
-    } else {
-      // Reset form for new entry - default to active
-      setLogForm({
-        active: true,
-        downtimeEntries: [{ id: Date.now().toString(), downtime: "", downtimeReason: "", downtimeAction: "", uptime: "" }],
-        maintenanceDetails: "",
-        dieselEntered: "",
-        supervisorOnSite: "",
-        clientFeedback: "",
-        issuesOnSite: ""
-      });
-    }
-  };
-
-  const handleDateSelect = (date: Date | undefined) => {
-    if (date && selectedEquipment) {
-      setSelectedDate(date);
-
-      // Check for existing log
-      const existingLog = equipmentLogs.find(log =>
-        log.equipmentId === selectedEquipment.id &&
-        format(log.date, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
-      );
-
-      if (existingLog) {
-        // Populate form with existing data
-        setLogForm({
-          active: existingLog.active,
-          downtimeEntries: existingLog.downtimeEntries.length > 0 ? existingLog.downtimeEntries : [{ id: Date.now().toString(), downtime: "", downtimeReason: "", downtimeAction: "", uptime: "" }],
-          maintenanceDetails: existingLog.maintenanceDetails || "",
-          dieselEntered: existingLog.dieselEntered?.toString() || "",
-          supervisorOnSite: existingLog.supervisorOnSite || "",
-          clientFeedback: existingLog.clientFeedback || "",
-          issuesOnSite: existingLog.issuesOnSite || ""
-        });
-      } else {
-        // Reset form for new entry - default to active
-        setLogForm({
-          active: true,
-          downtimeEntries: [{ id: Date.now().toString(), downtime: "", downtimeReason: "", downtimeAction: "", uptime: "" }],
-          maintenanceDetails: "",
-          dieselEntered: "",
-          supervisorOnSite: "",
-          clientFeedback: "",
-          issuesOnSite: ""
-        });
-      }
-    }
-  };
-
-  const handleSaveLog = () => {
-    if (!selectedEquipment || !selectedDate) return;
-
-    const existingLog = equipmentLogs.find(log =>
-      log.equipmentId === selectedEquipment.id &&
-      format(log.date, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd')
-    );
-
-    const logData: EquipmentLogType = {
-      id: existingLog?.id || Date.now().toString(),
-      equipmentId: selectedEquipment.id,
-      equipmentName: selectedEquipment.name,
-      siteId: site.id,
-      date: selectedDate,
-      active: logForm.active,
-      downtimeEntries: logForm.downtimeEntries,
-      maintenanceDetails: logForm.maintenanceDetails || undefined,
-      dieselEntered: logForm.dieselEntered ? parseFloat(logForm.dieselEntered) : undefined,
-      supervisorOnSite: logForm.supervisorOnSite || undefined,
-      clientFeedback: logForm.clientFeedback || undefined,
-      issuesOnSite: logForm.issuesOnSite || undefined,
-      createdAt: existingLog?.createdAt || new Date(),
-      updatedAt: new Date()
-    };
-
-    if (existingLog) {
-      onUpdateEquipmentLog(logData);
-      logActivity({
-        action: 'update',
-        entity: 'equipment_log',
-        entityId: selectedEquipment.id,
-        details: `Updated log for ${selectedEquipment.name} at ${site.name} on ${format(selectedDate, 'MMM dd, yyyy')} - Status: ${logForm.active ? 'Active' : 'Inactive'}`
-      });
-    } else {
-      onAddEquipmentLog(logData);
-      logActivity({
-        action: 'create',
-        entity: 'equipment_log',
-        entityId: selectedEquipment.id,
-        details: `Created log for ${selectedEquipment.name} at ${site.name} on ${format(selectedDate, 'MMM dd, yyyy')} - Status: ${logForm.active ? 'Active' : 'Inactive'}`
-      });
-    }
-
-    setShowLogDialog(false);
-    setSelectedEquipment(null);
-    setSelectedDate(undefined);
-  };
-
-  const getLogForEquipmentAndDate = (equipmentId: string, date: Date) => {
-    return equipmentLogs.find(log =>
-      String(log.equipmentId) === String(equipmentId) &&
-      format(log.date, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
-    );
-  };
-
-  const getLoggedDatesForEquipment = (equipmentId: string) => {
-    return equipmentLogs
-      .filter(log => String(log.equipmentId) === String(equipmentId))
-      .map(log => log.date);
-  };
-
-  const getLoggedDatesForEquipmentAndSite = (equipmentId: string) => {
-    return equipmentLogs
-      .filter(log => String(log.equipmentId) === String(equipmentId) && String(log.siteId) === String(site.id))
-      .map(log => log.date);
-  };
-
-  const getEquipmentArrivalDate = (equipmentId: string): Date | null => {
-    // Find the first waybill where this equipment was sent to this site
-    const relevantWaybills = waybills.filter(
-      waybill =>
-        String(waybill.siteId) === String(site.id) &&
-        waybill.items.some(item => String(item.assetId) === String(equipmentId))
-    );
-
-    if (relevantWaybills.length === 0) return null;
-
-    // Sort by issue date and return the earliest
-    const sortedWaybills = relevantWaybills.sort(
-      (a, b) => new Date(a.issueDate).getTime() - new Date(b.issueDate).getTime()
-    );
-
-    return new Date(sortedWaybills[0].issueDate);
-  };
-
-  const getMissedLogsCount = (equipmentId: string): number => {
-    const arrivalDate = getEquipmentArrivalDate(equipmentId);
-    if (!arrivalDate) return 0;
-
-    // Count dates from arrival to today that should have logs
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
-
-    let missedCount = 0;
-    let currentDate = new Date(arrivalDate);
-    currentDate.setHours(0, 0, 0, 0);
-
-    const loggedDates = getLoggedDatesForEquipmentAndSite(equipmentId).map(date => {
-      const d = new Date(date);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    });
-
-    while (currentDate <= today) {
-      const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
-      if (!loggedDates.includes(dateStr)) {
-        missedCount++;
-      }
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
-
-    return missedCount;
-  };
-
-  const handleQuickLog = (equipment: Asset) => {
-    // Check if there's already a log for today
-    const today = new Date();
-    const existingLog = equipmentLogs.find(log =>
-      log.equipmentId === equipment.id &&
-      format(log.date, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')
-    );
-
-    // Calculate diesel refill based on schedule (60L every 4 days)
-    const dieselRefill = calculateDieselRefill(equipmentLogs, equipment.id);
-
-    if (existingLog) {
-      // Update existing log with default template
-      const defaultTemplate = createDefaultOperationalLog(undefined, dieselRefill);
-      const updatedLog = applyDefaultTemplate(existingLog, defaultTemplate);
-      onUpdateEquipmentLog(updatedLog);
-      logActivity({
-        action: 'update',
-        entity: 'equipment_log',
-        entityId: equipment.id,
-        details: `Quick log applied to ${equipment.name} at ${site.name} on ${format(today, 'MMM dd, yyyy')} - Default operational template${dieselRefill ? ` with ${dieselRefill}L diesel refill` : ''}`
-      });
-    } else {
-      // Create new log with default template
-      const defaultTemplate = createDefaultOperationalLog(undefined, dieselRefill);
-      const newLog = applyDefaultTemplate({
-        equipmentId: equipment.id,
-        equipmentName: equipment.name,
-        siteId: site.id,
-        date: today
-      }, defaultTemplate);
-      onAddEquipmentLog(newLog);
-      logActivity({
-        action: 'create',
-        entity: 'equipment_log',
-        entityId: equipment.id,
-        details: `Quick log created for ${equipment.name} at ${site.name} on ${format(today, 'MMM dd, yyyy')} - Default operational template${dieselRefill ? ` with ${dieselRefill}L diesel refill` : ''}`
-      });
-    }
-  };
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-4">
@@ -313,10 +65,11 @@ export const MachinesSection = ({
           <h3 className="text-lg font-semibold">Machines</h3>
         </div>
         <div className="flex items-center gap-2">
-          <Button 
-            onClick={() => setShowSiteWideAnalytics(true)}
+          <Button
+            onClick={onViewAnalytics}
             variant="outline"
             size="sm"
+            disabled={!onViewAnalytics}
           >
             <LineChart className="h-4 w-4 mr-2" />
             Site Analytics
@@ -330,585 +83,73 @@ export const MachinesSection = ({
       </div>
 
       <CollapsibleContent className="space-y-4">
-      {siteEquipment.length === 0 ? (
-        <p className="text-muted-foreground">No equipment assigned to this dewatering site.</p>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {siteEquipment.map((equipment) => (
-            <Card key={equipment.id} className="border-0 shadow-soft">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center justify-between">
-                  {equipment.name}
-                  <Badge variant="outline">{equipment.status}</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="text-sm text-muted-foreground">
-                  Serial: {equipment.id}
-                </div>
-                {(() => {
-                  const overdueDays = getDieselOverdueDays(equipmentLogs, equipment.id);
-                  return overdueDays > 0 ? (
-                    <div className="text-xs text-orange-600 font-medium">
-                      ⚠️ Diesel refill overdue by {overdueDays} day{overdueDays > 1 ? 's' : ''}
-                    </div>
-                  ) : null;
-                })()}
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() => handleEquipmentSelect(equipment)}
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    disabled={!hasPermission('write_assets')}
-                  >
-                    <CalendarIcon className="h-4 w-4 mr-2" />
-                    Month
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      const equipmentLogsForSite = equipmentLogs.filter(log => log.siteId === site.id);
-                      setSelectedViewLogs(equipmentLogsForSite);
-                      setShowViewDialog(true);
-                    }}
-                    variant="ghost"
-                    size="sm"
-                    className="px-2"
-                  >
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      // Open analytics for this specific machine
-                      setSelectedEquipment(equipment);
-                      setShowAnalyticsDialog(true);
-                    }}
-                    variant="ghost"
-                    size="sm"
-                    className="px-2"
-                  >
-                    <BarChart3 className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      setSelectedItem(equipment);
-                      setShowItemDialog(true);
-                    }}
-                    variant="ghost"
-                    size="sm"
-                    className="px-2"
-                  >
-                    <Package className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+        {siteEquipment.length === 0 ? (
+          <p className="text-muted-foreground">No equipment assigned to this dewatering site.</p>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {siteEquipment.map((equipment) => (
+              <Card key={equipment.id} className="border-0 shadow-soft">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center justify-between">
+                    {equipment.name}
+                    <Badge variant="outline">{equipment.status}</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="text-sm text-muted-foreground">
+                    Serial: {equipment.id}
+                  </div>
+                  {(() => {
+                    const overdueDays = getDieselOverdueDays(equipmentLogs, equipment.id);
+                    return overdueDays > 0 ? (
+                      <div className="text-xs text-orange-600 font-medium">
+                        ⚠️ Diesel refill overdue by {overdueDays} day{overdueDays > 1 ? 's' : ''}
+                      </div>
+                    ) : null;
+                  })()}
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => onViewAssetDetails?.(equipment)}
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      disabled={!hasPermission('write_assets')}
+                    >
+                      <CalendarIcon className="h-4 w-4 mr-2" />
+                      Logs
+                    </Button>
+                    <Button
+                      onClick={() => onViewAssetDetails?.(equipment)}
+                      variant="ghost"
+                      size="sm"
+                      className="px-2"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      onClick={() => onViewAssetDetails?.(equipment)}
+                      variant="ghost"
+                      size="sm"
+                      className="px-2"
+                    >
+                      <BarChart3 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      onClick={() => onViewAssetDetails?.(equipment)}
+                      variant="ghost"
+                      size="sm"
+                      className="px-2"
+                    >
+                      <Package className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </CollapsibleContent>
 
-      {/* Log Entry Dialog */}
-      <Dialog open={showLogDialog} onOpenChange={setShowLogDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <DialogTitle>
-                  Log Entry - {selectedEquipment?.name}
-                </DialogTitle>
-                <DialogDescription>
-                  {selectedDate && format(selectedDate, 'PPP')}
-                </DialogDescription>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const defaultLog = createDefaultOperationalLog(
-                    employees.find(e => e.id === logForm.supervisorOnSite)?.name,
-                    selectedEquipment ? calculateDieselRefill(equipmentLogs, selectedEquipment.id) : undefined
-                  );
-                  setLogForm({
-                    active: defaultLog.active,
-                    downtimeEntries: defaultLog.downtimeEntries,
-                    maintenanceDetails: defaultLog.maintenanceDetails || "",
-                    dieselEntered: defaultLog.dieselEntered?.toString() || "",
-                    supervisorOnSite: defaultLog.supervisorOnSite || "",
-                    clientFeedback: defaultLog.clientFeedback || "",
-                    issuesOnSite: defaultLog.issuesOnSite || ""
-                  });
-                }}
-                className="shrink-0"
-              >
-                Quick Fill
-              </Button>
-            </div>
-          </DialogHeader>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Calendar on the Left */}
-            <div className="space-y-2">
-              <Label>Date</Label>
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={(date) => date && handleDateSelect(date)}
-                modifiers={{
-                  logged: selectedEquipment ? getLoggedDatesForEquipmentAndSite(selectedEquipment.id) : [],
-                  arrival: selectedEquipment && getEquipmentArrivalDate(selectedEquipment.id)
-                    ? [getEquipmentArrivalDate(selectedEquipment.id) as Date]
-                    : []
-                }}
-                modifiersStyles={{
-                  logged: {
-                    backgroundColor: 'hsl(var(--primary))',
-                    color: 'white',
-                    fontWeight: 'bold'
-                  },
-                  arrival: {
-                    backgroundColor: 'hsl(34 89% 72%)',
-                    color: '#000',
-                    fontWeight: 'bold',
-                    textDecoration: 'underline'
-                  }
-                }}
-                className="rounded-md border"
-              />
-              <div className="space-y-1 mt-2">
-                <p className="text-xs text-muted-foreground">
-                  <span style={{color: 'hsl(var(--primary))', fontWeight: 'bold'}}>■</span> Blue dates have existing logs
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  <span style={{color: 'hsl(34 89% 72%)', fontWeight: 'bold'}}>■</span> Orange date = equipment arrived at site
-                </p>
-                {selectedEquipment && getEquipmentArrivalDate(selectedEquipment.id) && (
-                  <p className="text-xs font-medium text-orange-700 mt-2">
-                    ⚠️ {getMissedLogsCount(selectedEquipment.id)} missed log{getMissedLogsCount(selectedEquipment.id) !== 1 ? 's' : ''} since arrival
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Form on the Right */}
-            <div className="space-y-4">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="active"
-                  checked={logForm.active}
-                  onCheckedChange={(checked) => setLogForm({...logForm, active: checked as boolean})}
-                />
-                <Label htmlFor="active">Active</Label>
-              </div>
-
-              {logForm.active && (
-                <div className="space-y-4">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <Label>Downtime Entries</Label>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setLogForm({
-                          ...logForm,
-                          downtimeEntries: [...logForm.downtimeEntries, { id: Date.now().toString(), downtime: "", downtimeReason: "", downtimeAction: "", uptime: "" }]
-                        })}
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Entry
-                      </Button>
-                    </div>
-
-                    {logForm.downtimeEntries.map((entry, index) => (
-                      <div key={entry.id} className="border rounded-lg p-4 space-y-4">
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-medium">Entry {index + 1}</h4>
-                          {logForm.downtimeEntries.length > 1 && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setLogForm({
-                                ...logForm,
-                                downtimeEntries: logForm.downtimeEntries.filter((_, i) => i !== index)
-                              })}
-                            >
-                              Remove
-                            </Button>
-                          )}
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor={`downtime-${index}`}>Downtime (Time Machine Went Off)</Label>
-                            <Input
-                              id={`downtime-${index}`}
-                              value={entry.downtime}
-                              onChange={(e) => {
-                                const newEntries = [...logForm.downtimeEntries];
-                                newEntries[index].downtime = e.target.value;
-                                setLogForm({...logForm, downtimeEntries: newEntries});
-                              }}
-                              placeholder="e.g., 14:30"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor={`uptime-${index}`}>Uptime (Time Machine Came Back On)</Label>
-                            <Input
-                              id={`uptime-${index}`}
-                              value={entry.uptime}
-                              onChange={(e) => {
-                                const newEntries = [...logForm.downtimeEntries];
-                                newEntries[index].uptime = e.target.value;
-                                setLogForm({...logForm, downtimeEntries: newEntries});
-                              }}
-                              placeholder="e.g., 16:00"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor={`downtimeReason-${index}`}>Downtime Reason</Label>
-                          <Input
-                            id={`downtimeReason-${index}`}
-                            value={entry.downtimeReason}
-                            onChange={(e) => {
-                              const newEntries = [...logForm.downtimeEntries];
-                              newEntries[index].downtimeReason = e.target.value;
-                              setLogForm({...logForm, downtimeEntries: newEntries});
-                            }}
-                            placeholder="Reason for downtime"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor={`downtimeAction-${index}`}>Action Taken</Label>
-                          <Textarea
-                            id={`downtimeAction-${index}`}
-                            value={entry.downtimeAction}
-                            onChange={(e) => {
-                              const newEntries = [...logForm.downtimeEntries];
-                              newEntries[index].downtimeAction = e.target.value;
-                              setLogForm({...logForm, downtimeEntries: newEntries});
-                            }}
-                            placeholder="Actions taken to resolve"
-                            rows={2}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="maintenanceDetails">Maintenance Details</Label>
-                    <Textarea
-                      id="maintenanceDetails"
-                      value={logForm.maintenanceDetails}
-                      onChange={(e) => setLogForm({...logForm, maintenanceDetails: e.target.value})}
-                      placeholder="Maintenance performed"
-                      rows={2}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="dieselEntered">Diesel Entered (L)</Label>
-                      <Input
-                        id="dieselEntered"
-                        type="number"
-                        value={logForm.dieselEntered}
-                        onChange={(e) => setLogForm({...logForm, dieselEntered: e.target.value})}
-                        placeholder="0.00"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="supervisorOnSite">Supervisor on Site</Label>
-                      <Select
-                        value={logForm.supervisorOnSite}
-                        onValueChange={(value) => setLogForm({...logForm, supervisorOnSite: value})}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select supervisor" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {employees.map((employee) => (
-                            <SelectItem key={employee.id} value={employee.name}>
-                              {employee.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="clientFeedback">Client Feedback</Label>
-                    <Textarea
-                      id="clientFeedback"
-                      value={logForm.clientFeedback}
-                      onChange={(e) => setLogForm({...logForm, clientFeedback: e.target.value})}
-                      placeholder="Client feedback and comments"
-                      rows={2}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="issuesOnSite">Issues on Site</Label>
-                    <Textarea
-                      id="issuesOnSite"
-                      value={logForm.issuesOnSite}
-                      onChange={(e) => setLogForm({...logForm, issuesOnSite: e.target.value})}
-                      placeholder="Any issues encountered"
-                      rows={2}
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div className="flex gap-3 pt-4">
-                <Button
-                  onClick={() => setShowLogDialog(false)}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleSaveLog}
-                  className="flex-1"
-                >
-                  Save Log Entry
-                </Button>
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* View Logs Dialog */}
-      <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Equipment Logs - {site.name}</DialogTitle>
-            <DialogDescription>
-              View all equipment log entries for this site.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            {selectedViewLogs.length === 0 ? (
-              <p className="text-muted-foreground">No equipment logs found for this site.</p>
-            ) : (
-              <div className="space-y-4">
-                {selectedViewLogs.map((log) => (
-                  <Card key={log.id} className="border-0 shadow-soft">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base flex items-center justify-between">
-                        <span>{log.equipmentName}</span>
-                        <Badge variant={log.active ? "default" : "secondary"}>
-                          {log.active ? "Active" : "Inactive"}
-                        </Badge>
-                      </CardTitle>
-                      <div className="text-sm text-muted-foreground">
-                        {format(log.date, 'PPP')}
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      {log.active && (
-                        <div className="space-y-3">
-                          {log.downtimeEntries && log.downtimeEntries.length > 0 && (
-                            <div className="space-y-2">
-                              <Label className="text-sm font-medium">Downtime Entries:</Label>
-                              {log.downtimeEntries.map((entry, index) => (
-                                <div key={entry.id} className="border rounded p-3 bg-muted/50">
-                                  <div className="grid grid-cols-2 gap-2 text-sm">
-                                    <div><strong>Downtime:</strong> {entry.downtime || 'N/A'}</div>
-                                    <div><strong>Uptime:</strong> {entry.uptime || 'N/A'}</div>
-                                    <div><strong>Reason:</strong> {entry.downtimeReason || 'N/A'}</div>
-                                    <div><strong>Action:</strong> {entry.downtimeAction || 'N/A'}</div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          {log.maintenanceDetails && (
-                            <div className="text-sm">
-                              <strong>Maintenance Details:</strong> {log.maintenanceDetails}
-                            </div>
-                          )}
-
-                          {log.dieselEntered && (
-                            <div className="text-sm">
-                              <strong>Diesel Entered:</strong> {log.dieselEntered} L
-                            </div>
-                          )}
-
-                          {log.supervisorOnSite && (
-                            <div className="text-sm">
-                              <strong>Supervisor on Site:</strong> {log.supervisorOnSite}
-                            </div>
-                          )}
-
-                          {log.clientFeedback && (
-                            <div className="text-sm">
-                              <strong>Client Feedback:</strong> {log.clientFeedback}
-                            </div>
-                          )}
-
-                           {log.issuesOnSite && (
-                            <div className="mt-3 p-3 rounded-md bg-destructive/10 border border-destructive/20">
-                              <div className="flex items-start gap-2">
-                                <Badge variant="destructive" className="mt-0.5">⚠️ Issues</Badge>
-                                <div className="flex-1">
-                                  <p className="text-sm font-medium text-destructive">{log.issuesOnSite}</p>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Analytics Dialog */}
-      <Dialog open={showAnalyticsDialog} onOpenChange={setShowAnalyticsDialog}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Analytics - {selectedEquipment?.name}</DialogTitle>
-            <DialogDescription>
-              View detailed analytics for this equipment.
-            </DialogDescription>
-          </DialogHeader>
-          {selectedEquipment && (
-            <SiteMachineAnalytics
-              site={site}
-              equipment={[selectedEquipment]}
-              equipmentLogs={equipmentLogs.filter(log => log.equipmentId === selectedEquipment.id)}
-              companySettings={companySettings}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Show Item Dialog */}
-      <Dialog open={showItemDialog} onOpenChange={setShowItemDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Equipment Details - {selectedItem?.name}</DialogTitle>
-            <DialogDescription>
-              Detailed information about this equipment asset.
-            </DialogDescription>
-          </DialogHeader>
-          {selectedItem && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Asset ID</Label>
-                  <div className="text-sm text-muted-foreground">{selectedItem.id}</div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Name</Label>
-                  <div className="text-sm text-muted-foreground">{selectedItem.name}</div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Type</Label>
-                  <div className="text-sm text-muted-foreground">{selectedItem.type}</div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Status</Label>
-                  <Badge variant="outline">{selectedItem.status}</Badge>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Site ID</Label>
-                  <div className="text-sm text-muted-foreground">{selectedItem.siteId}</div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Site Name</Label>
-                  <div className="text-sm text-muted-foreground">{site.name}</div>
-                </div>
-              </div>
-
-              {/* Equipment Logs Summary */}
-              <div className="space-y-4">
-                <h4 className="font-medium">Recent Logs</h4>
-                {equipmentLogs.filter(log => log.equipmentId === selectedItem.id).length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No logs found for this equipment.</p>
-                ) : (
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {equipmentLogs
-                      .filter(log => log.equipmentId === selectedItem.id)
-                      .sort((a, b) => b.date.getTime() - a.date.getTime())
-                      .slice(0, 5)
-                      .map((log) => (
-                        <Card key={log.id} className="border-0 shadow-soft">
-                          <CardContent className="p-3">
-                            <div className="flex items-center justify-between">
-                              <div className="text-sm">
-                                <span className="font-medium">{format(log.date, 'PPP')}</span>
-                                <Badge variant={log.active ? "default" : "secondary"} className="ml-2">
-                                  {log.active ? "Active" : "Inactive"}
-                                </Badge>
-                              </div>
-                            </div>
-                            {log.active && (
-                              <div className="mt-2 text-xs text-muted-foreground">
-                                {log.maintenanceDetails && <div>Maintenance: {log.maintenanceDetails}</div>}
-                                {log.dieselEntered && <div>Diesel: {log.dieselEntered} L</div>}
-                                {log.supervisorOnSite && <div>Supervisor: {log.supervisorOnSite}</div>}
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
-                      ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Analytics Summary */}
-              <div className="space-y-4">
-                <h4 className="font-medium">Analytics Summary</h4>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center p-3 border rounded-lg">
-                    <div className="text-2xl font-bold text-blue-600">
-                      {equipmentLogs.filter(log => log.equipmentId === selectedItem.id && log.active).length}
-                    </div>
-                    <div className="text-sm text-muted-foreground">Active Days</div>
-                  </div>
-                  <div className="text-center p-3 border rounded-lg">
-                    <div className="text-2xl font-bold text-red-600">
-                      {equipmentLogs.filter(log => log.equipmentId === selectedItem.id && !log.active).length}
-                    </div>
-                    <div className="text-sm text-muted-foreground">Inactive Days</div>
-                  </div>
-                  <div className="text-center p-3 border rounded-lg">
-                    <div className="text-2xl font-bold text-green-600">
-                      {equipmentLogs.filter(log => log.equipmentId === selectedItem.id).length}
-                    </div>
-                    <div className="text-sm text-muted-foreground">Total Logs</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Site-Wide Machine Analytics Dialog */}
-      <SiteWideMachineAnalytics
-        open={showSiteWideAnalytics}
-        onOpenChange={setShowSiteWideAnalytics}
-        site={site}
-        equipment={assets}
-        equipmentLogs={equipmentLogs}
-      />
     </Collapsible>
   );
 };
