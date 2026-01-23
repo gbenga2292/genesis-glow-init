@@ -2676,7 +2676,14 @@ const Index = () => {
             defaultTab={analyticsTab}
             onBack={() => {
               setSelectedSiteForAnalytics(null);
-              setCurrentView('site-inventory');
+              // Navigate back to site-inventory if we came from there, otherwise go to sites
+              if (selectedSiteForInventory) {
+                setCurrentView('main');
+                setActiveTab('site-inventory');
+              } else {
+                setCurrentView('main');
+                setActiveTab('sites');
+              }
             }}
           />
         ) : null;

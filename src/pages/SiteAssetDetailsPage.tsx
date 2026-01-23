@@ -18,6 +18,7 @@ import { format } from "date-fns";
 import { createDefaultOperationalLog, applyDefaultTemplate, calculateDieselRefill, getDieselOverdueDays } from "@/utils/defaultLogTemplate";
 import { useToast } from "@/hooks/use-toast";
 import { logger } from "@/lib/logger";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface SiteAssetDetailsPageProps {
     site: Site;
@@ -49,6 +50,7 @@ export const SiteAssetDetailsPage = ({
     onUpdateConsumableLog
 }: SiteAssetDetailsPageProps) => {
     const { toast } = useToast();
+    const isMobile = useIsMobile();
     const isEquipment = asset.type === 'equipment';
     const [activeTab, setActiveTab] = useState("log-entry");
     const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
@@ -303,77 +305,108 @@ export const SiteAssetDetailsPage = ({
         ? equipmentLogs.filter(l => l.equipmentId === asset.id && l.siteId === site.id)
         : consumableLogs.filter(l => l.consumableId === asset.id && l.siteId === site.id);
 
+    const tabs = [
+        { value: 'log-entry', label: 'Log Entry' },
+        { value: 'history', label: 'History' },
+        { value: 'analytics', label: 'Analytics' }
+    ];
+
     return (
         <div className="flex flex-col h-full bg-background animate-fade-in">
-            {/* Header */}
-            <div className="flex items-center gap-4 p-6 border-b">
-                <Button variant="ghost" size="icon" onClick={onBack}>
-                    <ArrowLeft className="h-5 w-5" />
+            {/* Header - Mobile responsive */}
+            <div className="flex items-center gap-2 sm:gap-4 p-3 sm:p-6 border-b sticky top-0 bg-background z-10">
+                <Button 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={onBack}
+                    className="shrink-0 h-9 w-9 sm:h-10 sm:w-10"
+                    aria-label="Go back"
+                >
+                    <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
                 </Button>
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-                        {asset.name}
-                        <span className="text-sm font-normal text-muted-foreground ml-2">
+                <div className="min-w-0 flex-1">
+                    <h1 className="text-base sm:text-2xl font-bold tracking-tight flex items-center gap-2 truncate">
+                        <span className="truncate">{asset.name}</span>
+                        <span className="text-xs sm:text-sm font-normal text-muted-foreground">
                             ({isEquipment ? 'Equipment' : 'Consumable'})
                         </span>
                     </h1>
-                    <p className="text-muted-foreground">
+                    <p className="text-xs sm:text-sm text-muted-foreground truncate">
                         {site.name} • {asset.status || 'Active'}
                     </p>
                 </div>
             </div>
 
-            <div className="flex-1 overflow-auto p-6">
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-                    <TabsList>
-                        <TabsTrigger value="log-entry">Log Entry</TabsTrigger>
-                        <TabsTrigger value="history">History / Logs</TabsTrigger>
-                        <TabsTrigger value="analytics">Analytics</TabsTrigger>
-                    </TabsList>
+            <div className="flex-1 overflow-auto p-3 sm:p-6">
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
+                    {/* Mobile dropdown or desktop tabs */}
+                    {isMobile ? (
+                        <Select value={activeTab} onValueChange={setActiveTab}>
+                            <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Select view" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {tabs.map(tab => (
+                                    <SelectItem key={tab.value} value={tab.value}>
+                                        {tab.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    ) : (
+                        <TabsList>
+                            <TabsTrigger value="log-entry">Log Entry</TabsTrigger>
+                            <TabsTrigger value="history">History / Logs</TabsTrigger>
+                            <TabsTrigger value="analytics">Analytics</TabsTrigger>
+                        </TabsList>
+                    )}
 
                     <TabsContent value="log-entry" className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+                            {/* Calendar Card - Full width on mobile */}
                             <div className="space-y-4">
                                 <Card>
-                                    <CardHeader>
-                                        <CardTitle>Select Date</CardTitle>
+                                    <CardHeader className="p-3 sm:p-6">
+                                        <CardTitle className="text-sm sm:text-base">Select Date</CardTitle>
                                     </CardHeader>
-                                    <CardContent>
-                                        <Calendar
-                                            mode="single"
-                                            selected={selectedDate}
-                                            onSelect={setSelectedDate}
-                                            className="rounded-md border mx-auto"
-                                            modifiers={{
-                                                logged: activeLogs.map(l => new Date(l.date)),
-                                                arrival: isEquipment && getEquipmentArrivalDate(asset.id) ? [getEquipmentArrivalDate(asset.id) as Date] : []
-                                            }}
-                                            modifiersStyles={{
-                                                logged: {
-                                                    backgroundColor: 'hsl(var(--primary))',
-                                                    color: 'white',
-                                                    fontWeight: 'bold'
-                                                },
-                                                arrival: {
-                                                    backgroundColor: 'hsl(34 89% 72%)',
-                                                    color: '#000',
-                                                    fontWeight: 'bold',
-                                                    textDecoration: 'underline'
-                                                }
-                                            }}
-                                        />
+                                    <CardContent className="p-3 sm:p-6 pt-0">
+                                        <div className="flex justify-center">
+                                            <Calendar
+                                                mode="single"
+                                                selected={selectedDate}
+                                                onSelect={setSelectedDate}
+                                                className="rounded-md border w-full max-w-[280px]"
+                                                modifiers={{
+                                                    logged: activeLogs.map(l => new Date(l.date)),
+                                                    arrival: isEquipment && getEquipmentArrivalDate(asset.id) ? [getEquipmentArrivalDate(asset.id) as Date] : []
+                                                }}
+                                                modifiersStyles={{
+                                                    logged: {
+                                                        backgroundColor: 'hsl(var(--primary))',
+                                                        color: 'white',
+                                                        fontWeight: 'bold'
+                                                    },
+                                                    arrival: {
+                                                        backgroundColor: 'hsl(34 89% 72%)',
+                                                        color: '#000',
+                                                        fontWeight: 'bold',
+                                                        textDecoration: 'underline'
+                                                    }
+                                                }}
+                                            />
+                                        </div>
                                         <div className="space-y-1 mt-2">
                                             <p className="text-xs text-center text-muted-foreground">
-                                                <span style={{ color: 'hsl(var(--primary))', fontWeight: 'bold' }}>■</span> Blue dates have existing logs
+                                                <span style={{ color: 'hsl(var(--primary))', fontWeight: 'bold' }}>■</span> Blue = logged
                                             </p>
                                             {isEquipment && (
                                                 <>
                                                     <p className="text-xs text-center text-muted-foreground">
-                                                        <span style={{ color: 'hsl(34 89% 72%)', fontWeight: 'bold' }}>■</span> Orange date = equipment arrived
+                                                        <span style={{ color: 'hsl(34 89% 72%)', fontWeight: 'bold' }}>■</span> Orange = arrival
                                                     </p>
                                                     {getEquipmentArrivalDate(asset.id) && (
                                                         <p className="text-xs font-medium text-orange-700 text-center mt-1">
-                                                            ⚠️ {getMissedLogsCount(asset.id)} missed log{getMissedLogsCount(asset.id) !== 1 ? 's' : ''} since arrival
+                                                            ⚠️ {getMissedLogsCount(asset.id)} missed
                                                         </p>
                                                     )}
                                                 </>
@@ -383,47 +416,49 @@ export const SiteAssetDetailsPage = ({
                                 </Card>
                             </div>
 
-                            <div className="col-span-1 md:col-span-2">
+                            {/* Form Card - Full width on mobile, 2 cols on desktop */}
+                            <div className="lg:col-span-2">
                                 <Card>
-                                    <CardHeader>
-                                        <CardTitle>
+                                    <CardHeader className="p-3 sm:p-6">
+                                        <CardTitle className="text-sm sm:text-base">
                                             {selectedDate ? format(selectedDate, 'PPP') : 'Select a Date'}
                                         </CardTitle>
-                                        <CardDescription>
+                                        <CardDescription className="text-xs sm:text-sm">
                                             {isEquipment ? 'Daily Equipment Log' : 'Consumable Usage Log'}
                                         </CardDescription>
                                     </CardHeader>
-                                    <CardContent className="space-y-4">
+                                    <CardContent className="p-3 sm:p-6 pt-0 space-y-3 sm:space-y-4">
                                         {isEquipment ? (
-                                            /* Equipment Form */
-                                            <div className="space-y-4">
+                                            /* Equipment Form - Mobile responsive */
+                                            <div className="space-y-3 sm:space-y-4">
                                                 <div className="flex items-center space-x-2">
                                                     <Checkbox
                                                         id="active"
                                                         checked={equipmentForm.active}
                                                         onCheckedChange={(checked) => setEquipmentForm({ ...equipmentForm, active: checked as boolean })}
                                                     />
-                                                    <Label htmlFor="active">Machine Active (Operational)</Label>
+                                                    <Label htmlFor="active" className="text-sm">Machine Active</Label>
                                                 </div>
 
                                                 {equipmentForm.active && (
-                                                    <div className="grid grid-cols-2 gap-4">
-                                                        <div className="space-y-2">
-                                                            <Label>Diesel Added (L)</Label>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                                                        <div className="space-y-1.5">
+                                                            <Label className="text-xs sm:text-sm">Diesel Added (L)</Label>
                                                             <Input
                                                                 type="number"
                                                                 value={equipmentForm.dieselEntered}
                                                                 onChange={e => setEquipmentForm({ ...equipmentForm, dieselEntered: e.target.value })}
                                                                 placeholder="0.0"
+                                                                className="h-9"
                                                             />
                                                         </div>
-                                                        <div className="space-y-2">
-                                                            <Label>Supervisor</Label>
+                                                        <div className="space-y-1.5">
+                                                            <Label className="text-xs sm:text-sm">Supervisor</Label>
                                                             <Select
                                                                 value={equipmentForm.supervisorOnSite}
                                                                 onValueChange={v => setEquipmentForm({ ...equipmentForm, supervisorOnSite: v })}
                                                             >
-                                                                <SelectTrigger>
+                                                                <SelectTrigger className="h-9">
                                                                     <SelectValue placeholder="Select..." />
                                                                 </SelectTrigger>
                                                                 <SelectContent>
@@ -434,20 +469,21 @@ export const SiteAssetDetailsPage = ({
                                                     </div>
                                                 )}
 
-                                                <div className="space-y-2">
-                                                    <Label>Maintenance / Issues</Label>
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-xs sm:text-sm">Maintenance / Issues</Label>
                                                     <Textarea
                                                         value={equipmentForm.maintenanceDetails}
                                                         onChange={e => setEquipmentForm({ ...equipmentForm, maintenanceDetails: e.target.value })}
-                                                        placeholder="Describe maintenance performed or issues..."
+                                                        placeholder="Describe maintenance or issues..."
+                                                        rows={2}
+                                                        className="text-sm"
                                                     />
                                                 </div>
 
-                                                <div className="space-y-2">
-                                                    <Label>Downtime (Optional)</Label>
-                                                    {/* Simplified Downtime UI for this page view */}
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-xs sm:text-sm">Downtime (Optional)</Label>
                                                     {equipmentForm.downtimeEntries.map((entry, index) => (
-                                                        <div key={entry.id || index} className="grid grid-cols-2 gap-2 p-2 border rounded">
+                                                        <div key={entry.id || index} className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-2 border rounded">
                                                             <Input
                                                                 placeholder="Time (HH:MM)"
                                                                 value={entry.downtime}
@@ -456,6 +492,7 @@ export const SiteAssetDetailsPage = ({
                                                                     newEntries[index].downtime = e.target.value;
                                                                     setEquipmentForm({ ...equipmentForm, downtimeEntries: newEntries });
                                                                 }}
+                                                                className="h-9"
                                                             />
                                                             <Input
                                                                 placeholder="Reason"
@@ -465,41 +502,43 @@ export const SiteAssetDetailsPage = ({
                                                                     newEntries[index].downtimeReason = e.target.value;
                                                                     setEquipmentForm({ ...equipmentForm, downtimeEntries: newEntries });
                                                                 }}
+                                                                className="h-9"
                                                             />
                                                         </div>
                                                     ))}
                                                 </div>
 
-                                                <div className="pt-4">
-                                                    <Button onClick={handleSaveEquipmentLog} className="w-full">
+                                                <div className="pt-3 sm:pt-4">
+                                                    <Button onClick={handleSaveEquipmentLog} className="w-full h-10">
                                                         <Save className="h-4 w-4 mr-2" />
-                                                        Save Equipment Log
+                                                        Save Log
                                                     </Button>
                                                 </div>
                                             </div>
                                         ) : (
-                                            /* Consumable Form */
-                                            <div className="space-y-4">
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    <div className="space-y-2">
-                                                        <Label>Quantity Used ({asset.unitOfMeasurement})</Label>
+                                            /* Consumable Form - Mobile responsive */
+                                            <div className="space-y-3 sm:space-y-4">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                                                    <div className="space-y-1.5">
+                                                        <Label className="text-xs sm:text-sm">Quantity Used ({asset.unitOfMeasurement})</Label>
                                                         <Input
                                                             type="number"
                                                             value={consumableForm.quantityUsed}
                                                             onChange={e => setConsumableForm({ ...consumableForm, quantityUsed: e.target.value })}
                                                             placeholder="0.00"
+                                                            className="h-9"
                                                         />
                                                         <p className="text-xs text-muted-foreground">
                                                             Available: {asset.siteQuantities?.[site.id] || 0} {asset.unitOfMeasurement}
                                                         </p>
                                                     </div>
-                                                    <div className="space-y-2">
-                                                        <Label>Used By</Label>
+                                                    <div className="space-y-1.5">
+                                                        <Label className="text-xs sm:text-sm">Used By</Label>
                                                         <Select
                                                             value={consumableForm.usedBy}
                                                             onValueChange={v => setConsumableForm({ ...consumableForm, usedBy: v })}
                                                         >
-                                                            <SelectTrigger>
+                                                            <SelectTrigger className="h-9">
                                                                 <SelectValue placeholder="Select..." />
                                                             </SelectTrigger>
                                                             <SelectContent>
@@ -508,26 +547,29 @@ export const SiteAssetDetailsPage = ({
                                                         </Select>
                                                     </div>
                                                 </div>
-                                                <div className="space-y-2">
-                                                    <Label>Used For</Label>
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-xs sm:text-sm">Used For</Label>
                                                     <Input
                                                         value={consumableForm.usedFor}
                                                         onChange={e => setConsumableForm({ ...consumableForm, usedFor: e.target.value })}
                                                         placeholder="Task description..."
+                                                        className="h-9"
                                                     />
                                                 </div>
-                                                <div className="space-y-2">
-                                                    <Label>Notes</Label>
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-xs sm:text-sm">Notes</Label>
                                                     <Textarea
                                                         value={consumableForm.notes}
                                                         onChange={e => setConsumableForm({ ...consumableForm, notes: e.target.value })}
                                                         placeholder="Additional notes..."
+                                                        rows={2}
+                                                        className="text-sm"
                                                     />
                                                 </div>
-                                                <div className="pt-4">
-                                                    <Button onClick={handleSaveConsumableLog} className="w-full">
+                                                <div className="pt-3 sm:pt-4">
+                                                    <Button onClick={handleSaveConsumableLog} className="w-full h-10">
                                                         <Save className="h-4 w-4 mr-2" />
-                                                        Save Usage Log
+                                                        Save Usage
                                                     </Button>
                                                 </div>
                                             </div>
@@ -540,28 +582,28 @@ export const SiteAssetDetailsPage = ({
 
                     <TabsContent value="history">
                         <Card>
-                            <CardHeader>
-                                <CardTitle>History</CardTitle>
+                            <CardHeader className="p-3 sm:p-6">
+                                <CardTitle className="text-sm sm:text-base">History</CardTitle>
                             </CardHeader>
-                            <CardContent>
+                            <CardContent className="p-3 sm:p-6 pt-0">
                                 {activeLogs.length === 0 ? (
-                                    <p className="text-muted-foreground text-center py-8">No logs found.</p>
+                                    <p className="text-muted-foreground text-center py-6 sm:py-8 text-sm">No logs found.</p>
                                 ) : (
                                     <div className="space-y-2">
                                         {activeLogs
                                             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                                             .map((log: any) => (
-                                                <div key={log.id} className="border p-4 rounded-lg flex justify-between items-center">
-                                                    <div>
-                                                        <div className="font-medium">{format(new Date(log.date), 'PPP')}</div>
-                                                        <div className="text-sm text-muted-foreground">
+                                                <div key={log.id} className="border p-3 sm:p-4 rounded-lg flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="font-medium text-sm sm:text-base">{format(new Date(log.date), 'PPP')}</div>
+                                                        <div className="text-xs sm:text-sm text-muted-foreground truncate">
                                                             {isEquipment
                                                                 ? `${log.active ? 'Active' : 'Inactive'} • ${log.dieselEntered || 0}L Diesel`
                                                                 : `${log.quantityUsed} ${log.unit} • ${log.usedFor}`
                                                             }
                                                         </div>
                                                     </div>
-                                                    <Button variant="ghost" size="sm" onClick={() => {
+                                                    <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => {
                                                         setSelectedDate(new Date(log.date));
                                                         setActiveTab("log-entry");
                                                     }}>
