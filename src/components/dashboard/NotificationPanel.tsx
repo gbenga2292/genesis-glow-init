@@ -460,17 +460,17 @@ export const NotificationPanel = ({
         </Card>
       </Collapsible>
 
-      {/* Quick Log Form Dialog */}
+      {/* Quick Log Form Dialog - Full screen on mobile */}
       <Dialog open={showQuickLogDialog} onOpenChange={setShowQuickLogDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <div className="flex items-center justify-between">
+        <DialogContent className="sm:max-w-4xl">
+          <DialogHeader className="pb-2">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
-                <DialogTitle className="flex items-center gap-2">
-                  <Zap className="h-5 w-5" />
+                <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+                  <Zap className="h-4 w-4 sm:h-5 sm:w-5" />
                   Quick Log Equipment
                 </DialogTitle>
-                <DialogDescription>
+                <DialogDescription className="text-xs sm:text-sm">
                   {selectedDate && format(selectedDate, 'PPP')} - {selectedPendingItem?.equipment.name}
                 </DialogDescription>
               </div>
@@ -479,6 +479,7 @@ export const NotificationPanel = ({
                 variant="outline"
                 size="sm"
                 onClick={handleAutoFillDefaults}
+                className="w-full sm:w-auto"
               >
                 <CheckCircle className="h-4 w-4 mr-2" />
                 Auto-Fill Defaults
@@ -486,47 +487,49 @@ export const NotificationPanel = ({
             </div>
           </DialogHeader>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
             {/* Calendar on the Left */}
             <div className="space-y-2">
-              <Label>Date</Label>
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={(date) => date && handleDateSelect(date)}
-                modifiers={{
-                  logged: selectedPendingItem ? getLoggedDatesForEquipment(selectedPendingItem.equipment.id) : []
-                }}
-                modifiersStyles={{
-                  logged: {
-                    backgroundColor: 'hsl(var(--primary))',
-                    color: 'white',
-                    fontWeight: 'bold'
-                  }
-                }}
-                className="rounded-md border"
-              />
-              <p className="text-xs text-muted-foreground mt-2">
+              <Label className="text-sm">Date</Label>
+              <div className="flex justify-center">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={(date) => date && handleDateSelect(date)}
+                  modifiers={{
+                    logged: selectedPendingItem ? getLoggedDatesForEquipment(selectedPendingItem.equipment.id) : []
+                  }}
+                  modifiersStyles={{
+                    logged: {
+                      backgroundColor: 'hsl(var(--primary))',
+                      color: 'white',
+                      fontWeight: 'bold'
+                    }
+                  }}
+                  className="rounded-md border w-full max-w-[280px]"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground text-center">
                 Blue dates have existing logs
               </p>
             </div>
 
             {/* Form on the Right */}
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               <div className="flex items-center space-x-2">
                 <Checkbox
                   id="active"
                   checked={logForm.active}
                   onCheckedChange={(checked) => setLogForm({...logForm, active: checked as boolean})}
                 />
-                <Label htmlFor="active">Active</Label>
+                <Label htmlFor="active" className="text-sm">Active</Label>
               </div>
 
               {logForm.active && (
-                <div className="space-y-4">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <Label>Downtime Entries</Label>
+                <div className="space-y-3 sm:space-y-4">
+                  <div className="space-y-3 sm:space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <Label className="text-sm">Downtime Entries</Label>
                       <Button
                         type="button"
                         variant="outline"
@@ -535,6 +538,7 @@ export const NotificationPanel = ({
                           ...logForm,
                           downtimeEntries: [...logForm.downtimeEntries, { id: Date.now().toString(), downtime: "", downtimeReason: "", downtimeAction: "", uptime: "" }]
                         })}
+                        className="w-full sm:w-auto"
                       >
                         <Plus className="h-4 w-4 mr-2" />
                         Add Entry
@@ -542,9 +546,9 @@ export const NotificationPanel = ({
                     </div>
 
                     {logForm.downtimeEntries.map((entry, index) => (
-                      <div key={entry.id} className="border rounded-lg p-4 space-y-4">
+                      <div key={entry.id} className="border rounded-lg p-3 sm:p-4 space-y-3 sm:space-y-4">
                         <div className="flex items-center justify-between">
-                          <h4 className="font-medium">Entry {index + 1}</h4>
+                          <h4 className="font-medium text-sm">Entry {index + 1}</h4>
                           {logForm.downtimeEntries.length > 1 && (
                             <Button
                               type="button"
@@ -560,9 +564,9 @@ export const NotificationPanel = ({
                           )}
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor={`downtime-${index}`}>Downtime (Time Machine Went Off)</Label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`downtime-${index}`} className="text-xs sm:text-sm">Downtime (Time Off)</Label>
                             <Input
                               id={`downtime-${index}`}
                               value={entry.downtime}
@@ -572,10 +576,11 @@ export const NotificationPanel = ({
                                 setLogForm({...logForm, downtimeEntries: newEntries});
                               }}
                               placeholder="e.g., 14:30"
+                              className="h-9"
                             />
                           </div>
-                          <div className="space-y-2">
-                            <Label htmlFor={`uptime-${index}`}>Uptime (Time Machine Came Back On)</Label>
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`uptime-${index}`} className="text-xs sm:text-sm">Uptime (Time Back On)</Label>
                             <Input
                               id={`uptime-${index}`}
                               value={entry.uptime}
@@ -585,12 +590,13 @@ export const NotificationPanel = ({
                                 setLogForm({...logForm, downtimeEntries: newEntries});
                               }}
                               placeholder="e.g., 16:00"
+                              className="h-9"
                             />
                           </div>
                         </div>
 
-                        <div className="space-y-2">
-                          <Label htmlFor={`downtimeReason-${index}`}>Downtime Reason</Label>
+                        <div className="space-y-1.5">
+                          <Label htmlFor={`downtimeReason-${index}`} className="text-xs sm:text-sm">Downtime Reason</Label>
                           <Input
                             id={`downtimeReason-${index}`}
                             value={entry.downtimeReason}
@@ -600,11 +606,12 @@ export const NotificationPanel = ({
                               setLogForm({...logForm, downtimeEntries: newEntries});
                             }}
                             placeholder="Reason for downtime"
+                            className="h-9"
                           />
                         </div>
 
-                        <div className="space-y-2">
-                          <Label htmlFor={`downtimeAction-${index}`}>Action Taken</Label>
+                        <div className="space-y-1.5">
+                          <Label htmlFor={`downtimeAction-${index}`} className="text-xs sm:text-sm">Action Taken</Label>
                           <Textarea
                             id={`downtimeAction-${index}`}
                             value={entry.downtimeAction}
@@ -615,32 +622,35 @@ export const NotificationPanel = ({
                             }}
                             placeholder="Actions taken to resolve"
                             rows={2}
+                            className="text-sm"
                           />
                         </div>
                       </div>
                     ))}
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="maintenanceDetails">Maintenance Details</Label>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="maintenanceDetails" className="text-xs sm:text-sm">Maintenance Details</Label>
                     <Textarea
                       id="maintenanceDetails"
                       value={logForm.maintenanceDetails}
                       onChange={(e) => setLogForm({...logForm, maintenanceDetails: e.target.value})}
                       placeholder="Maintenance performed"
                       rows={2}
+                      className="text-sm"
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="dieselEntered">Diesel Entered (L)</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="dieselEntered" className="text-xs sm:text-sm">Diesel Entered (L)</Label>
                       <Input
                         id="dieselEntered"
                         type="number"
                         value={logForm.dieselEntered}
                         onChange={(e) => setLogForm({...logForm, dieselEntered: e.target.value})}
                         placeholder="0.00"
+                        className="h-9"
                       />
                       {selectedPendingItem && (() => {
                         const overdueDays = getDieselOverdueDays(equipmentLogs, selectedPendingItem.equipment.id);
@@ -656,13 +666,13 @@ export const NotificationPanel = ({
                         ) : null;
                       })()}
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="supervisorOnSite">Supervisor on Site</Label>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="supervisorOnSite" className="text-xs sm:text-sm">Supervisor on Site</Label>
                       <Select
                         value={logForm.supervisorOnSite}
                         onValueChange={(value) => setLogForm({...logForm, supervisorOnSite: value})}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="h-9">
                           <SelectValue placeholder="Select supervisor" />
                         </SelectTrigger>
                         <SelectContent>
@@ -676,43 +686,45 @@ export const NotificationPanel = ({
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="clientFeedback">Client Feedback</Label>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="clientFeedback" className="text-xs sm:text-sm">Client Feedback</Label>
                     <Textarea
                       id="clientFeedback"
                       value={logForm.clientFeedback}
                       onChange={(e) => setLogForm({...logForm, clientFeedback: e.target.value})}
                       placeholder="Client feedback and comments"
                       rows={2}
+                      className="text-sm"
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="issuesOnSite">Issues on Site</Label>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="issuesOnSite" className="text-xs sm:text-sm">Issues on Site</Label>
                     <Textarea
                       id="issuesOnSite"
                       value={logForm.issuesOnSite}
                       onChange={(e) => setLogForm({...logForm, issuesOnSite: e.target.value})}
                       placeholder="Any issues encountered"
                       rows={2}
+                      className="text-sm"
                     />
                   </div>
                 </div>
               )}
 
-              <div className="flex gap-3 pt-4">
+              <div className="flex gap-2 sm:gap-3 pt-3 sm:pt-4 sticky bottom-0 bg-background pb-2">
                 <Button
                   onClick={() => setShowQuickLogDialog(false)}
                   variant="outline"
-                  className="flex-1"
+                  className="flex-1 h-10"
                 >
                   Cancel
                 </Button>
                 <Button
                   onClick={handleSaveLog}
-                  className="flex-1"
+                  className="flex-1 h-10"
                 >
-                  Save Log Entry
+                  Save Log
                 </Button>
               </div>
             </div>
