@@ -42,13 +42,19 @@ export const SiteAnalyticsPage = ({
     return (
         <div className="flex flex-col h-full bg-background animate-fade-in">
             {/* Header - Mobile optimized */}
-            <div className="flex items-center gap-2 sm:gap-4 p-3 sm:p-6 border-b">
-                <Button variant="ghost" size="icon" onClick={onBack} className="shrink-0">
-                    <ArrowLeft className="h-5 w-5" />
+            <div className="flex items-center gap-2 sm:gap-4 p-3 sm:p-6 border-b sticky top-0 bg-background z-10">
+                <Button 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={onBack} 
+                    className="shrink-0 h-9 w-9 sm:h-10 sm:w-10"
+                    aria-label="Go back"
+                >
+                    <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
                 </Button>
                 <div className="min-w-0 flex-1">
-                    <h1 className="text-lg sm:text-2xl font-bold tracking-tight flex items-center gap-2 truncate">
-                        <BarChart3 className="h-5 w-5 sm:h-6 sm:w-6 text-primary shrink-0" />
+                    <h1 className="text-base sm:text-2xl font-bold tracking-tight flex items-center gap-2 truncate">
+                        <BarChart3 className="h-4 w-4 sm:h-6 sm:w-6 text-primary shrink-0" />
                         <span className="truncate">{site.name} Analytics</span>
                     </h1>
                     <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
