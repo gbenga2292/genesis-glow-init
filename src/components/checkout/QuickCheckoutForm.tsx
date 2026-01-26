@@ -165,10 +165,10 @@ export const QuickCheckoutForm = ({
     <div className="space-y-6 animate-fade-in">
       <div className={`flex ${isMobile ? 'flex-col gap-4' : 'justify-between items-start'}`}>
         <div>
-          <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
             Quick Checkout
           </h1>
-          <p className="text-muted-foreground mt-2">
+          <p className="text-sm sm:text-base text-muted-foreground mt-2">
             Fast checkout for individual employees and short-term loans
           </p>
         </div>

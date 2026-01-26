@@ -216,8 +216,8 @@ export const MachineMaintenancePage = ({
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold">Machine Maintenance</h1>
-                    <p className="text-muted-foreground">Track and manage equipment maintenance schedules</p>
+                    <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">Machine Maintenance</h1>
+                    <p className="text-sm sm:text-base text-muted-foreground">Track and manage equipment maintenance schedules</p>
                 </div>
                 {onAddMachine && (
                     <Button onClick={onAddMachine}>

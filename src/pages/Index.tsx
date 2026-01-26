@@ -23,6 +23,7 @@ import { ReturnWaybillDocument } from "@/components/waybills/ReturnWaybillDocume
 import { ReturnProcessingDialog } from "@/components/waybills/ReturnProcessingDialog";
 import { QuickCheckoutForm } from "@/components/checkout/QuickCheckoutForm";
 import { EmployeeAnalyticsPage } from "@/pages/EmployeeAnalyticsPage";
+import { RecentActivitiesPage } from "@/pages/RecentActivitiesPage";
 
 import { CompanySettings } from "@/components/settings/CompanySettings";
 import { Asset, Waybill, WaybillItem, QuickCheckout, ReturnBill, Site, CompanySettings as CompanySettingsType, Employee, ReturnItem, SiteTransaction, Vehicle } from "@/types/asset";
@@ -51,6 +52,8 @@ import { WaybillDocumentPage } from "@/pages/WaybillDocumentPage";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSiteInventory } from "@/hooks/useSiteInventory";
 import { SiteInventoryItem } from "@/types/inventory";
+import { PullToRefreshLayout } from "@/components/layout/PullToRefreshLayout";
+import { useNetworkStatus } from "@/hooks/use-network-status";
 import { AIAssistantProvider, useAIAssistant } from "@/contexts/AIAssistantContext";
 import { AIAssistantChat } from "@/components/ai/AIAssistantChat";
 import { logActivity } from "@/utils/activityLogger";
@@ -67,6 +70,7 @@ import { dataService } from "@/services/dataService";
 const Index = () => {
   const { toast } = useToast();
   const { isAuthenticated, hasPermission, currentUser } = useAuth();
+  const isOnline = useNetworkStatus();
 
   const isMobile = useIsMobile();
   const params = useParams();
@@ -86,14 +90,15 @@ const Index = () => {
   const [editingWaybill, setEditingWaybill] = useState<Waybill | null>(null);
   const [editingReturnWaybill, setEditingReturnWaybill] = useState<Waybill | null>(null);
   const [selectedAssetForAnalytics, setSelectedAssetForAnalytics] = useState<Asset | null>(null);
+  const [analyticsReturnTo, setAnalyticsReturnTo] = useState<{ view: string; tab: string } | null>(null);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [aiPrefillData, setAiPrefillData] = useState<any>(null);
   const [selectedSiteForInventory, setSelectedSiteForInventory] = useState<Site | null>(null);
   const [selectedSiteForReturnWaybill, setSelectedSiteForReturnWaybill] = useState<Site | null>(null);
-  
+
   // View state for full-page navigation
   const [currentView, setCurrentView] = useState<string>('main');
-  
+
   // Dialog states for waybill documents (used while transitioning to full-page views)
   const [showWaybillDocument, setShowWaybillDocument] = useState<Waybill | null>(null);
   const [showReturnWaybillDocument, setShowReturnWaybillDocument] = useState<Waybill | null>(null);
@@ -397,6 +402,16 @@ const Index = () => {
       });
       return;
     }
+
+    if (!isOnline) {
+      toast({
+        title: "Offline Mode",
+        description: "Cannot edit assets while offline",
+        variant: "destructive"
+      });
+      return;
+    }
+
     const assetWithUpdatedDate = {
       ...updatedAsset,
       availableQuantity: !updatedAsset.siteId ? calculateAvailableQuantity(
@@ -449,6 +464,16 @@ const Index = () => {
       });
       return;
     }
+
+    if (!isOnline) {
+      toast({
+        title: "Offline Mode",
+        description: "Cannot delete assets while offline",
+        variant: "destructive"
+      });
+      return;
+    }
+
     if (deletingAsset) {
       try {
         // Delete from database first
@@ -489,6 +514,17 @@ const Index = () => {
       });
       return;
     }
+
+    if (!isOnline) {
+      toast({
+        title: "Offline Mode",
+        description: "Cannot create waybills while offline",
+        variant: "destructive"
+      });
+      return;
+    }
+
+
 
     // Generate sequential waybill ID (client-side approximation, race condition possible but acceptable for now)
     // Ideally backend does this.
@@ -568,6 +604,15 @@ const Index = () => {
       toast({
         title: "Authentication Required",
         description: "Please login to delete waybills",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!isOnline) {
+      toast({
+        title: "Offline Mode",
+        description: "Cannot delete waybills while offline",
         variant: "destructive"
       });
       return;
@@ -1227,6 +1272,15 @@ const Index = () => {
       return;
     }
 
+    if (!isOnline) {
+      toast({
+        title: "Offline Mode",
+        description: "Cannot checkout items while offline",
+        variant: "destructive"
+      });
+      return;
+    }
+
     const newCheckout: QuickCheckout = {
       ...checkoutData,
       id: Date.now().toString(),
@@ -1644,15 +1698,6 @@ const Index = () => {
       return;
     }
 
-    if (!window.electronAPI || !window.electronAPI.db) {
-      toast({
-        title: "Database Not Available",
-        description: "Cannot save maintenance logs without database connection.",
-        variant: "destructive"
-      });
-      return;
-    }
-
     try {
       for (const entry of entries) {
         // 1. Create Maintenance Log
@@ -1732,11 +1777,12 @@ const Index = () => {
         title: "Maintenance Logged",
         description: `Successfully logged maintenance for ${entries.length} machine(s)`
       });
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Failed to save maintenance logs', error);
+      const errorMessage = error?.message || error?.error?.message || 'Failed to save maintenance logs to database';
       toast({
         title: "Error",
-        description: "Failed to save maintenance logs to database",
+        description: errorMessage,
         variant: "destructive"
       });
     }
@@ -1805,11 +1851,10 @@ const Index = () => {
   };
 
 
-
   function renderContent() {
     switch (activeTab) {
       case "dashboard":
-        return <Dashboard assets={assets} waybills={waybills} quickCheckouts={quickCheckouts} sites={sites} equipmentLogs={equipmentLogs} employees={employees} onQuickLogEquipment={async (log: EquipmentLog) => {
+        return <Dashboard assets={assets} waybills={waybills} quickCheckouts={quickCheckouts} sites={sites} equipmentLogs={equipmentLogs} maintenanceLogs={maintenanceLogs} employees={employees} vehicles={vehicles} onQuickLogEquipment={async (log: EquipmentLog) => {
           if (!isAuthenticated) {
             toast({
               title: "Authentication Required",
@@ -1847,7 +1892,34 @@ const Index = () => {
           if (tab === 'assets' && params?.availability) {
             setActiveAvailabilityFilter(params.availability);
           }
-        }} />;
+        }} />
+      case "machine-maintenance":
+        return <MachineMaintenancePage
+          machines={assets.filter(a => a.type === 'equipment').map(a => ({
+            id: a.id,
+            name: a.name,
+            model: a.model,
+            serialNumber: a.serialNumber,
+            site: a.siteId ? (sites.find(s => s.id === a.siteId)?.name || a.siteId) : 'Fleet',
+            deploymentDate: a.deploymentDate || a.createdAt,
+            status: a.status as any,
+            operatingPattern: 'Standard',
+            serviceInterval: a.serviceInterval || 2,
+            responsibleSupervisor: 'Fleet Manager',
+            notes: a.description,
+            createdAt: a.createdAt,
+            updatedAt: a.updatedAt
+          }))}
+          maintenanceLogs={maintenanceLogs}
+          assets={assets}
+          sites={sites}
+          employees={employees}
+          vehicles={vehicles}
+          onAddMachine={() => setActiveTab('add-asset')}
+          onSubmitMaintenance={handleSubmitMaintenance}
+        />;
+      case "recent-activities":
+        return <RecentActivitiesPage />;
       case "assets":
         return <AssetTable
           assets={assets}
@@ -1882,7 +1954,13 @@ const Index = () => {
             maintenanceLogs={maintenanceLogs}
             onBack={() => {
               setSelectedAssetForAnalytics(null);
-              setActiveTab('assets');
+              if (analyticsReturnTo) {
+                setCurrentView(analyticsReturnTo.view);
+                setActiveTab(analyticsReturnTo.tab);
+                setAnalyticsReturnTo(null);
+              } else {
+                setActiveTab('assets');
+              }
             }}
           />
         ) : null;
@@ -2456,11 +2534,11 @@ const Index = () => {
           <div className="space-y-6 animate-fade-in">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent flex items-center gap-2">
-                  <Package className="h-8 w-8" />
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent flex items-center gap-2">
+                  <Package className="h-6 w-6 sm:h-8 sm:w-8" />
                   {selectedSiteForInventory.name} - Materials and Waybills
                 </h1>
-                <p className="text-muted-foreground mt-2">
+                <p className="text-sm sm:text-base text-muted-foreground mt-2">
                   View all materials, equipment, and waybills for this site
                 </p>
               </div>
@@ -2549,6 +2627,13 @@ const Index = () => {
                 }}
                 onViewAnalytics={() => handleViewAnalytics(selectedSiteForInventory, 'equipment')}
                 onViewAssetDetails={(asset) => handleViewAssetDetails(selectedSiteForInventory, asset)}
+                onViewAssetHistory={(asset) => handleViewAssetDetails(selectedSiteForInventory, asset)}
+                onViewAssetAnalytics={(asset) => {
+                  setAnalyticsReturnTo({ view: 'site-inventory', tab: 'site-inventory' });
+                  setSelectedAssetForAnalytics(asset);
+                  setCurrentView('asset-analytics');
+                  setActiveTab('asset-analytics');
+                }}
               />
 
               {/* Consumables Section */}
@@ -2578,6 +2663,13 @@ const Index = () => {
                 }}
                 onViewAnalytics={() => handleViewAnalytics(selectedSiteForInventory, 'consumables')}
                 onViewAssetDetails={(asset) => handleViewAssetDetails(selectedSiteForInventory, asset)}
+                onViewAssetHistory={(asset) => handleViewAssetDetails(selectedSiteForInventory, asset)}
+                onViewAssetAnalytics={(asset) => {
+                  setAnalyticsReturnTo({ view: 'site-inventory', tab: 'site-inventory' });
+                  setSelectedAssetForAnalytics(asset);
+                  setCurrentView('asset-analytics');
+                  setActiveTab('asset-analytics');
+                }}
               />
 
               {/* Waybills List */}
@@ -2700,6 +2792,7 @@ const Index = () => {
             onBack={() => {
               setSelectedAssetForDetails(null);
               setCurrentView('site-inventory');
+              setActiveTab('site-inventory');
             }}
             onAddEquipmentLog={async (log: EquipmentLog) => {
               try {
@@ -2744,11 +2837,11 @@ const Index = () => {
           <div className="space-y-6 animate-fade-in">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent flex items-center gap-2">
-                  <Activity className="h-8 w-8" />
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent flex items-center gap-2">
+                  <Activity className="h-6 w-6 sm:h-8 sm:w-8" />
                   {selectedSiteForTransactions.name} - Transaction History
                 </h1>
-                <p className="text-muted-foreground mt-2">
+                <p className="text-sm sm:text-base text-muted-foreground mt-2">
                   View all asset movements and transactions for this site
                 </p>
               </div>
@@ -2958,10 +3051,10 @@ const Index = () => {
           <div className="space-y-6 animate-fade-in">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
                   Create Return Waybill - {selectedSiteForReturnWaybill.name}
                 </h1>
-                <p className="text-muted-foreground mt-2">
+                <p className="text-sm sm:text-base text-muted-foreground mt-2">
                   Create a return waybill for materials from this site
                 </p>
               </div>
@@ -3000,7 +3093,7 @@ const Index = () => {
           </div>
         ) : null;
       default:
-        return <Dashboard assets={assets} waybills={waybills} quickCheckouts={quickCheckouts} sites={sites} equipmentLogs={equipmentLogs} employees={employees} onQuickLogEquipment={async (log: EquipmentLog) => {
+        return <Dashboard assets={assets} waybills={waybills} quickCheckouts={quickCheckouts} sites={sites} equipmentLogs={equipmentLogs} maintenanceLogs={maintenanceLogs} employees={employees} vehicles={vehicles} onQuickLogEquipment={async (log: EquipmentLog) => {
           if (!isAuthenticated) {
             toast({
               title: "Authentication Required",
@@ -3394,42 +3487,44 @@ const Index = () => {
           )}
 
           <main className={cn(
-            "flex-1 overflow-y-auto p-3 md:p-6",
+            "flex-1 overflow-y-auto overflow-x-hidden p-3 md:p-6",
             isMobile && "pb-20" // Add padding for bottom nav
           )}>
-            {isAssetInventoryTab && (
-              <div className="flex flex-col space-y-3 md:space-y-0 md:flex-row md:justify-between md:items-center mb-6">
-                <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
-                  {isAuthenticated && hasPermission('write_assets') && (
-                    <Button
-                      variant="default"
-                      onClick={() => setActiveTab("add-asset")}
-                      className="w-full sm:w-auto bg-gradient-primary"
-                      size={isMobile ? "lg" : "default"}
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Asset
-                    </Button>
-                  )}
-                  {isAuthenticated && hasPermission('write_assets') && currentUser?.role !== 'staff' && <BulkImportAssets onImport={handleImport} />}
-                  <InventoryReport assets={assets} companySettings={companySettings} />
+            <PullToRefreshLayout>
+              {isAssetInventoryTab && (
+                <div className="flex flex-col space-y-3 md:space-y-0 md:flex-row md:justify-between md:items-center mb-6">
+                  <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
+                    {isAuthenticated && hasPermission('write_assets') && (
+                      <Button
+                        variant="default"
+                        onClick={() => setActiveTab("add-asset")}
+                        className="w-full sm:w-auto bg-gradient-primary"
+                        size={isMobile ? "lg" : "default"}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Asset
+                      </Button>
+                    )}
+                    {isAuthenticated && hasPermission('write_assets') && currentUser?.role !== 'staff' && <BulkImportAssets onImport={handleImport} />}
+                    <InventoryReport assets={assets} companySettings={companySettings} />
+
+                  </div>
 
                 </div>
+              )}
+              {processingReturnWaybill && (
+                <ReturnProcessingDialog
+                  waybill={processingReturnWaybill}
+                  onClose={() => setProcessingReturnWaybill(null)}
+                  onSubmit={(returnData) => {
+                    setProcessingReturnWaybill(null);
+                    handleProcessReturn(returnData);
+                  }}
+                />
+              )}
 
-              </div>
-            )}
-            {processingReturnWaybill && (
-              <ReturnProcessingDialog
-                waybill={processingReturnWaybill}
-                onClose={() => setProcessingReturnWaybill(null)}
-                onSubmit={(returnData) => {
-                  setProcessingReturnWaybill(null);
-                  handleProcessReturn(returnData);
-                }}
-              />
-            )}
-
-            {renderContent()}
+              {renderContent()}
+            </PullToRefreshLayout>
 
             {/* Edit Dialog */}
             <Dialog open={!!editingAsset} onOpenChange={open => !open && setEditingAsset(null)}>

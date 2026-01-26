@@ -45,6 +45,7 @@ export function transformAssetFromDB(dbAsset: any): any {
  */
 export function transformAssetToDB(asset: any): any {
   return {
+    id: asset.id,
     name: asset.name,
     description: asset.description,
     quantity: asset.quantity,
@@ -109,6 +110,7 @@ export function transformSiteFromDB(dbSite: any): any {
  */
 export function transformSiteToDB(site: any): any {
   return {
+    id: site.id,
     name: site.name,
     location: site.location,
     description: site.description,
@@ -138,6 +140,7 @@ export function transformEmployeeFromDB(dbEmployee: any): any {
  */
 export function transformEmployeeToDB(employee: any): any {
   return {
+    id: employee.id,
     name: employee.name,
     role: employee.role,
     phone: employee.phone,
@@ -290,6 +293,7 @@ export function transformActivityFromDB(dbActivity: any): any {
  */
 export function transformQuickCheckoutToDB(checkout: any): any {
   return {
+    id: checkout.id,
     asset_id: parseInt(checkout.assetId) || checkout.asset_id,
     employee_id: checkout.employeeId ? parseInt(checkout.employeeId) : (checkout.employee_id ? parseInt(checkout.employee_id) : null),
     quantity: checkout.quantity,
@@ -308,7 +312,7 @@ export function transformQuickCheckoutFromDB(dbCheckout: any, assets?: any[], em
   // Find asset name from assets array if provided
   const asset = assets?.find(a => String(a.id) === String(dbCheckout.asset_id));
   const employee = employees?.find(e => String(e.id) === String(dbCheckout.employee_id));
-  
+
   return {
     id: String(dbCheckout.id),
     assetId: String(dbCheckout.asset_id),
@@ -368,6 +372,7 @@ export function transformSiteTransactionFromDB(dbTransaction: any): any {
  */
 export function transformVehicleToDB(vehicle: any): any {
   return {
+    id: vehicle.id,
     name: vehicle.name,
     type: vehicle.type,
     registration_number: vehicle.registrationNumber || vehicle.registration_number,

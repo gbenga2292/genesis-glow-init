@@ -3,7 +3,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { createIDBPersister } from "./lib/query-persister";
 import { HashRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -11,6 +13,7 @@ import { AssetsProvider } from "./contexts/AssetsContext";
 import { WaybillsProvider } from "./contexts/WaybillsContext";
 import { AppDataProvider } from "./contexts/AppDataContext";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { NetworkStatus } from "./components/NetworkStatus";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
@@ -18,7 +21,14 @@ import NotFound from "./pages/NotFound";
 import { logger } from "./lib/logger";
 import { aiConfig } from "./config/aiConfig";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      gcTime: 1000 * 60 * 60 * 24, // 24 hours
+    },
+  },
+});
 
 
 const App = () => {
@@ -94,11 +104,44 @@ const App = () => {
 
     showDatabaseInfo();
     validateLLMConfig();
+
+    // Listen for scheduled backup requests from Main process
+    if ((window as any).electronAPI?.backupScheduler?.onAutoBackupTrigger) {
+      (window as any).electronAPI.backupScheduler.onAutoBackupTrigger(async () => {
+        logger.info('Received scheduled backup request');
+        try {
+          // Dynamically import to ensure we have fresh instance if needed, 
+          // though standard import at top is fine too. Using top-level import is cleaner.
+          // Using the global dataService imported at top would be better but I'll use lazy import to be safe
+          const { dataService } = await import("./services/dataService");
+
+          const backupData = await dataService.system.createBackup();
+
+          if ((window as any).electronAPI.backupScheduler?.save) {
+            await (window as any).electronAPI.backupScheduler.save(backupData);
+            toast.success("Scheduled Backup Complete", {
+              description: "Your daily backup has been saved."
+            });
+          }
+        } catch (err) {
+          logger.error("Scheduled backup failed", err);
+          toast.error("Scheduled Backup Failed");
+        }
+      });
+    }
+
   }, []);
 
   return (
     <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{
+          persister: createIDBPersister(),
+          maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+          buster: 'v1',
+        }}
+      >
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <AuthProvider>
             <AssetsProvider>
@@ -106,6 +149,7 @@ const App = () => {
                 <TooltipProvider>
                   <Toaster />
                   <Sonner />
+                  <NetworkStatus />
                   <AppDataProvider>
                     <HashRouter>
                       <Routes>
@@ -125,7 +169,7 @@ const App = () => {
             </AssetsProvider>
           </AuthProvider>
         </ThemeProvider>
-      </QueryClientProvider>
+      </PersistQueryClientProvider>
     </ErrorBoundary>
   );
 };

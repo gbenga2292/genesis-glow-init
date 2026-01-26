@@ -145,6 +145,20 @@ class BackupScheduler {
             errors: []
         };
 
+        // Delegate automatic backups to renderer (for Supabase support)
+        // This is necessary because Main process doesn't have Supabase access
+        if (isAutomatic) {
+            const windows = BrowserWindow.getAllWindows();
+            if (windows.length > 0) {
+                console.log('📡 Delegating automatic backup to Renderer...');
+                windows[0].webContents.send('backup:auto-trigger');
+                return { delegated: true };
+            } else {
+                console.warn('⚠️ Cannot perform automatic backup: No active window to fetch data from.');
+                return { error: 'No active window' };
+            }
+        }
+
         // Default options for automatic backup
         const backupTypes = options.backupTypes || ['json', 'database'];
         const jsonSections = options.sections; // If null/undefined, createJSONBackup will use defaults
@@ -392,6 +406,70 @@ class BackupScheduler {
             }
         } catch (err) {
             console.warn(`Could not cleanup ${label} directory:`, err.message);
+        }
+    }
+
+    /**
+     * Save complete backup data provided from external source (Renderer/Supabase)
+     * @param {Object} data - The full JSON backup data
+     */
+    async saveExternalBackup(data) {
+        console.log('📦 Saving external backup data...');
+        const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+        const results = {
+            json: { success: false, local: null, nas: null },
+            database: { success: false, local: null, nas: null }, // Database backup not applicable for Supabase
+            nasAccessible: false,
+            errors: []
+        };
+
+        try {
+            // Check NAS accessibility
+            const nasCheck = await this.checkNASAccessibility();
+            results.nasAccessible = nasCheck.accessible;
+
+            if (results.nasAccessible) {
+                await this.ensureNASDirectories();
+            }
+
+            // Save JSON Backup
+            const filename = `backup-${timestamp}.json`;
+            const jsonContent = JSON.stringify(data, null, 2);
+
+            // Save to local
+            if (this.backupToLocal) {
+                const localPath = path.join(this.localBackupDir, filename);
+                fs.writeFileSync(localPath, jsonContent);
+                results.json.local = localPath;
+                console.log('  ✓ JSON saved locally:', localPath);
+            }
+
+            // Save to NAS
+            if (results.nasAccessible && this.backupToNAS) {
+                const nasPath = path.join(this.nasBackupPath, 'json', filename);
+                fs.writeFileSync(nasPath, jsonContent);
+                results.json.nas = nasPath;
+                console.log('  ✓ JSON saved to NAS:', nasPath);
+            }
+
+            results.json.success = true;
+
+            // Log activity (best effort)
+            // We can't use db.createActivity because we are in Supabase mode
+            // logging is handled by Renderer
+
+            this.showNotification('Backup Complete',
+                results.nasAccessible ? 'Backup saved to NAS successfully' : 'Backup saved locally (NAS unavailable)',
+                'info'
+            );
+
+            return results;
+
+        } catch (err) {
+            console.error('❌ External backup save error:', err);
+            results.errors.push(err.message);
+            this.showNotification('Backup Failed', err.message, 'error');
+            return results;
         }
     }
 

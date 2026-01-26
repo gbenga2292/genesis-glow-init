@@ -115,6 +115,12 @@ interface Window {
       nasAccessible: boolean;
       errors: string[];
     }>;
+    save: (data: any) => Promise<{
+      json: { success: boolean; local: string | null; nas: string | null; error: string | null };
+      database: { success: boolean; local: string | null; nas: string | null; error: string | null };
+      nasAccessible: boolean;
+      errors: string[];
+    }>;
     setEnabled: (enabled: boolean) => Promise<{ success: boolean }>;
     setRetention: (days: number) => Promise<{ success: boolean }>;
     listBackups: () => Promise<{
@@ -145,5 +151,6 @@ interface Window {
     checkNAS: () => Promise<{ accessible: boolean; message: string }>;
     setNASPath: (nasPath: string) => Promise<{ success: boolean }>;
     readBackupFile: (filePath: string) => Promise<{ success: boolean; data?: any; error?: string }>;
+    onAutoBackupTrigger: (callback: () => void) => void;
   };
 }

@@ -188,10 +188,10 @@ export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybil
         <div className="mx-auto w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center mb-4">
           <FileText className="h-6 w-6 text-white" />
         </div>
-        <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
           Create Waybill
         </h1>
-        <p className="text-muted-foreground mt-2">
+        <p className="text-sm sm:text-base text-muted-foreground mt-2">
           Issue assets for delivery to project sites
         </p>
       </div>

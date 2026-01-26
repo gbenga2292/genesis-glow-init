@@ -436,8 +436,8 @@ export const SiteWideMachineAnalytics = ({
                 <CardTitle>Total Downtime</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">{totalDowntime.toFixed(2)} hours</div>
-                <p className="text-sm text-muted-foreground mt-2">Across all machines</p>
+                <div className="text-xl sm:text-2xl md:text-3xl font-bold">{totalDowntime.toFixed(2)} hours</div>
+                <p className="text-xs sm:text-sm text-muted-foreground mt-2">Across all machines</p>
               </CardContent>
             </Card>
 

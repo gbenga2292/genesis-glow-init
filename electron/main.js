@@ -110,6 +110,22 @@ async function main() {
     };
   });
 
+  ipcMain.handle('db:clearTable', async (event, title) => {
+    // Stub for Supabase mode - no local table to clear
+    return { success: true };
+  });
+
+  ipcMain.handle('db:getCompanySettings', async () => {
+    // Return empty settings object - actual settings are fetched from Supabase
+    return {
+      companyName: '',
+      address: '',
+      phone: '',
+      email: '',
+      logo: ''
+    };
+  });
+
   // --- LLM Manager Integration (keep this for AI assistant) ---
   try {
     const { LLMManager } = await import('./llmManager.js');
@@ -176,11 +192,26 @@ async function main() {
     };
   });
 
+  // Modified to support both legacy and external saves
   ipcMain.handle('backup:triggerManual', async () => {
-    return {
-      success: false,
-      message: 'Local backup is disabled. Data is backed up automatically in Supabase.'
-    };
+    // For Supabase mode, this might fail if it tries to use local DB
+    // But we keep it for backward compat or if scheduler is updated
+    try {
+      const { backupScheduler } = await import('./backupScheduler.js');
+      return await backupScheduler.triggerManualBackup();
+    } catch (e) {
+      return { success: false, message: e.message };
+    }
+  });
+
+  ipcMain.handle('backup:save', async (event, data) => {
+    try {
+      const { backupScheduler } = await import('./backupScheduler.js');
+      return await backupScheduler.saveExternalBackup(data);
+    } catch (e) {
+      console.error('Backup save failed:', e);
+      return { success: false, errors: [e.message] };
+    }
   });
 
   ipcMain.handle('backup:setEnabled', () => {

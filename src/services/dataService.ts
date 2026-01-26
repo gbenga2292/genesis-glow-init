@@ -47,6 +47,8 @@ import {
     transformConsumableLogFromDB,
     transformMaintenanceLogToDB,
     transformMaintenanceLogFromDB,
+    transformCompanySettingsToDB, // Added
+    transformCompanySettingsFromDB, // Added
 } from '@/utils/dataTransform';
 
 // ============================================================================
@@ -389,11 +391,11 @@ export const quickCheckoutService = {
         ]);
 
         if (checkoutsResult.error) throw checkoutsResult.error;
-        
+
         const assets = assetsResult.data || [];
         const employees = employeesResult.data || [];
-        
-        return (checkoutsResult.data || []).map(checkout => 
+
+        return (checkoutsResult.data || []).map(checkout =>
             transformQuickCheckoutFromDB(checkout, assets, employees)
         );
     },
@@ -407,18 +409,18 @@ export const quickCheckoutService = {
             .single();
 
         if (error) throw error;
-        
+
         // Fetch asset and employee for enrichment
         const [assetResult, employeeResult] = await Promise.all([
             supabase.from('assets').select('id, name').eq('id', data.asset_id).single(),
-            data.employee_id 
+            data.employee_id
                 ? supabase.from('employees').select('id, name').eq('id', data.employee_id).single()
                 : Promise.resolve({ data: null })
         ]);
-        
+
         return transformQuickCheckoutFromDB(
-            data, 
-            assetResult.data ? [assetResult.data] : [], 
+            data,
+            assetResult.data ? [assetResult.data] : [],
             employeeResult.data ? [employeeResult.data] : []
         );
     },
@@ -433,18 +435,18 @@ export const quickCheckoutService = {
             .single();
 
         if (error) throw error;
-        
+
         // Fetch asset and employee for enrichment
         const [assetResult, employeeResult] = await Promise.all([
             supabase.from('assets').select('id, name').eq('id', data.asset_id).single(),
-            data.employee_id 
+            data.employee_id
                 ? supabase.from('employees').select('id, name').eq('id', data.employee_id).single()
                 : Promise.resolve({ data: null })
         ]);
-        
+
         return transformQuickCheckoutFromDB(
-            data, 
-            assetResult.data ? [assetResult.data] : [], 
+            data,
+            assetResult.data ? [assetResult.data] : [],
             employeeResult.data ? [employeeResult.data] : []
         );
     },
@@ -828,6 +830,133 @@ export const dataService = {
 
             if (error) throw error;
             return data || [];
+        }
+    },
+
+    system: {
+        createBackup: async (): Promise<any> => {
+            console.log('Generating full backup from Supabase...');
+            const [
+                assets, sites, employees, vehicles, waybills,
+                quickCheckouts, siteTransactions, equipmentLogs,
+                consumableLogs, maintenanceLogs, activities, companySettings
+            ] = await Promise.all([
+                dataService.assets.getAssets().catch(e => { console.error('Backup asset error', e); return []; }),
+                dataService.sites.getSites().catch(e => { console.error('Backup site error', e); return []; }),
+                dataService.employees.getEmployees().catch(e => { console.error('Backup employee error', e); return []; }),
+                dataService.vehicles.getVehicles().catch(e => { console.error('Backup vehicle error', e); return []; }),
+                dataService.waybills.getWaybills().catch(e => { console.error('Backup waybill error', e); return []; }),
+                dataService.quickCheckouts.getQuickCheckouts().catch(e => { console.error('Backup checkout error', e); return []; }),
+                dataService.siteTransactions.getSiteTransactions().catch(e => { console.error('Backup transaction error', e); return []; }),
+                dataService.equipmentLogs.getEquipmentLogs().catch(e => { console.error('Backup equipment log error', e); return []; }),
+                dataService.consumableLogs.getConsumableLogs().catch(e => { console.error('Backup consumable log error', e); return []; }),
+                dataService.maintenanceLogs.getMaintenanceLogs().catch(e => { console.error('Backup maintenance log error', e); return []; }),
+                dataService.activities.getActivities().catch(e => { console.error('Backup activity error', e); return []; }),
+                dataService.companySettings.getCompanySettings().catch(e => { console.error('Backup settings error', e); return {}; })
+            ]);
+
+            return {
+                _metadata: {
+                    version: '1.0',
+                    timestamp: new Date().toISOString(),
+                    appName: 'FirstLightEnding'
+                },
+                assets, sites, employees, vehicles, waybills,
+                quickCheckouts,
+                siteTransactions,
+                equipmentLogs,
+                consumableLogs,
+                maintenanceLogs,
+                activities,
+                companySettings
+            };
+        },
+
+        clearTable: async (table: string): Promise<{ success: boolean; error?: string }> => {
+            try {
+                // Delete all rows (neq id 0 is a standard way to select all for delete in some ORMs, 
+                // but for Supabase usually no where clause is needed if RLS allows, 
+                // however 'neq' ID generic is safer to ensure intention)
+                const { error } = await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+                if (error) {
+                    // Fallback for numeric IDs
+                    await supabase.from(table).delete().gt('id', 0);
+                }
+                return { success: true };
+            } catch (e: any) {
+                console.error(`Failed to clear table ${table}`, e);
+                return { success: false, error: e.message };
+            }
+        },
+
+        resetAllData: async (): Promise<void> => {
+            // Delete in reverse dependency order
+            // Note: We skipping 'users' to prevent lockout
+            const tables = [
+                'activities',
+                'consumable_logs',
+                'equipment_logs',
+                'maintenance_logs',
+                'metrics_snapshots',
+                'site_transactions',
+                'quick_checkouts',
+                'waybills',
+                'assets',
+                'sites',
+                'employees',
+                'vehicles',
+                'company_settings'
+            ];
+
+            for (const table of tables) {
+                try {
+                    const { error } = await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+                    if (error) {
+                        // Fallback for numeric IDs or other errors
+                        await supabase.from(table).delete().gt('id', 0);
+                    }
+                } catch (e) {
+                    console.error(`Failed to reset table ${table}`, e);
+                }
+            }
+        },
+
+        restoreData: async (backup: any, sections: string[]): Promise<{ success: boolean; errors: any[] }> => {
+            const sectionSet = new Set(sections);
+            const errors: any[] = [];
+
+            const processTable = async (key: string, table: string, transform: (item: any) => any) => {
+                if (sectionSet.has(key) && backup[key] && Array.isArray(backup[key])) {
+                    try {
+                        const items = backup[key].map(transform);
+                        if (items.length > 0) {
+                            const { error } = await supabase.from(table).upsert(items);
+                            if (error) throw error;
+                        }
+                    } catch (e: any) {
+                        console.error(`Restore error for ${key}:`, e);
+                        errors.push({ section: key, message: e.message });
+                    }
+                }
+            };
+
+            // Restore Order matters
+            await processTable('companySettings', 'company_settings', transformCompanySettingsToDB);
+            await processTable('sites', 'sites', transformSiteToDB);
+            await processTable('employees', 'employees', transformEmployeeToDB);
+            await processTable('vehicles', 'vehicles', transformVehicleToDB);
+            await processTable('assets', 'assets', transformAssetToDB);
+
+            await processTable('waybills', 'waybills', transformWaybillToDB);
+            await processTable('quickCheckouts', 'quick_checkouts', transformQuickCheckoutToDB);
+
+            await processTable('siteTransactions', 'site_transactions', transformSiteTransactionToDB);
+            await processTable('equipmentLogs', 'equipment_logs', transformEquipmentLogToDB);
+            await processTable('consumableLogs', 'consumable_logs', transformConsumableLogToDB);
+            await processTable('maintenanceLogs', 'maintenance_logs', transformMaintenanceLogToDB);
+            await processTable('activities', 'activities', transformActivityToDB);
+
+            return { success: errors.length === 0, errors };
         }
     }
 };

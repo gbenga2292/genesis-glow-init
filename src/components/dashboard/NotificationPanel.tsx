@@ -408,7 +408,7 @@ export const NotificationPanel = ({
           <CollapsibleContent>
             <CardContent>
               {/* Filter Buttons */}
-              <div className="flex gap-2 mb-4">
+              <div className="flex flex-wrap gap-2 mb-4">
                 <Button
                   variant={filterPriority === "all" ? "default" : "outline"}
                   size="sm"
@@ -447,7 +447,7 @@ export const NotificationPanel = ({
                 {renderNotificationGroup(criticalLogs, "Critical - Immediate Action Required", "text-destructive", AlertTriangle)}
                 {renderNotificationGroup(warningLogs, "Warning - Action Needed Soon", "text-warning", Clock)}
                 {renderNotificationGroup(normalLogs, "Normal - Routine Logs", "text-muted-foreground", Wrench)}
-                
+
                 {filteredLogs.length === 0 && (
                   <div className="text-center py-8 text-muted-foreground">
                     <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -520,7 +520,7 @@ export const NotificationPanel = ({
                 <Checkbox
                   id="active"
                   checked={logForm.active}
-                  onCheckedChange={(checked) => setLogForm({...logForm, active: checked as boolean})}
+                  onCheckedChange={(checked) => setLogForm({ ...logForm, active: checked as boolean })}
                 />
                 <Label htmlFor="active" className="text-sm">Active</Label>
               </div>
@@ -573,7 +573,7 @@ export const NotificationPanel = ({
                               onChange={(e) => {
                                 const newEntries = [...logForm.downtimeEntries];
                                 newEntries[index].downtime = e.target.value;
-                                setLogForm({...logForm, downtimeEntries: newEntries});
+                                setLogForm({ ...logForm, downtimeEntries: newEntries });
                               }}
                               placeholder="e.g., 14:30"
                               className="h-9"
@@ -587,7 +587,7 @@ export const NotificationPanel = ({
                               onChange={(e) => {
                                 const newEntries = [...logForm.downtimeEntries];
                                 newEntries[index].uptime = e.target.value;
-                                setLogForm({...logForm, downtimeEntries: newEntries});
+                                setLogForm({ ...logForm, downtimeEntries: newEntries });
                               }}
                               placeholder="e.g., 16:00"
                               className="h-9"
@@ -603,7 +603,7 @@ export const NotificationPanel = ({
                             onChange={(e) => {
                               const newEntries = [...logForm.downtimeEntries];
                               newEntries[index].downtimeReason = e.target.value;
-                              setLogForm({...logForm, downtimeEntries: newEntries});
+                              setLogForm({ ...logForm, downtimeEntries: newEntries });
                             }}
                             placeholder="Reason for downtime"
                             className="h-9"
@@ -618,7 +618,7 @@ export const NotificationPanel = ({
                             onChange={(e) => {
                               const newEntries = [...logForm.downtimeEntries];
                               newEntries[index].downtimeAction = e.target.value;
-                              setLogForm({...logForm, downtimeEntries: newEntries});
+                              setLogForm({ ...logForm, downtimeEntries: newEntries });
                             }}
                             placeholder="Actions taken to resolve"
                             rows={2}
@@ -634,7 +634,7 @@ export const NotificationPanel = ({
                     <Textarea
                       id="maintenanceDetails"
                       value={logForm.maintenanceDetails}
-                      onChange={(e) => setLogForm({...logForm, maintenanceDetails: e.target.value})}
+                      onChange={(e) => setLogForm({ ...logForm, maintenanceDetails: e.target.value })}
                       placeholder="Maintenance performed"
                       rows={2}
                       className="text-sm"
@@ -648,7 +648,7 @@ export const NotificationPanel = ({
                         id="dieselEntered"
                         type="number"
                         value={logForm.dieselEntered}
-                        onChange={(e) => setLogForm({...logForm, dieselEntered: e.target.value})}
+                        onChange={(e) => setLogForm({ ...logForm, dieselEntered: e.target.value })}
                         placeholder="0.00"
                         className="h-9"
                       />
@@ -670,7 +670,7 @@ export const NotificationPanel = ({
                       <Label htmlFor="supervisorOnSite" className="text-xs sm:text-sm">Supervisor on Site</Label>
                       <Select
                         value={logForm.supervisorOnSite}
-                        onValueChange={(value) => setLogForm({...logForm, supervisorOnSite: value})}
+                        onValueChange={(value) => setLogForm({ ...logForm, supervisorOnSite: value })}
                       >
                         <SelectTrigger className="h-9">
                           <SelectValue placeholder="Select supervisor" />
@@ -691,7 +691,7 @@ export const NotificationPanel = ({
                     <Textarea
                       id="clientFeedback"
                       value={logForm.clientFeedback}
-                      onChange={(e) => setLogForm({...logForm, clientFeedback: e.target.value})}
+                      onChange={(e) => setLogForm({ ...logForm, clientFeedback: e.target.value })}
                       placeholder="Client feedback and comments"
                       rows={2}
                       className="text-sm"
@@ -703,7 +703,7 @@ export const NotificationPanel = ({
                     <Textarea
                       id="issuesOnSite"
                       value={logForm.issuesOnSite}
-                      onChange={(e) => setLogForm({...logForm, issuesOnSite: e.target.value})}
+                      onChange={(e) => setLogForm({ ...logForm, issuesOnSite: e.target.value })}
                       placeholder="Any issues encountered"
                       rows={2}
                       className="text-sm"

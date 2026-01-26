@@ -60,10 +60,10 @@ export const EmployeeAnalyticsPage = ({ employees, quickCheckouts, assets, onBac
                     <ArrowLeft className="h-5 w-5" />
                 </Button>
                 <div>
-                    <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+                    <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
                         {isMobile && mobileView === 'details' && selectedEmployee ? selectedEmployee.name : 'Employee Analytics'}
                     </h1>
-                    <p className="text-muted-foreground">
+                    <p className="text-sm sm:text-base text-muted-foreground">
                         {isMobile && mobileView === 'details'
                             ? 'Employee equipment usage details'
                             : 'Detailed breakdown of employee equipment usage and status'}

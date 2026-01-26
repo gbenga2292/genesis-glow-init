@@ -135,10 +135,10 @@ export const AddAssetForm = ({ onAddAsset, asset, onSave, onCancel, sites, exist
         <div className="mx-auto w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center mb-4">
           <Package className="h-6 w-6 text-white" />
         </div>
-        <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
           {isEditing ? 'Edit Asset' : 'Add New Asset'}
         </h1>
-        <p className="text-muted-foreground mt-2">
+        <p className="text-sm sm:text-base text-muted-foreground mt-2">
           {isEditing ? 'Update asset information' : 'Add a new item to your inventory'}
         </p>
       </div>

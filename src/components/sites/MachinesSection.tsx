@@ -24,6 +24,8 @@ interface MachinesSectionProps {
   onUpdateEquipmentLog: (log: EquipmentLogType) => void;
   onViewAnalytics?: () => void;
   onViewAssetDetails?: (asset: Asset) => void;
+  onViewAssetHistory?: (asset: Asset) => void;
+  onViewAssetAnalytics?: (asset: Asset) => void;
 }
 
 export const MachinesSection = ({
@@ -36,7 +38,9 @@ export const MachinesSection = ({
   onAddEquipmentLog,
   onUpdateEquipmentLog,
   onViewAnalytics,
-  onViewAssetDetails
+  onViewAssetDetails,
+  onViewAssetHistory,
+  onViewAssetAnalytics
 }: MachinesSectionProps) => {
   const { hasPermission } = useAuth();
   const [isOpen, setIsOpen] = useState(true);
@@ -119,28 +123,22 @@ export const MachinesSection = ({
                       Logs
                     </Button>
                     <Button
-                      onClick={() => onViewAssetDetails?.(equipment)}
+                      onClick={() => onViewAssetHistory?.(equipment)}
                       variant="ghost"
                       size="sm"
                       className="px-2"
+                      title="View History"
                     >
                       <Eye className="h-4 w-4" />
                     </Button>
                     <Button
-                      onClick={() => onViewAssetDetails?.(equipment)}
+                      onClick={() => onViewAssetAnalytics?.(equipment)}
                       variant="ghost"
                       size="sm"
                       className="px-2"
+                      title="View Analytics"
                     >
                       <BarChart3 className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      onClick={() => onViewAssetDetails?.(equipment)}
-                      variant="ghost"
-                      size="sm"
-                      className="px-2"
-                    >
-                      <Package className="h-4 w-4" />
                     </Button>
                   </div>
                 </CardContent>

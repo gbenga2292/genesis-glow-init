@@ -58,12 +58,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
 contextBridge.exposeInMainWorld('backupScheduler', {
     getStatus: () => ipcRenderer.invoke('backup:getStatus'),
     triggerManual: (options) => ipcRenderer.invoke('backup:triggerManual', options),
+    save: (data) => ipcRenderer.invoke('backup:save', data),
     setEnabled: (enabled) => ipcRenderer.invoke('backup:setEnabled', enabled),
     setRetention: (days) => ipcRenderer.invoke('backup:setRetention', days),
     listBackups: () => ipcRenderer.invoke('backup:listBackups'),
     checkNAS: () => ipcRenderer.invoke('backup:checkNAS'),
     setNASPath: (nasPath) => ipcRenderer.invoke('backup:setNASPath', nasPath),
     readBackupFile: (filePath) => ipcRenderer.invoke('backup:readBackupFile', filePath),
+    onAutoBackupTrigger: (callback) => ipcRenderer.on('backup:auto-trigger', (event, ...args) => callback(...args)),
 });
 
 // Expose Local LLM API (Bundled Runtime)

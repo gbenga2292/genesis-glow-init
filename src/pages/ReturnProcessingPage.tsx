@@ -114,11 +114,11 @@ export const ReturnProcessingPage = ({ waybill, onBack, onSubmit }: ReturnProces
                     <ArrowLeft className="h-5 w-5" />
                 </Button>
                 <div className="flex-1">
-                    <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-                        <Package className="h-6 w-6" />
+                    <h1 className="text-lg sm:text-xl md:text-2xl font-bold tracking-tight flex items-center gap-2">
+                        <Package className="h-5 w-5 sm:h-6 sm:w-6" />
                         Process Return - Waybill {waybill.id}
                     </h1>
-                    <p className="text-muted-foreground">
+                    <p className="text-sm sm:text-base text-muted-foreground">
                         Review and process the returned items. Specify the quantity of damaged or missing items.
                     </p>
                 </div>
@@ -132,7 +132,7 @@ export const ReturnProcessingPage = ({ waybill, onBack, onSubmit }: ReturnProces
                         <Card>
                             <CardContent className="pt-6">
                                 <div className="text-center">
-                                    <p className="text-3xl font-bold text-primary">{stats.totalRemaining}</p>
+                                    <p className="text-xl sm:text-2xl md:text-3xl font-bold text-primary">{stats.totalRemaining}</p>
                                     <p className="text-xs text-muted-foreground">Total Remaining</p>
                                 </div>
                             </CardContent>
@@ -140,7 +140,7 @@ export const ReturnProcessingPage = ({ waybill, onBack, onSubmit }: ReturnProces
                         <Card className="border-green-200 bg-green-50/50">
                             <CardContent className="pt-6">
                                 <div className="text-center">
-                                    <p className="text-3xl font-bold text-green-600">{stats.totalGood}</p>
+                                    <p className="text-xl sm:text-2xl md:text-3xl font-bold text-green-600">{stats.totalGood}</p>
                                     <p className="text-xs text-muted-foreground">Good Condition</p>
                                 </div>
                             </CardContent>
@@ -148,7 +148,7 @@ export const ReturnProcessingPage = ({ waybill, onBack, onSubmit }: ReturnProces
                         <Card className="border-orange-200 bg-orange-50/50">
                             <CardContent className="pt-6">
                                 <div className="text-center">
-                                    <p className="text-3xl font-bold text-orange-600">{stats.totalDamaged}</p>
+                                    <p className="text-xl sm:text-2xl md:text-3xl font-bold text-orange-600">{stats.totalDamaged}</p>
                                     <p className="text-xs text-muted-foreground">Damaged</p>
                                 </div>
                             </CardContent>
@@ -156,7 +156,7 @@ export const ReturnProcessingPage = ({ waybill, onBack, onSubmit }: ReturnProces
                         <Card className="border-red-200 bg-red-50/50">
                             <CardContent className="pt-6">
                                 <div className="text-center">
-                                    <p className="text-3xl font-bold text-red-600">{stats.totalMissing}</p>
+                                    <p className="text-xl sm:text-2xl md:text-3xl font-bold text-red-600">{stats.totalMissing}</p>
                                     <p className="text-xs text-muted-foreground">Missing</p>
                                 </div>
                             </CardContent>
