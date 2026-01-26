@@ -20,6 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { MobileActionMenu, ActionMenuItem } from "@/components/ui/mobile-action-menu";
 import {
   Dialog,
   DialogContent,
@@ -93,6 +94,7 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
   const [selectedAssetForHistory, setSelectedAssetForHistory] = useState<Asset | null>(null);
   const [showRestockHistoryDialog, setShowRestockHistoryDialog] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [selectedAssetForDescription, setSelectedAssetForDescription] = useState<Asset | null>(null);
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>({
     criticalStock: false,
     lowStock: false,
@@ -564,62 +566,45 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {hasPermission('write_assets') && (
-                            <DropdownMenuItem onClick={() => {
+                      <MobileActionMenu
+                        title={`${asset.name} Actions`}
+                        items={[
+                          {
+                            label: "Edit Form",
+                            icon: <Edit className="h-4 w-4" />,
+                            onClick: () => {
                               if (!isAuthenticated) return;
                               onEdit(asset);
-                            }}>
-                              <Edit className="h-4 w-4 mr-2" />
-                              Edit Form
-                            </DropdownMenuItem>
-                          )}
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                <FileText className="h-4 w-4 mr-2" />
-                                Description
-                              </DropdownMenuItem>
-                            </DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>{asset.name} - Description</DialogTitle>
-                              </DialogHeader>
-                              <div className="mt-4">
-                                <p className="text-sm text-muted-foreground">
-                                  {asset.description || 'No description available for this asset.'}
-                                </p>
-                              </div>
-                            </DialogContent>
-                          </Dialog>
-                          <DropdownMenuItem onClick={() => onViewAnalytics?.(asset)}>
-                            <BarChart className="h-4 w-4 mr-2" />
-                            Analytics
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => {
-                            setSelectedAssetForHistory(asset);
-                            setShowRestockHistoryDialog(true);
-                          }}>
-                            <History className="h-4 w-4 mr-2" />
-                            Restock History
-                          </DropdownMenuItem>
-                          {hasPermission('delete_assets') && (
-                            <DropdownMenuItem
-                              onClick={() => onDelete(asset)}
-                              className="text-destructive focus:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                            },
+                            hidden: !hasPermission('write_assets'),
+                          },
+                          {
+                            label: "Description",
+                            icon: <FileText className="h-4 w-4" />,
+                            onClick: () => setSelectedAssetForDescription(asset),
+                          },
+                          {
+                            label: "Analytics",
+                            icon: <BarChart className="h-4 w-4" />,
+                            onClick: () => onViewAnalytics?.(asset),
+                          },
+                          {
+                            label: "Restock History",
+                            icon: <History className="h-4 w-4" />,
+                            onClick: () => {
+                              setSelectedAssetForHistory(asset);
+                              setShowRestockHistoryDialog(true);
+                            },
+                          },
+                          {
+                            label: "Delete",
+                            icon: <Trash2 className="h-4 w-4" />,
+                            onClick: () => onDelete(asset),
+                            variant: "destructive",
+                            hidden: !hasPermission('delete_assets'),
+                          },
+                        ]}
+                      />
                     </div>
                   </div>
 
@@ -738,15 +723,13 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
                     <TableCell>{getStockBadge(asset)}</TableCell>
 
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {hasPermission('write_assets') && (
-                            <DropdownMenuItem onClick={() => {
+                      <MobileActionMenu
+                        title={`${asset.name} Actions`}
+                        items={[
+                          {
+                            label: "Edit Form",
+                            icon: <Edit className="h-4 w-4" />,
+                            onClick: () => {
                               if (!isAuthenticated) {
                                 toast({
                                   title: "Login Required",
@@ -756,31 +739,18 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
                                 return;
                               }
                               onEdit(asset);
-                            }}>
-                              <Edit className="h-4 w-4 mr-2" />
-                              Edit Form
-                            </DropdownMenuItem>
-                          )}
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                <FileText className="h-4 w-4 mr-2" />
-                                Description
-                              </DropdownMenuItem>
-                            </DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>{asset.name} - Description</DialogTitle>
-                              </DialogHeader>
-                              <div className="mt-4">
-                                <p className="text-sm text-muted-foreground">
-                                  {asset.description || 'No description available for this asset.'}
-                                </p>
-                              </div>
-                            </DialogContent>
-                          </Dialog>
-                          <DropdownMenuItem
-                            onClick={() => {
+                            },
+                            hidden: !hasPermission('write_assets'),
+                          },
+                          {
+                            label: "Description",
+                            icon: <FileText className="h-4 w-4" />,
+                            onClick: () => setSelectedAssetForDescription(asset),
+                          },
+                          {
+                            label: "Analytics",
+                            icon: <BarChart className="h-4 w-4" />,
+                            onClick: () => {
                               if (!isAuthenticated) {
                                 toast({
                                   title: "Login Required",
@@ -790,13 +760,12 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
                                 return;
                               }
                               onViewAnalytics?.(asset);
-                            }}
-                          >
-                            <BarChart className="h-4 w-4 mr-2" />
-                            Analytics
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => {
+                            },
+                          },
+                          {
+                            label: "Restock History",
+                            icon: <History className="h-4 w-4" />,
+                            onClick: () => {
                               if (!isAuthenticated) {
                                 toast({
                                   title: "Login Required",
@@ -807,32 +776,27 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
                               }
                               setSelectedAssetForHistory(asset);
                               setShowRestockHistoryDialog(true);
-                            }}
-                          >
-                            <History className="h-4 w-4 mr-2" />
-                            Restock History
-                          </DropdownMenuItem>
-                          {hasPermission('delete_assets') && (
-                            <DropdownMenuItem
-                              onClick={() => {
-                                if (!isAuthenticated) {
-                                  toast({
-                                    title: "Login Required",
-                                    description: "Please log in to delete assets.",
-                                    variant: "destructive",
-                                  });
-                                  return;
-                                }
-                                onDelete(asset);
-                              }}
-                              className="text-destructive focus:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                            },
+                          },
+                          {
+                            label: "Delete",
+                            icon: <Trash2 className="h-4 w-4" />,
+                            onClick: () => {
+                              if (!isAuthenticated) {
+                                toast({
+                                  title: "Login Required",
+                                  description: "Please log in to delete assets.",
+                                  variant: "destructive",
+                                });
+                                return;
+                              }
+                              onDelete(asset);
+                            },
+                            variant: "destructive",
+                            hidden: !hasPermission('delete_assets'),
+                          },
+                        ]}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -960,6 +924,20 @@ export const AssetTable = ({ assets, sites, onEdit, onDelete, onUpdateAsset, onV
         open={showRestockHistoryDialog}
         onOpenChange={setShowRestockHistoryDialog}
       />
+
+      {/* Asset Description Dialog */}
+      <Dialog open={!!selectedAssetForDescription} onOpenChange={(open) => !open && setSelectedAssetForDescription(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{selectedAssetForDescription?.name} - Description</DialogTitle>
+          </DialogHeader>
+          <div className="mt-4">
+            <p className="text-sm text-muted-foreground">
+              {selectedAssetForDescription?.description || 'No description available for this asset.'}
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Bulk Operations (Admin Only) */}
       {

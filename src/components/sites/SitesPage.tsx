@@ -11,7 +11,7 @@ import { EquipmentLog } from "@/types/equipment";
 import { SiteInventoryItem } from "@/types/inventory";
 import { MapPin, Plus, Edit, Trash2, MoreVertical, FileText, Package, Activity, Eye, ChevronDown } from "lucide-react";
 import { WaybillDocument } from "../waybills/WaybillDocument";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { MobileActionMenu, ActionMenuItem } from "@/components/ui/mobile-action-menu";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -922,15 +922,14 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
                   <Badge variant={site.status === "active" ? "default" : "secondary"}>
                     {site.status}
                   </Badge>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="p-1">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {hasPermission('manage_sites') && (
-                        <DropdownMenuItem onClick={() => {
+                  <MobileActionMenu
+                    title={`${site.name} Actions`}
+                    iconVariant="vertical"
+                    items={[
+                      {
+                        label: "Edit",
+                        icon: <Edit className="h-4 w-4" />,
+                        onClick: () => {
                           if (!isAuthenticated) {
                             toast({
                               title: "Login Required",
@@ -940,13 +939,13 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
                             return;
                           }
                           handleEdit(site);
-                        }}>
-                          <Edit className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                      )}
-                      {hasPermission('manage_sites') && (
-                        <DropdownMenuItem onClick={() => {
+                        },
+                        hidden: !hasPermission('manage_sites'),
+                      },
+                      {
+                        label: "Delete",
+                        icon: <Trash2 className="h-4 w-4" />,
+                        onClick: () => {
                           if (!isAuthenticated) {
                             toast({
                               title: "Login Required",
@@ -956,17 +955,17 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
                             return;
                           }
                           handleDelete(site);
-                        }}>
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      )}
-                      <DropdownMenuItem onClick={() => handleShowItems(site)}>
-                        <FileText className="mr-2 h-4 w-4" />
-                        Show Items
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                        },
+                        variant: "destructive",
+                        hidden: !hasPermission('manage_sites'),
+                      },
+                      {
+                        label: "Show Items",
+                        icon: <FileText className="h-4 w-4" />,
+                        onClick: () => handleShowItems(site),
+                      },
+                    ]}
+                  />
                 </div>
               </CardHeader>
               <CardContent className="space-y-2">
