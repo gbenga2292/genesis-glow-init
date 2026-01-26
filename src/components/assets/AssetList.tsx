@@ -5,12 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { MobileActionMenu, ActionMenuItem } from "@/components/ui/mobile-action-menu";
 import { Asset } from "@/types/asset";
 import { Search, Filter, Edit, Trash2, MoreHorizontal, Package, Save, X, ArrowUpDown } from "lucide-react";
 
@@ -278,26 +273,22 @@ export const AssetList = ({ assets, onEdit, onDelete }: AssetListProps) => {
                           </Button>
                         </div>
                       ) : (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleEditAsset(asset)}>
-                              <Edit className="h-4 w-4 mr-2" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => onDelete(asset)}
-                              className="text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        <MobileActionMenu
+                          title={`${asset.name} Actions`}
+                          items={[
+                            {
+                              label: "Edit",
+                              icon: <Edit className="h-4 w-4" />,
+                              onClick: () => handleEditAsset(asset),
+                            },
+                            {
+                              label: "Delete",
+                              icon: <Trash2 className="h-4 w-4" />,
+                              onClick: () => onDelete(asset),
+                              variant: "destructive",
+                            },
+                          ]}
+                        />
                       )}
                     </TableCell>
                   </TableRow>
