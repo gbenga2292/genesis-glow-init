@@ -14,7 +14,439 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      assets: {
+        Row: {
+          category: string
+          condition: string
+          created_at: string
+          damaged: number
+          description: string | null
+          id: string
+          location: string
+          missing: number
+          name: string
+          quantity: number
+          reserved: number
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          condition?: string
+          created_at?: string
+          damaged?: number
+          description?: string | null
+          id?: string
+          location?: string
+          missing?: number
+          name: string
+          quantity?: number
+          reserved?: number
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          condition?: string
+          created_at?: string
+          damaged?: number
+          description?: string | null
+          id?: string
+          location?: string
+          missing?: number
+          name?: string
+          quantity?: number
+          reserved?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      checkouts: {
+        Row: {
+          asset_id: string
+          checkout_number: string
+          condition_on_return: string | null
+          created_at: string
+          employee_id: string
+          expected_return: string | null
+          id: string
+          quantity: number
+          returned_at: string | null
+          status: string
+        }
+        Insert: {
+          asset_id: string
+          checkout_number: string
+          condition_on_return?: string | null
+          created_at?: string
+          employee_id: string
+          expected_return?: string | null
+          id?: string
+          quantity: number
+          returned_at?: string | null
+          status?: string
+        }
+        Update: {
+          asset_id?: string
+          checkout_number?: string
+          condition_on_return?: string | null
+          created_at?: string
+          employee_id?: string
+          expected_return?: string | null
+          id?: string
+          quantity?: number
+          returned_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkouts_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkouts_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employees: {
+        Row: {
+          contact: string | null
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          role: string
+          status: string
+        }
+        Insert: {
+          contact?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          role: string
+          status?: string
+        }
+        Update: {
+          contact?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          role?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      return_items: {
+        Row: {
+          asset_id: string
+          created_at: string
+          id: string
+          quantity_damaged: number
+          quantity_expected: number
+          quantity_good: number
+          quantity_missing: number
+          return_id: string
+        }
+        Insert: {
+          asset_id: string
+          created_at?: string
+          id?: string
+          quantity_damaged?: number
+          quantity_expected: number
+          quantity_good?: number
+          quantity_missing?: number
+          return_id: string
+        }
+        Update: {
+          asset_id?: string
+          created_at?: string
+          id?: string
+          quantity_damaged?: number
+          quantity_expected?: number
+          quantity_good?: number
+          quantity_missing?: number
+          return_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "return_items_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "return_items_return_id_fkey"
+            columns: ["return_id"]
+            isOneToOne: false
+            referencedRelation: "returns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      returns: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          processed_at: string | null
+          return_number: string
+          returned_by: string | null
+          site_id: string
+          status: string
+          waybill_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          processed_at?: string | null
+          return_number: string
+          returned_by?: string | null
+          site_id: string
+          status?: string
+          waybill_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          processed_at?: string | null
+          return_number?: string
+          returned_by?: string | null
+          site_id?: string
+          status?: string
+          waybill_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "returns_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "returns_waybill_id_fkey"
+            columns: ["waybill_id"]
+            isOneToOne: false
+            referencedRelation: "waybills"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      site_inventory: {
+        Row: {
+          asset_id: string
+          created_at: string
+          id: string
+          quantity: number
+          site_id: string
+          updated_at: string
+        }
+        Insert: {
+          asset_id: string
+          created_at?: string
+          id?: string
+          quantity?: number
+          site_id: string
+          updated_at?: string
+        }
+        Update: {
+          asset_id?: string
+          created_at?: string
+          id?: string
+          quantity?: number
+          site_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_inventory_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_inventory_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sites: {
+        Row: {
+          contact: string | null
+          created_at: string
+          id: string
+          manager: string | null
+          name: string
+          project_name: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          contact?: string | null
+          created_at?: string
+          id?: string
+          manager?: string | null
+          name: string
+          project_name?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          contact?: string | null
+          created_at?: string
+          id?: string
+          manager?: string | null
+          name?: string
+          project_name?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      transaction_log: {
+        Row: {
+          asset_id: string
+          created_at: string
+          from_location: string | null
+          id: string
+          notes: string | null
+          quantity: number
+          reference_id: string | null
+          reference_type: string | null
+          to_location: string | null
+          transaction_type: string
+        }
+        Insert: {
+          asset_id: string
+          created_at?: string
+          from_location?: string | null
+          id?: string
+          notes?: string | null
+          quantity: number
+          reference_id?: string | null
+          reference_type?: string | null
+          to_location?: string | null
+          transaction_type: string
+        }
+        Update: {
+          asset_id?: string
+          created_at?: string
+          from_location?: string | null
+          id?: string
+          notes?: string | null
+          quantity?: number
+          reference_id?: string | null
+          reference_type?: string | null
+          to_location?: string | null
+          transaction_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transaction_log_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waybill_items: {
+        Row: {
+          asset_id: string
+          created_at: string
+          id: string
+          quantity: number
+          waybill_id: string
+        }
+        Insert: {
+          asset_id: string
+          created_at?: string
+          id?: string
+          quantity: number
+          waybill_id: string
+        }
+        Update: {
+          asset_id?: string
+          created_at?: string
+          id?: string
+          quantity?: number
+          waybill_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waybill_items_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waybill_items_waybill_id_fkey"
+            columns: ["waybill_id"]
+            isOneToOne: false
+            referencedRelation: "waybills"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waybills: {
+        Row: {
+          created_at: string
+          driver: string | null
+          expected_return: string | null
+          id: string
+          site_id: string
+          status: string
+          updated_at: string
+          vehicle: string | null
+          waybill_number: string
+        }
+        Insert: {
+          created_at?: string
+          driver?: string | null
+          expected_return?: string | null
+          id?: string
+          site_id: string
+          status?: string
+          updated_at?: string
+          vehicle?: string | null
+          waybill_number: string
+        }
+        Update: {
+          created_at?: string
+          driver?: string | null
+          expected_return?: string | null
+          id?: string
+          site_id?: string
+          status?: string
+          updated_at?: string
+          vehicle?: string | null
+          waybill_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waybills_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

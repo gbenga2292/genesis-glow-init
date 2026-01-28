@@ -14,12 +14,14 @@ import { WaybillsProvider } from "./contexts/WaybillsContext";
 import { AppDataProvider } from "./contexts/AppDataContext";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { NetworkStatus } from "./components/NetworkStatus";
+import { UpdateNotificationBanner } from "./components/layout/UpdateNotificationBanner";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import { logger } from "./lib/logger";
 import { aiConfig } from "./config/aiConfig";
+import { SplashScreen } from '@capacitor/splash-screen';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,6 +35,11 @@ const queryClient = new QueryClient({
 
 const App = () => {
   useEffect(() => {
+    // Hide splash screen when app is ready (for Capacitor mobile)
+    SplashScreen.hide().catch(() => {
+      // Ignore errors on web platform
+    });
+
     const showDatabaseInfo = async () => {
       if (window.electronAPI && window.electronAPI.db && window.electronAPI.db.getDatabaseInfo) {
         try {
@@ -149,6 +156,7 @@ const App = () => {
                 <TooltipProvider>
                   <Toaster />
                   <Sonner />
+                  <UpdateNotificationBanner />
                   <NetworkStatus />
                   <AppDataProvider>
                     <HashRouter>

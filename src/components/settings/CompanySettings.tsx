@@ -13,7 +13,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { CompanySettings as CompanySettingsType, Employee, Asset, Waybill, QuickCheckout, Site, SiteTransaction, Activity, Vehicle } from "@/types/asset";
-import { Settings, Upload, Save, Building, Phone, Globe, Trash2, Download, UploadCloud, Loader2, Sun, FileText, Activity as ActivityIcon, Users, UserPlus, Edit, UserMinus, Car, Database, Bot, BarChart3, FileJson, ChevronDown, ChevronRight, Mail, Zap, Lock, Pencil } from "lucide-react";
+import { Settings, Upload, Save, Building, Phone, Globe, Trash2, Download, UploadCloud, Loader2, Sun, FileText, Activity as ActivityIcon, Users, UserPlus, Edit, UserMinus, Car, Database, Bot, BarChart3, FileJson, ChevronDown, ChevronRight, Mail, Zap, Lock, Pencil, Sparkles } from "lucide-react";
+import { AppUpdateSettings } from "./AppUpdateSettings";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "next-themes";
 import { Switch } from "@/components/ui/switch";
@@ -2132,7 +2133,8 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         { value: "employees", label: "Employees", shortLabel: "Staff", icon: <UserPlus className="h-4 w-4" /> },
         { value: "vehicles", label: "Vehicles", shortLabel: "Cars", icon: <Car className="h-4 w-4" /> },
         { value: "ai", label: "AI Settings", shortLabel: "AI", icon: <Bot className="h-4 w-4" /> },
-        { value: "data", label: "Data Management", shortLabel: "Data", icon: <Database className="h-4 w-4" /> }
+        { value: "data", label: "Data Management", shortLabel: "Data", icon: <Database className="h-4 w-4" /> },
+        { value: "updates", label: "App Updates", shortLabel: "Updates", icon: <Sparkles className="h-4 w-4" /> }
       );
     }
 
@@ -3985,6 +3987,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         </div>
       )}
 
+      {/* App Updates Tab */}
+      {activeSettingsTab === 'updates' && (
+        <div className="space-y-4">
+          <AppUpdateSettings />
+        </div>
+      )}
 
 
       {/* Employee Analytics Dialog */}
