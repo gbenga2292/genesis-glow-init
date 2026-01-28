@@ -1,4 +1,3 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -6,6 +5,8 @@ import { Waybill, Site, CompanySettings } from "@/types/asset";
 import { generateProfessionalPDF } from "@/utils/professionalPDFGenerator";
 import { FileText, Printer, Calendar, User, Truck, MapPin, Download } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { ResponsiveFormContainer } from "@/components/ui/responsive-form-container";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface WaybillDocumentProps {
   waybill: Waybill;
@@ -16,6 +17,7 @@ interface WaybillDocumentProps {
 
 export const WaybillDocument = ({ waybill, sites, companySettings, onClose }: WaybillDocumentProps) => {
   const { hasPermission } = useAuth();
+  const isMobile = useIsMobile();
   const documentType = waybill.type === 'return' ? 'Return Waybill' : 'Waybill';
 
   const handlePrint = async () => {
@@ -63,45 +65,77 @@ export const WaybillDocument = ({ waybill, sites, companySettings, onClose }: Wa
     }
   };
 
+  const siteName = sites.find(site => site.id === waybill.siteId)?.name || 'Unknown Site';
+
   return (
-    <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto border-0 shadow-strong">
-        <DialogHeader className="pb-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-primary rounded-full flex items-center justify-center">
-                <FileText className="h-5 w-5 text-white" />
+    <ResponsiveFormContainer
+      open={true}
+      onOpenChange={onClose}
+      title={`Waybill ${waybill.id}`}
+      subtitle={waybill.siteId ? siteName : undefined}
+      icon={<FileText className="h-5 w-5" />}
+      maxWidth="max-w-4xl"
+    >
+      {/* Mobile Action Buttons */}
+      {isMobile && (
+        <div className="flex gap-2 mb-4">
+          <Button 
+            onClick={handlePrint} 
+            variant="outline" 
+            className="flex-1 gap-2" 
+            disabled={waybill.status === 'outstanding' || !hasPermission('print_documents')}
+          >
+            <Printer className="h-4 w-4" />
+            Print
+          </Button>
+          <Button 
+            onClick={handleDownloadPDF} 
+            className="flex-1 gap-2 bg-gradient-primary" 
+            disabled={waybill.status === 'outstanding' || !hasPermission('print_documents')}
+          >
+            <Download className="h-4 w-4" />
+            PDF
+          </Button>
+        </div>
+      )}
+
+      {/* Desktop Header with Actions */}
+      {!isMobile && (
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2">
+            {getStatusBadge(waybill.status)}
+            <span className="text-sm text-muted-foreground">
+              Created: {new Date(waybill.createdAt).toLocaleDateString('en-GB')}
+            </span>
+            {waybill.siteId && (
+              <div className="flex items-center gap-1 ml-4">
+                <MapPin className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground font-medium">{siteName}</span>
               </div>
-              <div>
-                <DialogTitle className="text-2xl">Waybill {waybill.id}</DialogTitle>
-                <div className="flex items-center gap-2 mt-1">
-                  {getStatusBadge(waybill.status)}
-                  <span className="text-sm text-muted-foreground">
-                    Created: {new Date(waybill.createdAt).toLocaleDateString('en-GB')}
-                  </span>
-                  {waybill.siteId && (
-                    <div className="flex items-center gap-1 ml-4">
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground font-medium">
-                        {sites.find(site => site.id === waybill.siteId)?.name || 'Unknown Site'}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button onClick={handlePrint} variant="outline" className="gap-2" disabled={waybill.status === 'outstanding' || !hasPermission('print_documents')}>
-                <Printer className="h-4 w-4" />
-                Print
-              </Button>
-              <Button onClick={handleDownloadPDF} className="gap-2 bg-gradient-primary" disabled={waybill.status === 'outstanding' || !hasPermission('print_documents')}>
-                <Download className="h-4 w-4" />
-                Download PDF
-              </Button>
-            </div>
+            )}
           </div>
-        </DialogHeader>
+          <div className="flex gap-2">
+            <Button onClick={handlePrint} variant="outline" className="gap-2" disabled={waybill.status === 'outstanding' || !hasPermission('print_documents')}>
+              <Printer className="h-4 w-4" />
+              Print
+            </Button>
+            <Button onClick={handleDownloadPDF} className="gap-2 bg-gradient-primary" disabled={waybill.status === 'outstanding' || !hasPermission('print_documents')}>
+              <Download className="h-4 w-4" />
+              Download PDF
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Status Badge */}
+      {isMobile && (
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          {getStatusBadge(waybill.status)}
+          <span className="text-sm text-muted-foreground">
+            Created: {new Date(waybill.createdAt).toLocaleDateString('en-GB')}
+          </span>
+        </div>
+      )}
 
         <div className="space-y-6 print:space-y-4">
           {/* Header Information */}
@@ -218,12 +252,14 @@ export const WaybillDocument = ({ waybill, sites, companySettings, onClose }: Wa
           </div>
         </div>
 
+      {/* Desktop Close Button */}
+      {!isMobile && (
         <div className="flex justify-end gap-3 pt-6 print:hidden">
           <Button variant="outline" onClick={onClose}>
             Close
           </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+      )}
+    </ResponsiveFormContainer>
   );
 };
