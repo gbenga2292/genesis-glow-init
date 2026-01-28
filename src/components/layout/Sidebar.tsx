@@ -3,11 +3,39 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "next-themes";
-import { LayoutDashboard, Package, Plus, FileText, ShoppingCart, Settings, MapPin, PlusCircle, LogOut, LogIn, Activity, Sun, Moon, History } from "lucide-react";
+import { 
+  LayoutDashboard, 
+  Package, 
+  FileText, 
+  ShoppingCart, 
+  Settings, 
+  MapPin, 
+  LogOut, 
+  LogIn, 
+  Activity, 
+  Sun, 
+  Moon, 
+  History,
+  ChevronLeft,
+  ChevronRight,
+  Undo2
+} from "lucide-react";
+import { useState } from "react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
 interface SidebarProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
   mode?: 'desktop' | 'mobile';
+}
+
+interface MenuItem {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  group: 'main' | 'operations' | 'admin';
 }
 
 export const Sidebar = ({
@@ -15,54 +43,22 @@ export const Sidebar = ({
   onTabChange,
   mode = 'desktop'
 }: SidebarProps) => {
-  const {
-    isAuthenticated,
-    logout,
-    hasPermission,
-    currentUser
-  } = useAuth();
+  const { isAuthenticated, logout, hasPermission, currentUser } = useAuth();
   const navigate = useNavigate();
-  const {
-    theme,
-    setTheme
-  } = useTheme();
-  const authenticatedMenuItems = [{
-    id: "dashboard",
-    label: "Dashboard",
-    icon: LayoutDashboard
-  }, {
-    id: "assets",
-    label: "Inventory",
-    icon: Package
-  }, {
-    id: "waybills",
-    label: "Waybills",
-    icon: FileText
-  }, {
-    id: "returns",
-    label: "Returns",
-    icon: FileText
-  }, {
-    id: "quick-checkout",
-    label: "Quick Checkout",
-    icon: ShoppingCart
-  }, {
-    id: "machine-maintenance",
-    label: "Machine Maintenance",
-    icon: Activity
-  }, {
-    id: "sites",
-    label: "Sites",
-    icon: MapPin
-  }, {
-    id: "settings",
-    label: "Settings",
-    icon: Settings
-  }, {
-    id: "recent-activities",
-    label: "Recent Activities",
-    icon: History
-  }];
+  const { theme, setTheme } = useTheme();
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  const authenticatedMenuItems: MenuItem[] = [
+    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, group: 'main' },
+    { id: "assets", label: "Inventory", icon: Package, group: 'main' },
+    { id: "waybills", label: "Waybills", icon: FileText, group: 'operations' },
+    { id: "returns", label: "Returns", icon: Undo2, group: 'operations' },
+    { id: "quick-checkout", label: "Quick Checkout", icon: ShoppingCart, group: 'operations' },
+    { id: "machine-maintenance", label: "Maintenance", icon: Activity, group: 'operations' },
+    { id: "sites", label: "Sites", icon: MapPin, group: 'operations' },
+    { id: "settings", label: "Settings", icon: Settings, group: 'admin' },
+    { id: "recent-activities", label: "Activity Log", icon: History, group: 'admin' },
+  ];
 
   const menuItems = authenticatedMenuItems.filter(item => {
     if (item.id === 'recent-activities') {
@@ -71,14 +67,12 @@ export const Sidebar = ({
     return true;
   });
 
-  // Define required permissions for each menu item
   const getRequiredPermissions = (itemId: string) => {
     switch (itemId) {
       case 'dashboard':
-        return null;
       case 'recent-activities':
+      case 'settings':
         return null;
-      // Always accessible when authenticated
       case 'assets':
         return 'read_assets';
       case 'waybills':
@@ -88,17 +82,14 @@ export const Sidebar = ({
       case 'quick-checkout':
         return 'read_quick_checkouts';
       case 'machine-maintenance':
-        return 'read_maintenance';
-      // New permission for machine maintenance
+        return 'access_maintenance';
       case 'sites':
         return 'read_sites';
-      case 'settings':
-        return null;
-      // Accessible to all authenticated users so they can update profile/theme
       default:
         return null;
     }
   };
+
   const hasAccess = (itemId: string) => {
     if (!isAuthenticated) return false;
     const permissions = getRequiredPermissions(itemId);
@@ -108,48 +99,209 @@ export const Sidebar = ({
     }
     return hasPermission(permissions);
   };
-  return <div className={cn("bg-card shadow-soft flex flex-col transition-all duration-300", mode === 'desktop' ? "w-64 border-r border-border h-full" : "w-full h-full border-none")}>
-    <div className="p-4 md:p-6 border-b border-border">
-      <div className="flex items-center gap-3">
 
-        <div>
-          <h1 className="text-base md:text-xl font-bold bg-gradient-primary bg-clip-text text-transparent">DCEL Operations</h1>
-          <p className="text-[10px] md:text-sm text-muted-foreground">Inventory Manager</p>
+  const accessibleItems = menuItems.filter(item => hasAccess(item.id));
+  const mainItems = accessibleItems.filter(item => item.group === 'main');
+  const operationItems = accessibleItems.filter(item => item.group === 'operations');
+  const adminItems = accessibleItems.filter(item => item.group === 'admin');
+
+  const renderMenuItem = (item: MenuItem) => {
+    const isActive = activeTab === item.id;
+    
+    const button = (
+      <Button
+        variant="ghost"
+        className={cn(
+          "w-full justify-start gap-3 h-10 transition-all duration-200",
+          isCollapsed && mode === 'desktop' ? "justify-center px-2" : "px-3",
+          isActive 
+            ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground shadow-sm" 
+            : "text-muted-foreground hover:text-foreground hover:bg-muted/80"
+        )}
+        onClick={() => onTabChange(item.id)}
+      >
+        <item.icon className={cn("h-4 w-4 shrink-0", isActive && "text-primary-foreground")} />
+        {(!isCollapsed || mode === 'mobile') && (
+          <span className="truncate text-sm">{item.label}</span>
+        )}
+      </Button>
+    );
+
+    if (isCollapsed && mode === 'desktop') {
+      return (
+        <Tooltip key={item.id} delayDuration={0}>
+          <TooltipTrigger asChild>
+            {button}
+          </TooltipTrigger>
+          <TooltipContent side="right" className="font-medium">
+            {item.label}
+          </TooltipContent>
+        </Tooltip>
+      );
+    }
+
+    return <div key={item.id}>{button}</div>;
+  };
+
+  const renderGroup = (items: MenuItem[], label: string) => {
+    if (items.length === 0) return null;
+    
+    return (
+      <div className="space-y-1">
+        {(!isCollapsed || mode === 'mobile') && (
+          <p className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            {label}
+          </p>
+        )}
+        {isCollapsed && mode === 'desktop' && <Separator className="my-2" />}
+        {items.map(renderMenuItem)}
+      </div>
+    );
+  };
+
+  return (
+    <TooltipProvider>
+      <div 
+        className={cn(
+          "bg-card flex flex-col transition-all duration-300 border-r border-border",
+          mode === 'desktop' 
+            ? isCollapsed ? "w-16" : "w-60" 
+            : "w-full h-full border-none"
+        )}
+      >
+        {/* Header */}
+        <div className={cn(
+          "p-4 border-b border-border flex items-center",
+          isCollapsed && mode === 'desktop' ? "justify-center" : "justify-between"
+        )}>
+          {(!isCollapsed || mode === 'mobile') && (
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg font-bold text-primary truncate">DCEL</h1>
+              <p className="text-xs text-muted-foreground">Operations</p>
+            </div>
+          )}
+          {isCollapsed && mode === 'desktop' && (
+            <span className="text-lg font-bold text-primary">D</span>
+          )}
+          {mode === 'desktop' && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0 ml-2"
+              onClick={() => setIsCollapsed(!isCollapsed)}
+            >
+              {isCollapsed ? (
+                <ChevronRight className="h-4 w-4" />
+              ) : (
+                <ChevronLeft className="h-4 w-4" />
+              )}
+            </Button>
+          )}
+        </div>
+
+        {/* Navigation */}
+        <ScrollArea className="flex-1 px-2 py-3">
+          <nav className="space-y-4">
+            {renderGroup(mainItems, 'Main')}
+            {renderGroup(operationItems, 'Operations')}
+            {renderGroup(adminItems, 'Admin')}
+          </nav>
+        </ScrollArea>
+
+        {/* Footer */}
+        <div className="p-2 border-t border-border">
+          {isAuthenticated ? (
+            <div className={cn(
+              "flex items-center gap-1.5",
+              isCollapsed && mode === 'desktop' ? "flex-col" : "flex-row"
+            )}>
+              {(!isCollapsed || mode === 'mobile') && (
+                <div className="flex-1 min-w-0 px-2 py-1.5 bg-muted/50 rounded-md">
+                  <p className="text-xs font-medium truncate">{currentUser?.name}</p>
+                  <p className="text-[10px] text-muted-foreground capitalize">{currentUser?.role}</p>
+                </div>
+              )}
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8 shrink-0" 
+                    onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                  >
+                    {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side={isCollapsed && mode === 'desktop' ? "right" : "top"}>
+                  Toggle theme
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10" 
+                    onClick={logout}
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side={isCollapsed && mode === 'desktop' ? "right" : "top"}>
+                  Logout
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          ) : (
+            <div className={cn(
+              "flex items-center gap-1.5",
+              isCollapsed && mode === 'desktop' ? "flex-col" : "flex-row"
+            )}>
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8 shrink-0" 
+                    onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                  >
+                    {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side={isCollapsed && mode === 'desktop' ? "right" : "top"}>
+                  Toggle theme
+                </TooltipContent>
+              </Tooltip>
+              {(!isCollapsed || mode === 'mobile') ? (
+                <Button 
+                  variant="default" 
+                  className="flex-1 h-8 text-xs" 
+                  onClick={() => navigate("/login")}
+                >
+                  <LogIn className="h-4 w-4 mr-1.5" />
+                  Login
+                </Button>
+              ) : (
+                <Tooltip delayDuration={0}>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="default" 
+                      size="icon"
+                      className="h-8 w-8" 
+                      onClick={() => navigate("/login")}
+                    >
+                      <LogIn className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    Login
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
+          )}
         </div>
       </div>
-    </div>
-
-    <nav className="p-3 md:p-4 space-y-1 md:space-y-2 flex-1 overflow-y-auto">
-      {menuItems.map(item => {
-        const hasAccessToItem = hasAccess(item.id);
-        const isGreyedOut = !hasAccessToItem;
-        return <Button key={item.id} variant={activeTab === item.id ? "default" : "ghost"} className={cn("w-full justify-start gap-3 h-10 md:h-11 text-sm md:text-base", activeTab === item.id && "bg-gradient-primary shadow-medium", isGreyedOut && "opacity-50 cursor-not-allowed")} disabled={!hasAccessToItem} onClick={() => onTabChange(item.id)}>
-          <item.icon className="h-4 w-4" />
-          {item.label}
-        </Button>;
-      })}
-    </nav>
-
-    <div className="p-2 border-t border-border space-y-2">
-      {isAuthenticated ? <div className="flex items-center gap-1.5">
-        <div className="flex-1 min-w-0 px-2 py-1 bg-muted/50 rounded">
-          <p className="text-xs font-medium truncate">{currentUser?.name}</p>
-        </div>
-        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-          {theme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-        </Button>
-        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={logout}>
-          <LogOut className="h-3.5 w-3.5" />
-        </Button>
-      </div> : <div className="flex items-center gap-1.5">
-        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-          {theme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-        </Button>
-        <Button variant="default" className="flex-1 h-8 text-xs bg-gradient-primary" onClick={() => navigate("/login")}>
-          <LogIn className="h-3.5 w-3.5 mr-1.5" />
-          Login
-        </Button>
-      </div>}
-    </div>
-  </div>;
+    </TooltipProvider>
+  );
 };

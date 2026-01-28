@@ -13,7 +13,6 @@ const dbFunctions = [
     'getReturnBills', 'createReturnBill', 'updateReturnBill', 'deleteReturnBill',
     'getReturnItems', 'createReturnItem', 'updateReturnItem', 'deleteReturnItem',
     'getEquipmentLogs', 'createEquipmentLog', 'updateEquipmentLog', 'deleteEquipmentLog',
-    'getMaintenanceLogs', 'createMaintenanceLog', 'updateMaintenanceLog', 'deleteMaintenanceLog',
     'getConsumableLogs', 'createConsumableLog', 'updateConsumableLog', 'deleteConsumableLog',
     'getCompanySettings', 'createCompanySettings', 'updateCompanySettings',
     'getSiteTransactions', 'addSiteTransaction', 'updateSiteTransaction', 'deleteSiteTransaction',
@@ -22,8 +21,7 @@ const dbFunctions = [
     'createWaybillWithTransaction', 'processReturnWithTransaction', 'sendToSiteWithTransaction', 'deleteWaybillWithTransaction', 'updateWaybillWithTransaction',
     'getSavedApiKeys', 'createSavedApiKey', 'updateSavedApiKey', 'setActiveApiKey', 'deleteSavedApiKey', 'getActiveApiKey',
     'migrateSavedKeysToKeytar', 'getApiKeyFromKeyRef',
-    'createJsonBackup', 'restoreJsonBackup', 'createDatabaseBackup', 'restoreDatabaseBackup',
-    'getDatabaseInfo', 'wipeLocalDatabase', 'clearTable'
+    'getDatabaseInfo', 'wipeLocalDatabase'
 ];
 
 // Dynamically create an API object for the frontend
@@ -32,40 +30,13 @@ for (const functionName of dbFunctions) {
     dbAPI[functionName] = (...args) => ipcRenderer.invoke(`db:${functionName}`, ...args);
 }
 
-// Expose everything via a single electronAPI (IPC) namespace
+// Expose the entire API on window.db
+contextBridge.exposeInMainWorld('db', dbAPI);
+
+// Expose sync APIs
 contextBridge.exposeInMainWorld('electronAPI', {
-    // Database operations grouped under .db
-    db: dbAPI,
-
-    // Sync APIs
-    getSyncStatus: () => ipcRenderer.invoke('sync:getStatus'),
-    manualSync: () => ipcRenderer.invoke('sync:manualSync'),
-
-    // Window controls
-    window: {
-        minimize: () => ipcRenderer.invoke('window:minimize'),
-        maximize: () => ipcRenderer.invoke('window:maximize'),
-        close: () => ipcRenderer.invoke('window:close'),
-        isMaximized: () => ipcRenderer.invoke('window:isMaximized'),
-        toggleDevTools: () => ipcRenderer.invoke('window:toggleDevTools'),
-    },
-
-    // Logging
-    log: (level, message, data) => ipcRenderer.send('log-message', { level, message, data }),
-});
-
-// Expose Backup Scheduler API
-contextBridge.exposeInMainWorld('backupScheduler', {
-    getStatus: () => ipcRenderer.invoke('backup:getStatus'),
-    triggerManual: (options) => ipcRenderer.invoke('backup:triggerManual', options),
-    save: (data) => ipcRenderer.invoke('backup:save', data),
-    setEnabled: (enabled) => ipcRenderer.invoke('backup:setEnabled', enabled),
-    setRetention: (days) => ipcRenderer.invoke('backup:setRetention', days),
-    listBackups: () => ipcRenderer.invoke('backup:listBackups'),
-    checkNAS: () => ipcRenderer.invoke('backup:checkNAS'),
-    setNASPath: (nasPath) => ipcRenderer.invoke('backup:setNASPath', nasPath),
-    readBackupFile: (filePath) => ipcRenderer.invoke('backup:readBackupFile', filePath),
-    onAutoBackupTrigger: (callback) => ipcRenderer.on('backup:auto-trigger', (event, ...args) => callback(...args)),
+  getSyncStatus: () => ipcRenderer.invoke('sync:getStatus'),
+  manualSync: () => ipcRenderer.invoke('sync:manualSync'),
 });
 
 // Expose Local LLM API (Bundled Runtime)

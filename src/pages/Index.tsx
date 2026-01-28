@@ -38,6 +38,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { ResponsiveFormContainer } from "@/components/ui/responsive-form-container";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -65,6 +66,7 @@ import { generateUnifiedReport } from "@/utils/unifiedReportGenerator";
 import { exportAssetsToExcel } from "@/utils/exportUtils";
 import { useAppData } from "@/contexts/AppDataContext";
 import { dataService } from "@/services/dataService";
+import { NetworkStatus } from "@/components/NetworkStatus";
 
 
 const Index = () => {
@@ -1895,7 +1897,7 @@ const Index = () => {
         }} />
       case "machine-maintenance":
         return <MachineMaintenancePage
-          machines={assets.filter(a => a.type === 'equipment').map(a => ({
+          machines={assets.filter(a => a.type === 'equipment' && a.requiresLogging).map(a => ({
             id: a.id,
             name: a.name,
             model: a.model,
@@ -3526,21 +3528,25 @@ const Index = () => {
               {renderContent()}
             </PullToRefreshLayout>
 
-            {/* Edit Dialog */}
-            <Dialog open={!!editingAsset} onOpenChange={open => !open && setEditingAsset(null)}>
-              <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>Edit Asset</DialogHeader>
-                {editingAsset && (
-                  <AddAssetForm
-                    asset={editingAsset}
-                    onSave={handleSaveAsset}
-                    onCancel={() => setEditingAsset(null)}
-                    sites={sites}
-                    existingAssets={assets}
-                  />
-                )}
-              </DialogContent>
-            </Dialog>
+            {/* Edit Asset - Responsive Container */}
+            <ResponsiveFormContainer
+              open={!!editingAsset}
+              onOpenChange={(open) => !open && setEditingAsset(null)}
+              title="Edit Asset"
+              subtitle={editingAsset?.name}
+              icon={<Package className="h-5 w-5" />}
+              maxWidth="max-w-7xl"
+            >
+              {editingAsset && (
+                <AddAssetForm
+                  asset={editingAsset}
+                  onSave={handleSaveAsset}
+                  onCancel={() => setEditingAsset(null)}
+                  sites={sites}
+                  existingAssets={assets}
+                />
+              )}
+            </ResponsiveFormContainer>
 
             {/* Delete Confirmation Dialog */}
             <Dialog open={!!deletingAsset} onOpenChange={open => !open && setDeletingAsset(null)}>
@@ -3593,117 +3599,121 @@ const Index = () => {
               />
             )}
 
-            {/* Edit Waybill Dialog */}
-            <Dialog open={!!editingWaybill} onOpenChange={open => !open && setEditingWaybill(null)}>
-              <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Edit Waybill {editingWaybill?.id}</DialogTitle>
-                </DialogHeader>
-                {editingWaybill && (
-                  <EditWaybillForm
-                    waybill={editingWaybill}
-                    assets={assets}
-                    sites={sites}
-                    employees={employees}
-                    vehicles={vehicles}
-                    onUpdate={async (updatedWaybill) => {
-                      if (!isAuthenticated) return;
+            {/* Edit Waybill - Responsive Container */}
+            <ResponsiveFormContainer
+              open={!!editingWaybill}
+              onOpenChange={(open) => !open && setEditingWaybill(null)}
+              title={`Edit Waybill ${editingWaybill?.id || ''}`}
+              subtitle="Update waybill details"
+              icon={<FileText className="h-5 w-5" />}
+              maxWidth="max-w-5xl"
+            >
+              {editingWaybill && (
+                <EditWaybillForm
+                  waybill={editingWaybill}
+                  assets={assets}
+                  sites={sites}
+                  employees={employees}
+                  vehicles={vehicles}
+                  onUpdate={async (updatedWaybill) => {
+                    if (!isAuthenticated) return;
 
-                      try {
-                        // 1. Get old waybill to identify changes
-                        const oldWaybill = waybills.find(w => w.id === updatedWaybill.id);
+                    try {
+                      // 1. Get old waybill to identify changes
+                      const oldWaybill = waybills.find(w => w.id === updatedWaybill.id);
 
-                        // Handle Asset Reservation adjustments if items changed and status allows
-                        if (oldWaybill && oldWaybill.status === 'outstanding' && updatedWaybill.status === 'outstanding') {
-                          // Revert Old Items (Release reservation)
-                          for (const oldItem of oldWaybill.items) {
-                            // We fetch fresh asset state to ensure we have current counts
-                            const assetList = await dataService.assets.getAssets();
-                            const asset = assetList.find(a => a.id === oldItem.assetId);
-                            if (asset) {
-                              const newReserved = Math.max(0, (asset.reservedQuantity || 0) - oldItem.quantity);
-                              const newAvailable = calculateAvailableQuantity(
-                                asset.quantity,
-                                newReserved,
-                                asset.damagedCount,
-                                asset.missingCount,
-                                asset.usedCount || 0
-                              );
-                              await dataService.assets.updateAsset(asset.id, { ...asset, reservedQuantity: newReserved, availableQuantity: newAvailable });
-                            }
-                          }
-
-                          // Apply New Items (Add reservation)
-                          for (const newItem of updatedWaybill.items) {
-                            const assetList = await dataService.assets.getAssets();
-                            const freshAsset = assetList.find(a => a.id === newItem.assetId);
-                            if (freshAsset) {
-                              const newReserved = (freshAsset.reservedQuantity || 0) + newItem.quantity;
-                              const newAvailable = calculateAvailableQuantity(
-                                freshAsset.quantity,
-                                newReserved,
-                                freshAsset.damagedCount,
-                                freshAsset.missingCount,
-                                freshAsset.usedCount || 0
-                              );
-                              await dataService.assets.updateAsset(freshAsset.id, { ...freshAsset, reservedQuantity: newReserved, availableQuantity: newAvailable });
-                            }
+                      // Handle Asset Reservation adjustments if items changed and status allows
+                      if (oldWaybill && oldWaybill.status === 'outstanding' && updatedWaybill.status === 'outstanding') {
+                        // Revert Old Items (Release reservation)
+                        for (const oldItem of oldWaybill.items) {
+                          // We fetch fresh asset state to ensure we have current counts
+                          const assetList = await dataService.assets.getAssets();
+                          const asset = assetList.find(a => a.id === oldItem.assetId);
+                          if (asset) {
+                            const newReserved = Math.max(0, (asset.reservedQuantity || 0) - oldItem.quantity);
+                            const newAvailable = calculateAvailableQuantity(
+                              asset.quantity,
+                              newReserved,
+                              asset.damagedCount,
+                              asset.missingCount,
+                              asset.usedCount || 0
+                            );
+                            await dataService.assets.updateAsset(asset.id, { ...asset, reservedQuantity: newReserved, availableQuantity: newAvailable });
                           }
                         }
 
-                        // Update Waybill
-                        await dataService.waybills.updateWaybill(updatedWaybill.id, updatedWaybill);
-
-                        // Reload Data
-                        const loadedAssets = await dataService.assets.getAssets();
-                        setAssets(loadedAssets);
-
-                        const loadedWaybills = await dataService.waybills.getWaybills();
-                        setWaybills(loadedWaybills);
-
-                        setEditingWaybill(null);
-                        toast({
-                          title: "Waybill Updated",
-                          description: `Waybill ${updatedWaybill.id} updated successfully.`
-                        });
-                      } catch (error) {
-                        console.error('Failed to update waybill:', error);
-                        toast({
-                          title: "Error",
-                          description: `Failed to update waybill: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                          variant: "destructive"
-                        });
+                        // Apply New Items (Add reservation)
+                        for (const newItem of updatedWaybill.items) {
+                          const assetList = await dataService.assets.getAssets();
+                          const freshAsset = assetList.find(a => a.id === newItem.assetId);
+                          if (freshAsset) {
+                            const newReserved = (freshAsset.reservedQuantity || 0) + newItem.quantity;
+                            const newAvailable = calculateAvailableQuantity(
+                              freshAsset.quantity,
+                              newReserved,
+                              freshAsset.damagedCount,
+                              freshAsset.missingCount,
+                              freshAsset.usedCount || 0
+                            );
+                            await dataService.assets.updateAsset(freshAsset.id, { ...freshAsset, reservedQuantity: newReserved, availableQuantity: newAvailable });
+                          }
+                        }
                       }
-                    }}
-                    onCancel={() => setEditingWaybill(null)}
-                  />
-                )}
-              </DialogContent>
-            </Dialog>
 
-            {/* Edit Return Waybill Dialog */}
-            <Dialog open={!!editingReturnWaybill} onOpenChange={open => !open && setEditingReturnWaybill(null)}>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Edit Return Waybill</DialogTitle>
-                </DialogHeader>
-                {editingReturnWaybill ? (
-                  <ReturnWaybillForm
-                    site={sites.find(s => s.id === editingReturnWaybill.siteId) || { id: editingReturnWaybill.siteId, name: 'Unknown Site', location: '', description: '', contactPerson: '', phone: '', status: 'active', createdAt: new Date(), updatedAt: new Date() } as Site}
-                    sites={sites}
-                    assets={assets}
-                    employees={employees}
-                    vehicles={vehicles}
-                    siteInventory={getSiteInventory(editingReturnWaybill.siteId)}
-                    initialWaybill={editingReturnWaybill}
-                    isEditMode={true}
-                    onCreateReturnWaybill={handleCreateReturnWaybill}
-                    onUpdateReturnWaybill={handleUpdateReturnWaybill}
-                    onCancel={() => setEditingReturnWaybill(null)}
-                  />
-                ) : null}
-              </DialogContent>
-            </Dialog>
+                      // Update Waybill
+                      await dataService.waybills.updateWaybill(updatedWaybill.id, updatedWaybill);
+
+                      // Reload Data
+                      const loadedAssets = await dataService.assets.getAssets();
+                      setAssets(loadedAssets);
+
+                      const loadedWaybills = await dataService.waybills.getWaybills();
+                      setWaybills(loadedWaybills);
+
+                      setEditingWaybill(null);
+                      toast({
+                        title: "Waybill Updated",
+                        description: `Waybill ${updatedWaybill.id} updated successfully.`
+                      });
+                    } catch (error) {
+                      console.error('Failed to update waybill:', error);
+                      toast({
+                        title: "Error",
+                        description: `Failed to update waybill: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                        variant: "destructive"
+                      });
+                    }
+                  }}
+                  onCancel={() => setEditingWaybill(null)}
+                />
+              )}
+            </ResponsiveFormContainer>
+
+            {/* Edit Return Waybill - Responsive Container */}
+            <ResponsiveFormContainer
+              open={!!editingReturnWaybill}
+              onOpenChange={(open) => !open && setEditingReturnWaybill(null)}
+              title="Edit Return Waybill"
+              subtitle={editingReturnWaybill ? `From ${sites.find(s => s.id === editingReturnWaybill.siteId)?.name || 'Site'}` : ''}
+              icon={<FileText className="h-5 w-5" />}
+              maxWidth="max-w-4xl"
+            >
+              {editingReturnWaybill ? (
+                <ReturnWaybillForm
+                  site={sites.find(s => s.id === editingReturnWaybill.siteId) || { id: editingReturnWaybill.siteId, name: 'Unknown Site', location: '', description: '', contactPerson: '', phone: '', status: 'active', createdAt: new Date(), updatedAt: new Date() } as Site}
+                  sites={sites}
+                  assets={assets}
+                  employees={employees}
+                  vehicles={vehicles}
+                  siteInventory={getSiteInventory(editingReturnWaybill.siteId)}
+                  initialWaybill={editingReturnWaybill}
+                  isEditMode={true}
+                  onCreateReturnWaybill={handleCreateReturnWaybill}
+                  onUpdateReturnWaybill={handleUpdateReturnWaybill}
+                  onCancel={() => setEditingReturnWaybill(null)}
+                />
+              ) : null}
+            </ResponsiveFormContainer>
 
             {/* Asset Analytics is now handled via full-page navigation in renderContent */}
 
@@ -3982,6 +3992,9 @@ const Index = () => {
           onMenuClick={() => setMobileMenuOpen(true)}
         />
       )}
+
+      {/* Network Status Indicator */}
+      <NetworkStatus />
 
     </AIAssistantProvider>
   );

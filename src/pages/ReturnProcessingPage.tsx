@@ -166,94 +166,99 @@ export const ReturnProcessingPage = ({ waybill, onBack, onSubmit }: ReturnProces
                     {/* Items Table */}
                     <Card>
                         <CardHeader>
-                            <CardTitle>Return Items</CardTitle>
-                            <CardDescription>
+                            <CardTitle className="text-base sm:text-lg">Return Items</CardTitle>
+                            <CardDescription className="text-xs sm:text-sm">
                                 Enter the quantity of damaged or missing items for each asset
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead>
-                                        <tr className="border-b bg-muted/50">
-                                            <th className="p-3 text-left font-medium">Item</th>
-                                            <th className="p-3 text-center font-medium">Remaining Qty</th>
-                                            <th className="p-3 text-center font-medium">
-                                                <span className="flex items-center justify-center gap-1">
-                                                    <AlertTriangle className="h-4 w-4 text-orange-500" />
-                                                    Damaged
-                                                </span>
-                                            </th>
-                                            <th className="p-3 text-center font-medium">
-                                                <span className="flex items-center justify-center gap-1 text-red-600">
-                                                    Missing
-                                                </span>
-                                            </th>
-                                            <th className="p-3 text-center font-medium">
-                                                <span className="flex items-center justify-center gap-1">
-                                                    <CheckCircle2 className="h-4 w-4 text-green-500" />
-                                                    Good
-                                                </span>
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {waybill.items.map(item => {
-                                            const cond = conditions[item.assetId];
-                                            const damaged = cond?.damaged || 0;
-                                            const missing = cond?.missing || 0;
-                                            const remainingQty = item.quantity - (item.returnedQuantity || 0);
-                                            const good = remainingQty - damaged - missing;
-                                            const isValid = good >= 0;
+                            <div className="overflow-x-auto -mx-4 sm:mx-0">
+                                <div className="inline-block min-w-full align-middle">
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className="border-b bg-muted/50">
+                                                <th className="p-2 sm:p-3 text-left font-medium text-xs sm:text-sm">Item</th>
+                                                <th className="p-2 sm:p-3 text-center font-medium text-xs sm:text-sm whitespace-nowrap">Remaining Qty</th>
+                                                <th className="p-2 sm:p-3 text-center font-medium text-xs sm:text-sm">
+                                                    <span className="flex items-center justify-center gap-1">
+                                                        <AlertTriangle className="h-3 w-3 sm:h-4 sm:w-4 text-orange-500" />
+                                                        <span className="hidden sm:inline">Damaged</span>
+                                                        <span className="sm:hidden">Dmg</span>
+                                                    </span>
+                                                </th>
+                                                <th className="p-2 sm:p-3 text-center font-medium text-xs sm:text-sm">
+                                                    <span className="flex items-center justify-center gap-1 text-red-600">
+                                                        <span className="hidden sm:inline">Missing</span>
+                                                        <span className="sm:hidden">Miss</span>
+                                                    </span>
+                                                </th>
+                                                <th className="p-2 sm:p-3 text-center font-medium text-xs sm:text-sm">
+                                                    <span className="flex items-center justify-center gap-1">
+                                                        <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4 text-green-500" />
+                                                        <span className="hidden sm:inline">Good</span>
+                                                        <span className="sm:hidden">OK</span>
+                                                    </span>
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {waybill.items.map(item => {
+                                                const cond = conditions[item.assetId];
+                                                const damaged = cond?.damaged || 0;
+                                                const missing = cond?.missing || 0;
+                                                const remainingQty = item.quantity - (item.returnedQuantity || 0);
+                                                const good = remainingQty - damaged - missing;
+                                                const isValid = good >= 0;
 
-                                            return (
-                                                <tr key={item.assetId} className={`border-b ${!isValid ? 'bg-red-50' : ''}`}>
-                                                    <td className="p-3">
-                                                        <div className="font-medium">{item.assetName}</div>
-                                                    </td>
-                                                    <td className="p-3 text-center">
-                                                        <span className="font-semibold">{remainingQty}</span>
-                                                    </td>
-                                                    <td className="p-3">
-                                                        <Input
-                                                            type="number"
-                                                            min={0}
-                                                            max={remainingQty}
-                                                            value={damaged}
-                                                            onChange={e => handleChange(item.assetId, "damaged", parseInt(e.target.value) || 0)}
-                                                            className="w-24 mx-auto text-center"
-                                                        />
-                                                    </td>
-                                                    <td className="p-3">
-                                                        <Input
-                                                            type="number"
-                                                            min={0}
-                                                            max={remainingQty}
-                                                            value={missing}
-                                                            onChange={e => handleChange(item.assetId, "missing", parseInt(e.target.value) || 0)}
-                                                            className="w-24 mx-auto text-center"
-                                                        />
-                                                    </td>
-                                                    <td className="p-3 text-center">
-                                                        <span className={`font-semibold ${good >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                            {good >= 0 ? good : 'Invalid'}
-                                                        </span>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
+                                                return (
+                                                    <tr key={item.assetId} className={`border-b ${!isValid ? 'bg-red-50' : ''}`}>
+                                                        <td className="p-2 sm:p-3">
+                                                            <div className="font-medium text-xs sm:text-sm">{item.assetName}</div>
+                                                        </td>
+                                                        <td className="p-2 sm:p-3 text-center">
+                                                            <span className="font-semibold text-xs sm:text-sm">{remainingQty}</span>
+                                                        </td>
+                                                        <td className="p-2 sm:p-3">
+                                                            <Input
+                                                                type="number"
+                                                                min={0}
+                                                                max={remainingQty}
+                                                                value={damaged}
+                                                                onChange={e => handleChange(item.assetId, "damaged", parseInt(e.target.value) || 0)}
+                                                                className="w-16 sm:w-24 mx-auto text-center text-xs sm:text-sm h-8 sm:h-10"
+                                                            />
+                                                        </td>
+                                                        <td className="p-2 sm:p-3">
+                                                            <Input
+                                                                type="number"
+                                                                min={0}
+                                                                max={remainingQty}
+                                                                value={missing}
+                                                                onChange={e => handleChange(item.assetId, "missing", parseInt(e.target.value) || 0)}
+                                                                className="w-16 sm:w-24 mx-auto text-center text-xs sm:text-sm h-8 sm:h-10"
+                                                            />
+                                                        </td>
+                                                        <td className="p-2 sm:p-3 text-center">
+                                                            <span className={`font-semibold text-xs sm:text-sm ${good >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                                {good >= 0 ? good : 'Invalid'}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
 
                     {/* Actions */}
-                    <div className="flex justify-end gap-3">
-                        <Button variant="outline" onClick={onBack}>
+                    <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
+                        <Button variant="outline" onClick={onBack} className="w-full sm:w-auto">
                             Cancel
                         </Button>
-                        <Button onClick={handleSubmit} disabled={!validate()} className="bg-gradient-primary">
+                        <Button onClick={handleSubmit} disabled={!validate()} className="w-full sm:w-auto bg-gradient-primary">
                             Submit Return
                         </Button>
                     </div>

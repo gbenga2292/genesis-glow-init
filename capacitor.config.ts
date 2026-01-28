@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.genesisglow.app',
-  appName: 'Genesis Glow',
+  appId: 'com.dcel.inventory',
+  appName: 'DCEL Inventory',
   webDir: 'dist'
 };
 

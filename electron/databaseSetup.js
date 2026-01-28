@@ -101,7 +101,6 @@ async function initializeDatabase(dbPath) {
       table.string('condition').defaultTo('good');
       table.integer('missing_count').defaultTo(0);
       table.integer('damaged_count').defaultTo(0);
-      table.integer('used_count').defaultTo(0);
       table.integer('low_stock_level').defaultTo(10);
       table.integer('critical_stock_level').defaultTo(5);
       table.string('power_source');
@@ -149,7 +148,6 @@ async function initializeDatabase(dbPath) {
       table.integer('quantity').notNullable();
       table.dateTime('checkout_date').notNullable();
       table.integer('expected_return_days').notNullable();
-      table.integer('returned_quantity').defaultTo(0);
       table.string('status').defaultTo('outstanding');
       table.timestamps(true, true);
     });
@@ -311,10 +309,10 @@ async function initializeDatabase(dbPath) {
 
     // Seed default company settings
     await db('company_settings').insert({
-      company_name: 'DCEL',
-      address: '123 Main Street, Suite 100',
+      company_name: 'Genesis Glow',
+      address: '123 Glow Street, Suite 100',
       phone: '555-123-4567',
-      email: 'contact@dcel.com',
+      email: 'contact@genesisglow.com',
     });
     console.log('Seeded default company settings.');
 

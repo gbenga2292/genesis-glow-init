@@ -1,4 +1,4 @@
- import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Site } from "@/types/asset";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ResponsiveFormContainer } from "@/components/ui/responsive-form-container";
 import { MapPin, Save, X } from "lucide-react";
 import { logActivity } from "@/utils/activityLogger";
 
@@ -94,22 +94,16 @@ const SiteForm = ({ site, onSave, onCancel, open, initialData }: SiteFormProps) 
   const isEditing = !!site;
 
   return (
-    <Dialog open={open} onOpenChange={open ? () => {} : onCancel}>
-      <DialogContent onClose={onCancel} className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <div className="space-y-6 animate-fade-in">
-          <div className="text-center">
-            <div className="mx-auto w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center mb-4">
-              <MapPin className="h-6 w-6 text-white" />
-            </div>
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-              {isEditing ? 'Edit Site' : 'Add New Site'}
-            </h1>
-            <p className="text-sm sm:text-base text-muted-foreground mt-2">
-              {isEditing ? 'Update site information' : 'Add a new project site to your system'}
-            </p>
-          </div>
-
-          <Card className="border-0 shadow-medium">
+    <ResponsiveFormContainer
+      open={open}
+      onOpenChange={(isOpen) => !isOpen && onCancel()}
+      title={isEditing ? 'Edit Site' : 'Add New Site'}
+      subtitle={isEditing ? 'Update site information' : 'Add a new project site to your system'}
+      icon={<MapPin className="h-5 w-5" />}
+      maxWidth="max-w-4xl"
+    >
+      <div className="space-y-6 animate-fade-in">
+        <Card className="border-0 shadow-medium">
             <CardHeader>
               <CardTitle>Site Information</CardTitle>
             </CardHeader>
@@ -262,13 +256,12 @@ const SiteForm = ({ site, onSave, onCancel, open, initialData }: SiteFormProps) 
                     <Save className="h-4 w-4 mr-2" />
                     {isEditing ? 'Update Site' : 'Add Site'}
                   </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
-      </DialogContent>
-    </Dialog>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    </ResponsiveFormContainer>
   );
 };
 

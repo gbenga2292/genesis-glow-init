@@ -15,6 +15,7 @@ import { TrendChart } from "./TrendChart";
 import { useMetricsSnapshots, getMetricsHistory } from "@/hooks/useMetricsSnapshots";
 import { format, subDays, addMonths, differenceInDays } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 interface DashboardProps {
   assets: Asset[];
   waybills: Waybill[];
@@ -48,6 +49,7 @@ export const Dashboard = ({
 
   const [metricsHistory, setMetricsHistory] = useState<any[]>([]);
   const [isEquipmentLoggingExpanded, setIsEquipmentLoggingExpanded] = useState(true);
+  const { hasPermission } = useAuth();
   const {
     toast
   } = useToast();
@@ -55,11 +57,16 @@ export const Dashboard = ({
   const totalQuantity = assets.reduce((sum, asset) => sum + asset.quantity, 0);
   const outOfStockCount = assets.filter(asset => asset.quantity === 0).length;
   const lowStockCount = assets.filter(asset => asset.quantity > 0 && asset.quantity < 10).length;
-  const outstandingWaybills = (waybills || []).filter(w => w.status === 'outstanding').length;
+
+  // Separate waybills from returns
+  const regularWaybills = (waybills || []).filter(w => w.type !== 'return');
+  const returnWaybills = (waybills || []).filter(w => w.type === 'return');
+
+  const outstandingWaybills = regularWaybills.filter(w => w.status === 'outstanding').length;
   const outstandingCheckouts = (quickCheckouts || []).filter(c => c.status === 'outstanding').length;
 
-  // Total machines includes both equipment assets and vehicles (matching MachineMaintenancePage)
-  const equipmentCount = assets.filter(a => a.type === 'equipment').length;
+  // Total machines includes equipment that requires logging + vehicles (matching MachineMaintenancePage)
+  const equipmentCount = assets.filter(a => a.type === 'equipment' && a.requiresLogging).length;
   const vehicleCount = vehicles?.length || 0;
   const totalMachines = equipmentCount + vehicleCount;
 
@@ -405,7 +412,7 @@ export const Dashboard = ({
           <div className="flex items-center justify-between mt-2 pt-2 border-t">
             <p className="text-[10px] md:text-xs text-muted-foreground">Overall Waybills</p>
             <Badge variant="outline" className="text-[10px] md:text-xs">
-              {waybills.length} Total
+              {regularWaybills.length} Total
             </Badge>
           </div>
         </CardContent>
@@ -425,7 +432,7 @@ export const Dashboard = ({
         </CardHeader>
         <CardContent className="p-3 md:p-6 pt-0">
           <div className="text-2xl md:text-3xl font-bold text-blue-500">
-            {waybills.filter(w => w.type === 'return' && w.status === 'outstanding').length}
+            {returnWaybills.filter(w => w.status === 'outstanding').length}
           </div>
           <div className="text-xs md:text-sm text-muted-foreground">Pending Returns</div>
           <p className="text-[10px] md:text-xs text-muted-foreground mt-2">Items awaiting processing</p>
@@ -482,7 +489,13 @@ export const Dashboard = ({
       </Card>
 
       {/* 6. Machine Maintenance */}
-      <Card className="border-0 shadow-soft hover:shadow-lg transition-all duration-300 cursor-pointer group relative overflow-hidden active:scale-[0.98]" onClick={() => onNavigate('machine-maintenance')}>
+      <Card
+        className={`border-0 shadow-soft transition-all duration-300 group relative overflow-hidden ${hasPermission('access_maintenance')
+            ? 'hover:shadow-lg cursor-pointer active:scale-[0.98]'
+            : 'opacity-60 cursor-not-allowed'
+          }`}
+        onClick={() => hasPermission('access_maintenance') && onNavigate('machine-maintenance')}
+      >
         <div className="absolute top-0 right-0 p-2 md:p-4 opacity-10 group-hover:opacity-20 transition-opacity">
           <Wrench className="h-16 md:h-24 w-16 md:w-24 text-red-500" />
         </div>
