@@ -1,0 +1,21 @@
+{
+    "android": {
+        "icon": {
+            "sources": [
+                {
+                    "src": "public/favicon.png",
+                    "foreground": "public/favicon.png",
+                    "background": "#0f172a"
+                }
+            ]
+        },
+        "splash": {
+            "sources": [
+                {
+                    "src": "public/favicon.png",
+                    "background": "#0f172a"
+                }
+            ]
+        }
+    }
+}

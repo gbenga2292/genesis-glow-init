@@ -16,6 +16,8 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { NetworkStatus } from "./components/NetworkStatus";
 import { UpdateNotificationBanner } from "./components/layout/UpdateNotificationBanner";
 import ProtectedRoute from "./components/ProtectedRoute";
+import RestockHistoryPage from "./pages/RestockHistoryPage";
+import AssetDescriptionPage from "./pages/AssetDescriptionPage";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
@@ -165,6 +167,16 @@ const App = () => {
                         <Route path="/" element={
                           <ProtectedRoute>
                             <Index />
+                          </ProtectedRoute>
+                        } />
+                        <Route path="/asset/:id/history" element={
+                          <ProtectedRoute>
+                            <RestockHistoryPage />
+                          </ProtectedRoute>
+                        } />
+                        <Route path="/asset/:id/description" element={
+                          <ProtectedRoute>
+                            <AssetDescriptionPage />
                           </ProtectedRoute>
                         } />
                         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

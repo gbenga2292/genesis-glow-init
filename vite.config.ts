@@ -16,4 +16,12 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  optimizeDeps: {
+    exclude: [
+      '@capacitor/splash-screen',
+      '@capawesome/capacitor-live-update',
+      '@capacitor/core',
+      '@capacitor/android'
+    ],
+  },
 }));
