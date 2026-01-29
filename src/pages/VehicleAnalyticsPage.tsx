@@ -110,7 +110,7 @@ export const VehicleAnalyticsPage = ({ vehicles, waybills, onBack, initialVehicl
                                 Fleet Overview ({vehicleStats.length})
                             </h3>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-2">
+                        <div className="flex-1 overflow-y-auto p-2 min-h-0">
                             {vehicleStats.length === 0 ? (
                                 <div className="text-center py-8 text-muted-foreground text-sm">
                                     No vehicles available
@@ -151,7 +151,7 @@ export const VehicleAnalyticsPage = ({ vehicles, waybills, onBack, initialVehicl
 
                 {/* Details View (Right) */}
                 {(!isMobile || selectedVehicle) && (
-                    <div className="flex-1 overflow-y-auto p-2 md:p-4 lg:p-6 bg-card/30">
+                    <div className="flex-1 overflow-y-auto p-2 md:p-4 lg:p-6 bg-card/30 min-h-0">
                         {selectedVehicleWithStats ? (
                             <div className="space-y-4 md:space-y-6 animate-in fade-in slide-in-from-right-4">
 

@@ -4176,7 +4176,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         <Dialog open={!!analyticsVehicle} onOpenChange={(open) => !open && setAnalyticsVehicle(null)}>
           <DialogContent className="max-w-[95vw] md:max-w-7xl h-[90vh] overflow-hidden p-0">
             {analyticsVehicle && (
-              <div className="h-full overflow-y-auto p-2 md:p-6">
+              <div className="h-full w-full p-2 md:p-6 min-h-0 overflow-hidden flex flex-col">
                 <VehicleAnalyticsPage
                   vehicles={vehicles}
                   waybills={waybills}
