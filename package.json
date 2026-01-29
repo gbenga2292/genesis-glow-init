@@ -23,6 +23,8 @@
     "@capacitor/android": "^8.0.1",
     "@capacitor/cli": "^8.0.1",
     "@capacitor/core": "^8.0.1",
+    "@capacitor/filesystem": "^8.1.0",
+    "@capacitor/share": "^8.0.0",
     "@capacitor/splash-screen": "^8.0.0",
     "@capawesome/capacitor-live-update": "^8.1.0",
     "@hookform/resolvers": "^3.10.0",

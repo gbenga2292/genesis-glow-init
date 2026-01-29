@@ -2,6 +2,8 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { CompanySettings } from '@/types/asset';
 import { logger } from '@/lib/logger';
+import { Capacitor } from '@capacitor/core';
+import { handleMobilePdfAction } from '@/utils/mobilePdfUtils';
 
 // Remove module declaration as we are using functional approach
 
@@ -277,7 +279,11 @@ export const generateUnifiedReport = async (config: ReportConfig): Promise<void>
   const sanitizedTitle = title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
   const fileName = `${sanitizedTitle}-${timestamp}.pdf`;
 
-  doc.save(fileName);
+  if (Capacitor.isNativePlatform()) {
+    await handleMobilePdfAction(doc, fileName, 'download');
+  } else {
+    doc.save(fileName);
+  }
   logger.info(`PDF report generated: ${fileName}`);
 };
 

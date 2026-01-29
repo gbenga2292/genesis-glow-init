@@ -4,6 +4,8 @@ import { Separator } from "@/components/ui/separator";
 import { Waybill, Site, CompanySettings } from "@/types/asset";
 import { generateProfessionalPDF } from "@/utils/professionalPDFGenerator";
 import { Printer, Calendar, User, Truck, ArrowLeft, MapPin, Download } from "lucide-react";
+import { Capacitor } from "@capacitor/core";
+import { handleMobilePdfAction } from "@/utils/mobilePdfUtils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -25,6 +27,12 @@ export const ReturnWaybillDocumentPage = ({ waybill, sites, companySettings, onB
             sites,
             type: 'return'
         });
+
+        if (Capacitor.isNativePlatform()) {
+            await handleMobilePdfAction(pdf, `Return_Waybill_${waybill.id}`, 'print');
+            return;
+        }
+
         const blob = pdf.output('blob');
         const url = URL.createObjectURL(blob);
         const printWindow = window.open(url, '_blank');
@@ -47,6 +55,12 @@ export const ReturnWaybillDocumentPage = ({ waybill, sites, companySettings, onB
             type: 'return'
         });
         const fileName = `Return_Waybill_${waybill.id}.pdf`;
+
+        if (Capacitor.isNativePlatform()) {
+            await handleMobilePdfAction(pdf, fileName, 'download');
+            return;
+        }
+
         pdf.save(fileName);
     };
 

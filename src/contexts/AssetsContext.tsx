@@ -44,6 +44,8 @@ export const AssetsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     const handleRefreshAssets = (event: CustomEvent) => {
       const loadedAssets = event.detail;
+      if (!loadedAssets || !Array.isArray(loadedAssets)) return;
+
       setAssets(loadedAssets.map((item: any) => ({
         ...item,
         createdAt: new Date(item.createdAt),

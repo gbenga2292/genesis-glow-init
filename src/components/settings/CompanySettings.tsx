@@ -505,6 +505,17 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
   const handleAddVehicle = async () => {
     if (!vehicleName.trim()) return;
 
+    // Check for duplicate vehicle name (case-insensitive)
+    const isDuplicate = vehicles.some(v => v.name.toLowerCase() === vehicleName.trim().toLowerCase());
+    if (isDuplicate) {
+      toast({
+        title: 'Duplicate Vehicle',
+        description: 'A vehicle with this name already exists.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
     try {
       const savedVehicle = await dataService.vehicles.createVehicle({ name: vehicleName.trim(), status: 'active' });
 
