@@ -15,11 +15,18 @@ import {
   Moon,
   LogOut,
   X,
-  ChevronRight
+  ChevronRight,
+  Monitor
 } from "lucide-react";
 import { useState } from "react";
 import { useTheme } from "next-themes";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Drawer,
   DrawerContent,
@@ -35,6 +42,7 @@ interface MobileBottomNavProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
   onMenuClick: () => void;
+  hide?: boolean; // New prop to hide the nav bar
 }
 
 interface QuickNavItem {
@@ -44,7 +52,7 @@ interface QuickNavItem {
   group?: 'operations' | 'admin';
 }
 
-export const MobileBottomNav = ({ activeTab, onTabChange, onMenuClick }: MobileBottomNavProps) => {
+export const MobileBottomNav = ({ activeTab, onTabChange, onMenuClick, hide = false }: MobileBottomNavProps) => {
   const [moreOpen, setMoreOpen] = useState(false);
   const { theme, setTheme } = useTheme();
   const { currentUser, logout, hasPermission, isAuthenticated } = useAuth();
@@ -101,6 +109,9 @@ export const MobileBottomNav = ({ activeTab, onTabChange, onMenuClick }: MobileB
     .toUpperCase()
     .slice(0, 2) || 'U';
 
+  // Don't render if hide prop is true
+  if (hide) return null;
+
   return (
     <>
       {/* Bottom Navigation Bar */}
@@ -108,7 +119,7 @@ export const MobileBottomNav = ({ activeTab, onTabChange, onMenuClick }: MobileB
         <div className="flex items-center justify-around h-16 px-2">
           {primaryNavItems.map((item) => {
             const isActive = activeTab === item.id;
-            
+
             return (
               <button
                 key={item.id}
@@ -135,7 +146,7 @@ export const MobileBottomNav = ({ activeTab, onTabChange, onMenuClick }: MobileB
               </button>
             );
           })}
-          
+
           {/* More Button */}
           <button
             className={cn(
@@ -186,14 +197,29 @@ export const MobileBottomNav = ({ activeTab, onTabChange, onMenuClick }: MobileB
                     <p className="font-semibold truncate">{currentUser.name}</p>
                     <p className="text-sm text-muted-foreground capitalize">{currentUser.role?.replace('_', ' ')}</p>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="shrink-0"
-                    onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                  >
-                    {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="shrink-0">
+                        <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                        <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                        <span className="sr-only">Toggle theme</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => setTheme("light")}>
+                        <Sun className="h-4 w-4 mr-2" />
+                        Light
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setTheme("dark")}>
+                        <Moon className="h-4 w-4 mr-2" />
+                        Dark
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setTheme("system")}>
+                        <Monitor className="h-4 w-4 mr-2" />
+                        System
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </>
             )}
@@ -212,8 +238,8 @@ export const MobileBottomNav = ({ activeTab, onTabChange, onMenuClick }: MobileB
                         key={item.id}
                         className={cn(
                           "w-full flex items-center gap-3 p-3 rounded-xl transition-colors text-left",
-                          isActive 
-                            ? "bg-primary text-primary-foreground" 
+                          isActive
+                            ? "bg-primary text-primary-foreground"
                             : "hover:bg-muted active:bg-muted"
                         )}
                         onClick={() => handleNavClick(item.id)}
@@ -242,8 +268,8 @@ export const MobileBottomNav = ({ activeTab, onTabChange, onMenuClick }: MobileB
                         key={item.id}
                         className={cn(
                           "w-full flex items-center gap-3 p-3 rounded-xl transition-colors text-left",
-                          isActive 
-                            ? "bg-primary text-primary-foreground" 
+                          isActive
+                            ? "bg-primary text-primary-foreground"
                             : "hover:bg-muted active:bg-muted"
                         )}
                         onClick={() => handleNavClick(item.id)}

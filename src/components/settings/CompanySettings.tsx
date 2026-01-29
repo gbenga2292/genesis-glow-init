@@ -557,42 +557,9 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     const vehicle = vehicles.find(v => v.id === id);
     if (!vehicle) return;
 
-    // Check if vehicle is used in any waybills
-    const isUsed = waybills.some(w => w.vehicle === vehicle.name);
-
-    if (isUsed) {
-      setVehicleToDelist(vehicle);
-      setIsDelistVehicleDialogOpen(true);
-      return;
-    }
-
-    if (!window.confirm(`Are you sure you want to permanently delete ${vehicle.name}?`)) {
-      return;
-    }
-
-    try {
-      await dataService.vehicles.deleteVehicle(id);
-
-      onVehiclesChange(vehicles.filter(v => v.id !== id));
-
-      toast({
-        title: "Vehicle Removed",
-        description: "Vehicle has been removed successfully"
-      });
-
-      await logActivity({
-        action: 'delete',
-        entity: 'vehicle',
-        details: `Permanently deleted vehicle ${vehicle.name}`
-      });
-    } catch (error) {
-      logger.error('Failed to remove vehicle', error);
-      toast({
-        title: "Error",
-        description: "Failed to remove vehicle from database",
-        variant: "destructive"
-      });
-    }
+    // Always use delist flow instead of permanent delete
+    setVehicleToDelist(vehicle);
+    setIsDelistVehicleDialogOpen(true);
   };
 
   const handleReactivateVehicle = async (id: string) => {
@@ -741,37 +708,31 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
   const handleConfirmedDelistVehicle = async () => {
     if (!vehicleToDelist) return;
 
-    try {
-      const delistedDateValue = delistDate ? new Date(delistDate) : new Date();
+    const delistedDateValue = delistDate ? new Date(delistDate) : new Date();
 
+    try {
       await dataService.vehicles.updateVehicle(vehicleToDelist.id, {
         status: 'inactive',
         delistedDate: delistedDateValue
       });
 
-      const updatedVehicles = vehicles.map(v =>
-        v.id === vehicleToDelist.id
-          ? { ...v, status: 'inactive' as const, delistedDate: delistedDateValue, updatedAt: new Date() }
-          : v
-      );
+      handleDelistSuccess(delistedDateValue);
+    } catch (error: any) {
+      // Handle missing column error (schema mismatch)
+      if (error?.code === 'PGRST204' && error?.message?.includes('delisted_date')) {
+        try {
+          // Retry without the date field
+          await dataService.vehicles.updateVehicle(vehicleToDelist.id, {
+            status: 'inactive'
+          });
 
-      onVehiclesChange(updatedVehicles);
+          handleDelistSuccess(undefined, "Vehicle delisted (Date not saved - DB schema update required)");
+          return;
+        } catch (retryError) {
+          logger.error('Failed to delist vehicle (retry failed)', retryError);
+        }
+      }
 
-      await logActivity({
-        action: 'delete', // Using 'delete' action type as it maps to removal/delisting concepts usually
-        entity: 'vehicle',
-        details: `Delisted vehicle ${vehicleToDelist.name}`
-      });
-
-      setIsDelistVehicleDialogOpen(false);
-      setVehicleToDelist(null);
-      setDelistDate("");
-
-      toast({
-        title: "Vehicle Delisted",
-        description: `${vehicleToDelist.name} has been delisted successfully`
-      });
-    } catch (error) {
       logger.error('Failed to delist vehicle', error);
       toast({
         title: "Error",
@@ -779,6 +740,33 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         variant: "destructive"
       });
     }
+  };
+
+  const handleDelistSuccess = async (date?: Date, customMessage?: string) => {
+    if (!vehicleToDelist) return;
+
+    const updatedVehicles = vehicles.map(v =>
+      v.id === vehicleToDelist!.id
+        ? { ...v, status: 'inactive' as const, delistedDate: date, updatedAt: new Date() }
+        : v
+    );
+
+    onVehiclesChange(updatedVehicles);
+
+    await logActivity({
+      action: 'delete',
+      entity: 'vehicle',
+      details: `Delisted vehicle ${vehicleToDelist.name}`
+    });
+
+    setIsDelistVehicleDialogOpen(false);
+    setVehicleToDelist(null);
+    setDelistDate("");
+
+    toast({
+      title: "Vehicle Delisted",
+      description: customMessage || `${vehicleToDelist.name} has been delisted successfully`
+    });
   };
 
   const handleSave = () => {
@@ -3012,7 +3000,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                                 <Button size="sm" variant="outline" onClick={() => handleEditVehicle(vehicle.id)}>Edit</Button>
                               )}
                               {hasPermission('delete_vehicles') && (
-                                <Button size="sm" variant="destructive" onClick={() => handleRemoveVehicle(vehicle.id)}>Remove</Button>
+                                <Button size="sm" variant="destructive" onClick={() => handleRemoveVehicle(vehicle.id)}>Delist</Button>
                               )}
                             </div>
                           </>
@@ -3051,8 +3039,8 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
               <DialogHeader>
                 <DialogTitle>Delist Vehicle</DialogTitle>
                 <DialogDescription>
-                  This vehicle is used in existing waybills and cannot be permanently deleted.
-                  It will be marked as inactive instead.
+                  Delisting a vehicle marks it as inactive while preserving its history.
+                  You can reactivate it later if needed.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
@@ -4174,7 +4162,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       {isMobile ? (
         // Full page view on mobile
         analyticsVehicle && (
-          <div className="fixed inset-0 z-50 bg-background">
+          <div className="fixed inset-0 z-[100] bg-background">
             <VehicleAnalyticsPage
               vehicles={vehicles}
               waybills={waybills}

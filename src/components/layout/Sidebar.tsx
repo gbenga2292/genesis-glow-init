@@ -3,23 +3,30 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "next-themes";
-import { 
-  LayoutDashboard, 
-  Package, 
-  FileText, 
-  ShoppingCart, 
-  Settings, 
-  MapPin, 
-  LogOut, 
-  LogIn, 
-  Activity, 
-  Sun, 
-  Moon, 
+import {
+  LayoutDashboard,
+  Package,
+  FileText,
+  ShoppingCart,
+  Settings,
+  MapPin,
+  LogOut,
+  LogIn,
+  Activity,
+  Sun,
+  Moon,
   History,
   ChevronLeft,
   ChevronRight,
-  Undo2
+  Undo2,
+  Monitor
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useState } from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
@@ -107,15 +114,15 @@ export const Sidebar = ({
 
   const renderMenuItem = (item: MenuItem) => {
     const isActive = activeTab === item.id;
-    
+
     const button = (
       <Button
         variant="ghost"
         className={cn(
           "w-full justify-start gap-3 h-10 transition-all duration-200",
           isCollapsed && mode === 'desktop' ? "justify-center px-2" : "px-3",
-          isActive 
-            ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground shadow-sm" 
+          isActive
+            ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground shadow-sm"
             : "text-muted-foreground hover:text-foreground hover:bg-muted/80"
         )}
         onClick={() => onTabChange(item.id)}
@@ -145,7 +152,7 @@ export const Sidebar = ({
 
   const renderGroup = (items: MenuItem[], label: string) => {
     if (items.length === 0) return null;
-    
+
     return (
       <div className="space-y-1">
         {(!isCollapsed || mode === 'mobile') && (
@@ -161,11 +168,11 @@ export const Sidebar = ({
 
   return (
     <TooltipProvider>
-      <div 
+      <div
         className={cn(
           "bg-card flex flex-col transition-all duration-300 border-r border-border",
-          mode === 'desktop' 
-            ? isCollapsed ? "w-16" : "w-60" 
+          mode === 'desktop'
+            ? isCollapsed ? "w-16" : "w-60"
             : "w-full h-full border-none"
         )}
       >
@@ -223,14 +230,29 @@ export const Sidebar = ({
               )}
               <Tooltip delayDuration={0}>
                 <TooltipTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-8 w-8 shrink-0" 
-                    onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                  >
-                    {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                        <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                        <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                        <span className="sr-only">Toggle theme</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => setTheme("light")}>
+                        <Sun className="h-4 w-4 mr-2" />
+                        Light
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setTheme("dark")}>
+                        <Moon className="h-4 w-4 mr-2" />
+                        Dark
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setTheme("system")}>
+                        <Monitor className="h-4 w-4 mr-2" />
+                        System
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </TooltipTrigger>
                 <TooltipContent side={isCollapsed && mode === 'desktop' ? "right" : "top"}>
                   Toggle theme
@@ -238,10 +260,10 @@ export const Sidebar = ({
               </Tooltip>
               <Tooltip delayDuration={0}>
                 <TooltipTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-8 w-8 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10" 
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                     onClick={logout}
                   >
                     <LogOut className="h-4 w-4" />
@@ -259,23 +281,38 @@ export const Sidebar = ({
             )}>
               <Tooltip delayDuration={0}>
                 <TooltipTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-8 w-8 shrink-0" 
-                    onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                  >
-                    {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                        <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                        <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                        <span className="sr-only">Toggle theme</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => setTheme("light")}>
+                        <Sun className="h-4 w-4 mr-2" />
+                        Light
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setTheme("dark")}>
+                        <Moon className="h-4 w-4 mr-2" />
+                        Dark
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setTheme("system")}>
+                        <Monitor className="h-4 w-4 mr-2" />
+                        System
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </TooltipTrigger>
                 <TooltipContent side={isCollapsed && mode === 'desktop' ? "right" : "top"}>
                   Toggle theme
                 </TooltipContent>
               </Tooltip>
               {(!isCollapsed || mode === 'mobile') ? (
-                <Button 
-                  variant="default" 
-                  className="flex-1 h-8 text-xs" 
+                <Button
+                  variant="default"
+                  className="flex-1 h-8 text-xs"
                   onClick={() => navigate("/login")}
                 >
                   <LogIn className="h-4 w-4 mr-1.5" />
@@ -284,10 +321,10 @@ export const Sidebar = ({
               ) : (
                 <Tooltip delayDuration={0}>
                   <TooltipTrigger asChild>
-                    <Button 
-                      variant="default" 
+                    <Button
+                      variant="default"
                       size="icon"
-                      className="h-8 w-8" 
+                      className="h-8 w-8"
                       onClick={() => navigate("/login")}
                     >
                       <LogIn className="h-4 w-4" />

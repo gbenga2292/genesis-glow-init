@@ -3990,6 +3990,23 @@ const Index = () => {
           activeTab={activeTab}
           onTabChange={setActiveTab}
           onMenuClick={() => setMobileMenuOpen(true)}
+          hide={
+            !!editingAsset ||
+            !!editingWaybill ||
+            !!editingReturnWaybill ||
+            !!showReturnForm ||
+            !!processingReturnWaybill ||
+            !!showWaybillDocument ||
+            !!showReturnWaybillDocument ||
+            activeTab === 'add-asset' ||
+            activeTab === 'create-waybill' ||
+            activeTab === 'waybill-document' ||
+            activeTab === 'return-waybill-document' ||
+            activeTab === 'prepare-return-waybill' ||
+            activeTab === 'site-inventory' ||
+            activeTab === 'asset-analytics' ||
+            activeTab === 'employee-analytics'
+          }
         />
       )}
 
