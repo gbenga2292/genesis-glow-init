@@ -15,14 +15,18 @@
     {
       "from": "resources/llm",
       "to": "llm",
-      "filter": ["**/*"]
+      "filter": [
+        "**/*"
+      ]
     }
   ],
   "extraMetadata": {
     "main": "electron/main.js"
   },
   "win": {
-    "target": ["portable"],
+    "target": [
+      "portable"
+    ],
     "icon": "public/favicon.ico",
     "forceCodeSigning": false,
     "signAndEditExecutable": false,
@@ -35,13 +39,20 @@
     "createStartMenuShortcut": true
   },
   "mac": {
-    "target": ["dmg"],
+    "target": [
+      "dmg"
+    ],
     "icon": "public/favicon.ico",
     "category": "public.app-category.business"
   },
   "linux": {
-    "target": ["AppImage"],
+    "target": [
+      "AppImage"
+    ],
     "icon": "public/favicon.ico",
     "category": "Office"
-  }
+  },
+  "npmRebuild": false,
+  "nodeGypRebuild": false,
+  "buildDependenciesFromSource": false
 }

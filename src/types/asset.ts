@@ -161,6 +161,7 @@ export interface Vehicle {
   type?: string;
   registration_number?: string;
   status: 'active' | 'inactive';
+  delistedDate?: Date;
   createdAt: Date;
   updatedAt: Date;
 }

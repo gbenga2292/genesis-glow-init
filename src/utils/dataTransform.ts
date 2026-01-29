@@ -377,6 +377,7 @@ export function transformVehicleToDB(vehicle: any): any {
     type: vehicle.type,
     registration_number: vehicle.registrationNumber || vehicle.registration_number,
     status: vehicle.status,
+    delisted_date: vehicle.delistedDate,
   };
 }
 
@@ -388,6 +389,7 @@ export function transformVehicleFromDB(dbVehicle: any): any {
     ...dbVehicle,
     id: String(dbVehicle.id), // Convert to string for frontend consistency
     registrationNumber: dbVehicle.registration_number,
+    delistedDate: dbVehicle.delisted_date ? new Date(dbVehicle.delisted_date) : undefined,
     createdAt: dbVehicle.created_at ? new Date(dbVehicle.created_at) : new Date(),
     updatedAt: dbVehicle.updated_at ? new Date(dbVehicle.updated_at) : new Date(),
   };

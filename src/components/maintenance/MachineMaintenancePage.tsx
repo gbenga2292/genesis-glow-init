@@ -62,7 +62,7 @@ export const MachineMaintenancePage = ({
 
     // Convert vehicles to machine format for unified handling
     const vehiclesAsMachines: Machine[] = useMemo(() => {
-        return vehicles.map(vehicle => ({
+        return vehicles.filter(v => v.status === 'active').map(vehicle => ({
             id: `vehicle-${vehicle.id}`,
             name: vehicle.name,
             model: vehicle.type || 'N/A',

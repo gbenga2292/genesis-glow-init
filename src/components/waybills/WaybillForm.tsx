@@ -295,7 +295,7 @@ export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybil
                       <SelectValue placeholder="Select a vehicle" />
                     </SelectTrigger>
                     <SelectContent>
-                      {vehicles.map((vehicle) => (
+                      {vehicles.filter(v => v.status === 'active').map((vehicle) => (
                         <SelectItem key={vehicle.id} value={vehicle.name}>
                           {vehicle.name}
                         </SelectItem>

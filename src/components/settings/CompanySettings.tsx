@@ -25,6 +25,7 @@ import { EmployeeAnalytics } from "./EmployeeAnalytics";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { dataService } from "@/services/dataService";
 import { Combobox } from "@/components/ui/combobox";
+import { VehicleAnalyticsPage } from "@/pages/VehicleAnalyticsPage";
 
 interface CompanySettingsProps {
   settings: CompanySettingsType;
@@ -85,6 +86,9 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
   const [isDelistEmployeeDialogOpen, setIsDelistEmployeeDialogOpen] = useState(false);
   const [employeeToDelist, setEmployeeToDelist] = useState<Employee | null>(null);
   const [delistDate, setDelistDate] = useState("");
+  const [isDelistVehicleDialogOpen, setIsDelistVehicleDialogOpen] = useState(false);
+  const [vehicleToDelist, setVehicleToDelist] = useState<Vehicle | null>(null);
+  const [analyticsVehicle, setAnalyticsVehicle] = useState<Vehicle | null>(null);
   const [isResetOpen, setIsResetOpen] = useState(false);
   const [isRestoreOpen, setIsRestoreOpen] = useState(false);
   const [isBackupDialogOpen, setIsBackupDialogOpen] = useState(false);
@@ -550,6 +554,22 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
   };
 
   const handleRemoveVehicle = async (id: string) => {
+    const vehicle = vehicles.find(v => v.id === id);
+    if (!vehicle) return;
+
+    // Check if vehicle is used in any waybills
+    const isUsed = waybills.some(w => w.vehicle === vehicle.name);
+
+    if (isUsed) {
+      setVehicleToDelist(vehicle);
+      setIsDelistVehicleDialogOpen(true);
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to permanently delete ${vehicle.name}?`)) {
+      return;
+    }
+
     try {
       await dataService.vehicles.deleteVehicle(id);
 
@@ -559,6 +579,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         title: "Vehicle Removed",
         description: "Vehicle has been removed successfully"
       });
+
+      await logActivity({
+        action: 'delete',
+        entity: 'vehicle',
+        details: `Permanently deleted vehicle ${vehicle.name}`
+      });
     } catch (error) {
       logger.error('Failed to remove vehicle', error);
       toast({
@@ -566,6 +592,32 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         description: "Failed to remove vehicle from database",
         variant: "destructive"
       });
+    }
+  };
+
+  const handleReactivateVehicle = async (id: string) => {
+    const vehicle = vehicles.find(v => v.id === id);
+    if (!vehicle) return;
+
+    try {
+      // Pass explicit null to clear the date in DB if supported, or handled by dataService
+      await dataService.vehicles.updateVehicle(id, { status: 'active', delistedDate: null });
+
+      const updatedVehicles = vehicles.map(v =>
+        v.id === id ? { ...v, status: 'active' as const, delistedDate: undefined, updatedAt: new Date() } : v
+      );
+      onVehiclesChange(updatedVehicles);
+
+      await logActivity({
+        action: 'update',
+        entity: 'vehicle',
+        details: `Reactivated vehicle ${vehicle.name}`
+      });
+
+      toast({ title: "Vehicle Reactivated", description: `${vehicle.name} is now active.` });
+    } catch (err) {
+      logger.error('Failed to reactivate vehicle', err);
+      toast({ title: "Error", description: "Failed to reactivate vehicle", variant: "destructive" });
     }
   };
 
@@ -684,6 +736,49 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
   const handleCancelVehicleEdit = () => {
     setEditingVehicleIndex(null);
     setTempVehicleName("");
+  };
+
+  const handleConfirmedDelistVehicle = async () => {
+    if (!vehicleToDelist) return;
+
+    try {
+      const delistedDateValue = delistDate ? new Date(delistDate) : new Date();
+
+      await dataService.vehicles.updateVehicle(vehicleToDelist.id, {
+        status: 'inactive',
+        delistedDate: delistedDateValue
+      });
+
+      const updatedVehicles = vehicles.map(v =>
+        v.id === vehicleToDelist.id
+          ? { ...v, status: 'inactive' as const, delistedDate: delistedDateValue, updatedAt: new Date() }
+          : v
+      );
+
+      onVehiclesChange(updatedVehicles);
+
+      await logActivity({
+        action: 'delete', // Using 'delete' action type as it maps to removal/delisting concepts usually
+        entity: 'vehicle',
+        details: `Delisted vehicle ${vehicleToDelist.name}`
+      });
+
+      setIsDelistVehicleDialogOpen(false);
+      setVehicleToDelist(null);
+      setDelistDate("");
+
+      toast({
+        title: "Vehicle Delisted",
+        description: `${vehicleToDelist.name} has been delisted successfully`
+      });
+    } catch (error) {
+      logger.error('Failed to delist vehicle', error);
+      toast({
+        title: "Error",
+        description: "Failed to delist vehicle",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleSave = () => {
@@ -2883,12 +2978,15 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                   <Button onClick={handleAddVehicle}>Add</Button>
                 )}
               </div>
+
+              {/* Active Vehicles */}
               <div>
-                {vehicles.length === 0 ? (
-                  <p className="text-muted-foreground">No vehicles added yet.</p>
+                <h4 className="font-medium mb-2">Active Vehicles</h4>
+                {vehicles.filter(v => v.status === 'active').length === 0 ? (
+                  <p className="text-muted-foreground">No active vehicles added yet.</p>
                 ) : (
                   <ul className="space-y-2 max-h-96 overflow-y-auto">
-                    {vehicles.map((vehicle) => (
+                    {vehicles.filter(v => v.status === 'active').map((vehicle) => (
                       <li key={vehicle.id} className={`flex justify-between items-center border p-2 rounded ${isMobile ? 'flex-col items-stretch gap-3' : ''}`}>
                         {editingVehicleIndex === vehicles.indexOf(vehicle) ? (
                           <div className={`flex gap-2 flex-1 ${isMobile ? 'flex-col' : ''}`}>
@@ -2906,6 +3004,11 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                             <span>{vehicle.name}</span>
                             <div className="flex gap-1">
                               {hasPermission('write_vehicles') && (
+                                <Button size="sm" variant="ghost" onClick={() => setAnalyticsVehicle(vehicle)} title="View Analytics">
+                                  <BarChart3 className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {hasPermission('write_vehicles') && (
                                 <Button size="sm" variant="outline" onClick={() => handleEditVehicle(vehicle.id)}>Edit</Button>
                               )}
                               {hasPermission('delete_vehicles') && (
@@ -2919,8 +3022,56 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                   </ul>
                 )}
               </div>
+
+              {/* Past Vehicles */}
+              {vehicles.filter(v => v.status === 'inactive').length > 0 && (
+                <div>
+                  <h4 className="font-medium mt-4 mb-2">Past Vehicles (Delisted)</h4>
+                  <ul className="space-y-2 max-h-48 overflow-y-auto">
+                    {vehicles.filter(v => v.status === 'inactive').map((vehicle) => (
+                      <li key={vehicle.id} className="flex justify-between items-center border p-2 rounded opacity-75">
+                        <span>
+                          {vehicle.name}
+                          {vehicle.delistedDate ? ` - Delisted: ${new Date(vehicle.delistedDate).toLocaleDateString()}` : ''}
+                        </span>
+                        {hasPermission('write_vehicles') && (
+                          <Button size="sm" variant="outline" onClick={() => handleReactivateVehicle(vehicle.id)}>Reactivate</Button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
             </CardContent>
           </Card>
+
+          <Dialog open={isDelistVehicleDialogOpen} onOpenChange={setIsDelistVehicleDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Delist Vehicle</DialogTitle>
+                <DialogDescription>
+                  This vehicle is used in existing waybills and cannot be permanently deleted.
+                  It will be marked as inactive instead.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <p className="text-sm font-medium">Delist {vehicleToDelist?.name}</p>
+                <div className="space-y-2">
+                  <Label>Delisting Date</Label>
+                  <Input
+                    type="date"
+                    value={delistDate}
+                    onChange={(e) => setDelistDate(e.target.value)}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsDelistVehicleDialogOpen(false)}>Cancel</Button>
+                <Button onClick={handleConfirmedDelistVehicle}>Delist Vehicle</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           <div className="flex justify-end">
             <Button
@@ -4018,6 +4169,37 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           />
         )}
       </Dialog>
+
+      {/* Vehicle Analytics Dialog */}
+      {isMobile ? (
+        // Full page view on mobile
+        analyticsVehicle && (
+          <div className="fixed inset-0 z-50 bg-background">
+            <VehicleAnalyticsPage
+              vehicles={vehicles}
+              waybills={waybills}
+              onBack={() => setAnalyticsVehicle(null)}
+              initialVehicle={analyticsVehicle}
+            />
+          </div>
+        )
+      ) : (
+        // Dialog view on desktop
+        <Dialog open={!!analyticsVehicle} onOpenChange={(open) => !open && setAnalyticsVehicle(null)}>
+          <DialogContent className="max-w-[95vw] md:max-w-7xl h-[90vh] overflow-hidden p-0">
+            {analyticsVehicle && (
+              <div className="h-full overflow-y-auto p-2 md:p-6">
+                <VehicleAnalyticsPage
+                  vehicles={vehicles}
+                  waybills={waybills}
+                  onBack={() => setAnalyticsVehicle(null)}
+                  initialVehicle={analyticsVehicle}
+                />
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 };
