@@ -227,8 +227,8 @@ export function transformWaybillFromDB(dbWaybill: any): any {
     updatedAt: new Date(dbWaybill.updated_at || dbWaybill.updatedAt),
     items: typeof dbWaybill.items === 'string' ? JSON.parse(dbWaybill.items) : dbWaybill.items || [],
     driverName: dbWaybill.driver_name || dbWaybill.driverName,
-    siteId: dbWaybill.site_id || dbWaybill.siteId,
-    returnToSiteId: dbWaybill.return_to_site_id || dbWaybill.returnToSiteId,
+    siteId: (dbWaybill.site_id || dbWaybill.siteId) ? String(dbWaybill.site_id || dbWaybill.siteId) : undefined,
+    returnToSiteId: (dbWaybill.return_to_site_id || dbWaybill.returnToSiteId) ? String(dbWaybill.return_to_site_id || dbWaybill.returnToSiteId) : undefined,
     createdBy: dbWaybill.created_by || dbWaybill.createdBy,
   };
 }

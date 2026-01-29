@@ -58,6 +58,8 @@ import { useNetworkStatus } from "@/hooks/use-network-status";
 import { AIAssistantProvider, useAIAssistant } from "@/contexts/AIAssistantContext";
 import { AIAssistantChat } from "@/components/ai/AIAssistantChat";
 import { logActivity } from "@/utils/activityLogger";
+import { SiteWorkerDashboard } from "@/pages/SiteWorkerDashboard";
+import { RequestsPage } from "@/pages/RequestsPage";
 import { calculateAvailableQuantity } from "@/utils/assetCalculations";
 import { AuditCharts } from "@/components/reporting/AuditCharts";
 import { MachineMaintenancePage } from "@/components/maintenance/MachineMaintenancePage";
@@ -73,6 +75,7 @@ const Index = () => {
   const { toast } = useToast();
   const { isAuthenticated, hasPermission, currentUser } = useAuth();
   const isOnline = useNetworkStatus();
+
 
   const isMobile = useIsMobile();
   const params = useParams();
@@ -279,6 +282,22 @@ const Index = () => {
       window.removeEventListener('trigger-audit-export', handleAuditExportTrigger as EventListener);
     };
   }, [isAuthenticated, assets, companySettings]);
+
+  const [siteWorkerView, setSiteWorkerView] = useState(false);
+  const isSiteWorker = currentUser?.role === 'site_worker';
+
+  useEffect(() => {
+    if (activeTab === 'site-worker-view') {
+      setSiteWorkerView(true);
+      // Optional: Reset tab or leave it. When returning, it might re-trigger if not careful.
+      // But Since SiteWorkerDashboard replaces the view, when we exit we call setSiteWorkerView(false).
+      // If we don't change activeTab back, this effect might re-run or stay stuck.
+      // Better to reset activeTab immediately after setting view.
+      setActiveTab('dashboard');
+    }
+  }, [activeTab]);
+
+
 
   // Handle Audit Generation Process (Auto-run when dialog opens)
   useEffect(() => {
@@ -507,7 +526,7 @@ const Index = () => {
     }
   };
 
-  const handleCreateWaybill = async (waybillData: Partial<Waybill>) => {
+  const handleCreateWaybill = async (waybillData: Partial<Waybill>, sourceRequestId?: string) => {
     if (!isAuthenticated) {
       toast({
         title: "Authentication Required",
@@ -586,6 +605,14 @@ const Index = () => {
         entityId: newWaybill.id,
         details: `Created waybill ${newWaybill.id} with ${newWaybill.items.length} items`
       });
+
+      if (sourceRequestId) {
+        await dataService.requests.updateRequest(sourceRequestId, {
+          status: 'fulfilled',
+          waybillId: newWaybill.id,
+          updatedAt: new Date()
+        });
+      }
 
       toast({
         title: "Waybill Created",
@@ -1922,6 +1949,8 @@ const Index = () => {
         />;
       case "recent-activities":
         return <RecentActivitiesPage />;
+      case "requests":
+        return <RequestsPage />;
       case "assets":
         return <AssetTable
           assets={assets}
@@ -3431,6 +3460,10 @@ const Index = () => {
   // We exclude 'false' string and '0' string which might be truthy in JS but mean false here.
   const isAIEnabled = !!aiEnabledVal && aiEnabledVal !== 'false' && aiEnabledVal !== '0';
 
+  if (isAuthenticated && (isSiteWorker || siteWorkerView)) {
+    return <SiteWorkerDashboard isSimulated={!isSiteWorker} onExit={() => setSiteWorkerView(false)} />;
+  }
+
   return (
     <AIAssistantProvider
       aiEnabled={isAIEnabled}
@@ -3474,8 +3507,13 @@ const Index = () => {
             <Sidebar
               activeTab={activeTab}
               onTabChange={(tab) => {
-                setActiveTab(tab);
-                setMobileMenuOpen(false);
+                if (tab === 'site-worker-view') {
+                  setSiteWorkerView(true);
+                  setMobileMenuOpen(false);
+                } else {
+                  setActiveTab(tab);
+                  setMobileMenuOpen(false);
+                }
               }}
               mode="mobile"
             />
@@ -3485,7 +3523,19 @@ const Index = () => {
         <div className="flex flex-1 overflow-hidden">
           {/* Desktop Sidebar */}
           {!isMobile && (
-            <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+            <Sidebar
+              activeTab={activeTab}
+              onTabChange={(tab) => {
+                if (tab === 'site-worker-view') {
+                  setSiteWorkerView(true);
+                  setMobileMenuOpen(false);
+                } else {
+                  setActiveTab(tab);
+                  setMobileMenuOpen(false);
+                }
+              }}
+              mode="desktop"
+            />
           )}
 
           <main className={cn(

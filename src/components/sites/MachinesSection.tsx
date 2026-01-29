@@ -55,8 +55,8 @@ export const MachinesSection = ({
   const siteEquipment = assets.filter(asset =>
     asset.type === 'equipment' &&
     asset.requiresLogging === true &&
-    (String(asset.siteId) === siteId || 
-     (asset.siteQuantities && (asset.siteQuantities[siteId] !== undefined || asset.siteQuantities[site.id] !== undefined)))
+    (String(asset.siteId) === siteId ||
+      (asset.siteQuantities && (asset.siteQuantities[siteId] !== undefined || asset.siteQuantities[site.id] !== undefined)))
   );
 
 
@@ -117,7 +117,6 @@ export const MachinesSection = ({
                       variant="outline"
                       size="sm"
                       className="flex-1"
-                      disabled={!hasPermission('write_assets')}
                     >
                       <CalendarIcon className="h-4 w-4 mr-2" />
                       Logs

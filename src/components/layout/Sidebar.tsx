@@ -19,7 +19,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Undo2,
-  Monitor
+  Monitor,
+  ClipboardList,
+  HardHat
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -58,6 +60,7 @@ export const Sidebar = ({
   const authenticatedMenuItems: MenuItem[] = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, group: 'main' },
     { id: "assets", label: "Inventory", icon: Package, group: 'main' },
+    { id: "requests", label: "Requests", icon: ClipboardList, group: 'main' },
     { id: "waybills", label: "Waybills", icon: FileText, group: 'operations' },
     { id: "returns", label: "Returns", icon: Undo2, group: 'operations' },
     { id: "quick-checkout", label: "Quick Checkout", icon: ShoppingCart, group: 'operations' },
@@ -65,6 +68,7 @@ export const Sidebar = ({
     { id: "sites", label: "Sites", icon: MapPin, group: 'operations' },
     { id: "settings", label: "Settings", icon: Settings, group: 'admin' },
     { id: "recent-activities", label: "Activity Log", icon: History, group: 'admin' },
+    { id: "site-worker-view", label: "Site Worker View", icon: HardHat, group: 'admin' },
   ];
 
   const menuItems = authenticatedMenuItems.filter(item => {
@@ -82,6 +86,8 @@ export const Sidebar = ({
         return null;
       case 'assets':
         return 'read_assets';
+      case 'requests':
+        return 'manage_requests';
       case 'waybills':
         return 'read_waybills';
       case 'returns':
@@ -92,6 +98,8 @@ export const Sidebar = ({
         return 'access_maintenance';
       case 'sites':
         return 'read_sites';
+      case 'site-worker-view':
+        return 'manage_requests'; // Only managers/admins
       default:
         return null;
     }

@@ -73,23 +73,23 @@ export const ReturnWaybillDocument = ({ waybill, sites, companySettings, onClose
       title={`Return Waybill ${waybill.id}`}
       subtitle={waybill.siteId ? siteName : undefined}
       icon={<ArrowLeft className="h-5 w-5" />}
-      maxWidth="max-w-4xl"
+      maxWidth="max-w-6xl"
     >
       {/* Mobile Action Buttons */}
       {isMobile && (
         <div className="flex gap-2 mb-4">
-          <Button 
-            onClick={handlePrint} 
-            variant="outline" 
-            className="flex-1 gap-2" 
+          <Button
+            onClick={handlePrint}
+            variant="outline"
+            className="flex-1 gap-2"
             disabled={!hasPermission('print_documents')}
           >
             <Printer className="h-4 w-4" />
             Print
           </Button>
-          <Button 
-            onClick={handleDownloadPDF} 
-            className="flex-1 gap-2 bg-gradient-primary" 
+          <Button
+            onClick={handleDownloadPDF}
+            className="flex-1 gap-2 bg-gradient-primary"
             disabled={!hasPermission('print_documents')}
           >
             <Download className="h-4 w-4" />
@@ -146,112 +146,112 @@ export const ReturnWaybillDocument = ({ waybill, sites, companySettings, onClose
         </div>
       )}
 
-        <div className="space-y-6 print:space-y-4">
-          {/* Header Information */}
-          <div className="bg-muted/30 p-6 rounded-lg print:bg-transparent print:border print:p-4">
-            <h2 className="text-lg font-semibold mb-4">Return Information</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-3">
+      <div className="space-y-6 print:space-y-4">
+        {/* Header Information */}
+        <div className="bg-muted/30 p-6 rounded-lg print:bg-transparent print:border print:p-4">
+          <h2 className="text-lg font-semibold mb-4">Return Information</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Issue Date</p>
+                  <p className="font-medium">{new Date(waybill.issueDate).toLocaleDateString('en-GB')}</p>
+                </div>
+              </div>
+
+              {waybill.expectedReturnDate && (
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <div>
-                    <p className="text-sm text-muted-foreground">Issue Date</p>
-                    <p className="font-medium">{new Date(waybill.issueDate).toLocaleDateString('en-GB')}</p>
+                    <p className="text-sm text-muted-foreground">Expected Return</p>
+                    <p className="font-medium">{new Date(waybill.expectedReturnDate).toLocaleDateString('en-GB')}</p>
                   </div>
                 </div>
+              )}
+            </div>
 
-                {waybill.expectedReturnDate && (
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Expected Return</p>
-                      <p className="font-medium">{new Date(waybill.expectedReturnDate).toLocaleDateString('en-GB')}</p>
-                    </div>
-                  </div>
-                )}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <User className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Driver</p>
+                  <p className="font-medium">{waybill.driverName}</p>
+                </div>
               </div>
 
-              <div className="space-y-3">
+              {waybill.vehicle && (
                 <div className="flex items-center gap-2">
-                  <User className="h-4 w-4 text-muted-foreground" />
+                  <Truck className="h-4 w-4 text-muted-foreground" />
                   <div>
-                    <p className="text-sm text-muted-foreground">Driver</p>
-                    <p className="font-medium">{waybill.driverName}</p>
+                    <p className="text-sm text-muted-foreground">Vehicle</p>
+                    <p className="font-medium">{waybill.vehicle}</p>
                   </div>
                 </div>
-
-                {waybill.vehicle && (
-                  <div className="flex items-center gap-2">
-                    <Truck className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Vehicle</p>
-                      <p className="font-medium">{waybill.vehicle}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <p className="text-sm text-muted-foreground mb-1">Purpose</p>
-              <p className="font-medium">{waybill.purpose}</p>
+              )}
             </div>
           </div>
 
-          <Separator />
-
-          {/* Items Table */}
-          <div>
-            <h2 className="text-lg font-semibold mb-4">Items Returned</h2>
-            <div className="border rounded-lg overflow-hidden">
-              <div className="bg-muted/50 px-4 py-3 font-medium grid grid-cols-4 gap-4 text-sm">
-                <div>Asset Name</div>
-                <div>Quantity Expected</div>
-                <div>Quantity Returned</div>
-                <div>Status</div>
-              </div>
-
-              {waybill.items.map((item, index) => (
-                <div key={index} className="px-4 py-3 border-t grid grid-cols-4 gap-4 text-sm">
-                  <div className="font-medium">{item.assetName}</div>
-                  <div>{item.quantity}</div>
-                  <div>{item.returnedQuantity}</div>
-                  <div>
-                    <Badge
-                      variant={
-                        item.status === 'outstanding' ? 'secondary' :
-                          item.status === 'return_completed' ? 'default' : 'outline'
-                      }
-                      className="text-xs"
-                    >
-                      {item.status.replace('_', ' ').toUpperCase()}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Summary */}
-          <div className="bg-muted/30 p-4 rounded-lg print:bg-transparent print:border">
-            <div className="flex justify-between items-center text-sm">
-              <span>Total Items:</span>
-              <span className="font-medium">{waybill.items.length}</span>
-            </div>
-            <div className="flex justify-between items-center text-sm mt-1">
-              <span>Total Quantity Expected:</span>
-              <span className="font-medium">
-                {waybill.items.reduce((sum, item) => sum + item.quantity, 0)}
-              </span>
-            </div>
-            <div className="flex justify-between items-center text-sm mt-1">
-              <span>Total Quantity Returned:</span>
-              <span className="font-medium">
-                {waybill.items.reduce((sum, item) => sum + item.returnedQuantity, 0)}
-              </span>
-            </div>
+          <div className="mt-4">
+            <p className="text-sm text-muted-foreground mb-1">Purpose</p>
+            <p className="font-medium">{waybill.purpose}</p>
           </div>
         </div>
+
+        <Separator />
+
+        {/* Items Table */}
+        <div>
+          <h2 className="text-lg font-semibold mb-4">Items Returned</h2>
+          <div className="border rounded-lg overflow-hidden">
+            <div className="bg-muted/50 px-4 py-3 font-medium grid grid-cols-4 gap-4 text-sm">
+              <div>Asset Name</div>
+              <div>Quantity Expected</div>
+              <div>Quantity Returned</div>
+              <div>Status</div>
+            </div>
+
+            {waybill.items.map((item, index) => (
+              <div key={index} className="px-4 py-3 border-t grid grid-cols-4 gap-4 text-sm">
+                <div className="font-medium">{item.assetName}</div>
+                <div>{item.quantity}</div>
+                <div>{item.returnedQuantity}</div>
+                <div>
+                  <Badge
+                    variant={
+                      item.status === 'outstanding' ? 'secondary' :
+                        item.status === 'return_completed' ? 'default' : 'outline'
+                    }
+                    className="text-xs"
+                  >
+                    {item.status.replace('_', ' ').toUpperCase()}
+                  </Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Summary */}
+        <div className="bg-muted/30 p-4 rounded-lg print:bg-transparent print:border">
+          <div className="flex justify-between items-center text-sm">
+            <span>Total Items:</span>
+            <span className="font-medium">{waybill.items.length}</span>
+          </div>
+          <div className="flex justify-between items-center text-sm mt-1">
+            <span>Total Quantity Expected:</span>
+            <span className="font-medium">
+              {waybill.items.reduce((sum, item) => sum + item.quantity, 0)}
+            </span>
+          </div>
+          <div className="flex justify-between items-center text-sm mt-1">
+            <span>Total Quantity Returned:</span>
+            <span className="font-medium">
+              {waybill.items.reduce((sum, item) => sum + item.returnedQuantity, 0)}
+            </span>
+          </div>
+        </div>
+      </div>
 
       {/* Desktop Close Button */}
       {!isMobile && (

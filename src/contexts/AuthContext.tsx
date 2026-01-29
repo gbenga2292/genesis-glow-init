@@ -4,7 +4,7 @@ import { logActivity } from '@/utils/activityLogger';
 import { dataService } from '@/services/dataService';
 
 // User type and role definitions remain the same
-export type UserRole = 'admin' | 'data_entry_supervisor' | 'regulatory' | 'manager' | 'staff';
+export type UserRole = 'admin' | 'data_entry_supervisor' | 'regulatory' | 'manager' | 'staff' | 'site_worker';
 
 export interface User {
   id: string;
@@ -153,7 +153,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         'read_quick_checkouts', 'write_quick_checkouts', // Manager can write, but NO delete
         'write_vehicles', 'delete_vehicles', // Manager can delete vehicles
         'edit_company_info', 'view_activity_log', 'change_theme', // Matches data_entry_supervisor
-        'print_documents'
+        'print_documents',
+        'manage_requests'
       ],
       staff: [
         'read_assets', 'write_assets',
@@ -161,6 +162,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         'read_returns',
         'read_sites',
         'read_quick_checkouts'
+      ],
+      site_worker: [
+        'read_assets', // To see available items
+        'read_sites', // To select site
+        'submit_requests',
+        'view_own_requests',
+        'log_equipment'
       ]
     };
 

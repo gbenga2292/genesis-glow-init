@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { CompanySettings as CompanySettingsType, Employee, Asset, Waybill, QuickCheckout, Site, SiteTransaction, Activity, Vehicle } from "@/types/asset";
-import { Settings, Upload, Save, Building, Phone, Globe, Trash2, Download, UploadCloud, Loader2, Sun, FileText, Activity as ActivityIcon, Users, UserPlus, Edit, UserMinus, Car, Database, Bot, BarChart3, FileJson, ChevronDown, ChevronRight, Mail, Zap, Lock, Pencil, Sparkles } from "lucide-react";
+import { Settings, Upload, Save, Building, Phone, Globe, Trash2, Download, UploadCloud, Loader2, Sun, FileText, Activity as ActivityIcon, Users, UserPlus, Edit, UserMinus, Car, Database, Bot, BarChart3, FileJson, ChevronDown, ChevronRight, Mail, Zap, Lock, Pencil, Sparkles, X } from "lucide-react";
 import { AppUpdateSettings } from "./AppUpdateSettings";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "next-themes";
@@ -2488,13 +2488,46 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex flex-col items-center space-y-4">
-                  <div className="w-32 h-32 border-2 border-dashed border-muted-foreground/25 rounded-lg overflow-hidden">
+                  <div className="w-32 h-32 border-2 border-dashed border-muted-foreground/25 rounded-lg overflow-hidden flex items-center justify-center bg-gray-50">
                     <img
-                      src="./logo.png"
+                      src={logoPreview || formData.logo || "/logo.png"}
                       alt="Company Logo"
                       className="w-full h-full object-contain"
+                      onError={(e) => {
+                        // Fallback if logo.png is missing or broken
+                        e.currentTarget.src = "/favicon.ico";
+                      }}
                     />
                   </div>
+                  {isCompanyInfoEditing && (
+                    <div className="flex flex-col items-center w-full">
+                      <Label htmlFor="logo-upload" className="cursor-pointer">
+                        <Button variant="outline" size="sm" className="pointer-events-none">
+                          <Upload className="h-4 w-4 mr-2" />
+                          Upload Logo
+                        </Button>
+                      </Label>
+                      <Input
+                        id="logo-upload"
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              const result = reader.result as string;
+                              setLogoPreview(result);
+                              setFormData({ ...formData, logo: result });
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                      <p className="text-[10px] text-muted-foreground mt-2">Recommended: 200x200px PNG/JPG</p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -2666,6 +2699,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                                   <SelectItem value="regulatory">Regulatory</SelectItem>
                                   <SelectItem value="manager">Manager</SelectItem>
                                   <SelectItem value="staff">Staff</SelectItem>
+                                  <SelectItem value="site_worker">Site Worker</SelectItem>
                                 </SelectContent>
                               </Select>
 
@@ -2702,52 +2736,86 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           </Card>
 
           <Dialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New User</DialogTitle>
-                <DialogDescription>Enter the details for the new user.</DialogDescription>
+            <DialogContent className="sm:max-w-md w-full h-screen sm:h-auto flex flex-col p-0 sm:p-6 gap-0 bg-background">
+              <DialogHeader className="px-6 py-4 border-b sm:border-0 sticky top-0 bg-background z-10 flex flex-row items-center justify-between space-y-0 text-left">
+                <div>
+                  <DialogTitle className="text-lg font-semibold">Add New User</DialogTitle>
+                  <DialogDescription className="text-sm text-muted-foreground mt-1">
+                    Enter user details below.
+                  </DialogDescription>
+                </div>
+                {isMobile && (
+                  <Button variant="ghost" size="icon" onClick={() => setIsAddUserDialogOpen(false)} className="-mr-2">
+                    <X className="h-5 w-5" />
+                  </Button>
+                )}
               </DialogHeader>
-              <div className="space-y-4">
-                <Select value={newUserName} onValueChange={(value) => setNewUserName(value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select Employee" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {employees.filter(employee => employee.status === 'active').map(employee => (
-                      <SelectItem key={employee.id} value={employee.name}>
-                        {employee.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  value={newUserUsername}
-                  onChange={(e) => setNewUserUsername(e.target.value)}
-                  placeholder="Username"
-                />
-                <Input
-                  type="password"
-                  value={newUserPassword}
-                  onChange={(e) => setNewUserPassword(e.target.value)}
-                  placeholder="Password"
-                />
-                <Select value={newUserRole} onValueChange={(value: UserRole) => setNewUserRole(value)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="data_entry_supervisor">Data Entry Supervisor</SelectItem>
-                    <SelectItem value="regulatory">Regulatory</SelectItem>
-                    <SelectItem value="manager">Manager</SelectItem>
-                    <SelectItem value="staff">Staff</SelectItem>
-                  </SelectContent>
-                </Select>
 
+              <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="employee-select">Employee</Label>
+                  <Select value={newUserName} onValueChange={(value) => setNewUserName(value)}>
+                    <SelectTrigger id="employee-select" className="w-full">
+                      <SelectValue placeholder="Select Employee" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {employees.filter(employee => employee.status === 'active').map(employee => (
+                        <SelectItem key={employee.id} value={employee.name}>
+                          {employee.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="username">Username</Label>
+                  <Input
+                    id="username"
+                    value={newUserUsername}
+                    onChange={(e) => setNewUserUsername(e.target.value)}
+                    placeholder="johndoe"
+                    autoComplete="off"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={newUserPassword}
+                    onChange={(e) => setNewUserPassword(e.target.value)}
+                    placeholder="••••••••"
+                    autoComplete="new-password"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="role">Role</Label>
+                  <Select value={newUserRole} onValueChange={(value: UserRole) => setNewUserRole(value)}>
+                    <SelectTrigger id="role" className="w-full">
+                      <SelectValue placeholder="Select Role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="data_entry_supervisor">Data Entry Supervisor</SelectItem>
+                      <SelectItem value="regulatory">Regulatory</SelectItem>
+                      <SelectItem value="manager">Manager</SelectItem>
+                      <SelectItem value="staff">Staff</SelectItem>
+                      <SelectItem value="site_worker">Site Worker</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsAddUserDialogOpen(false)}>Cancel</Button>
-                <Button onClick={handleCreateUser}>Create User</Button>
+
+              <DialogFooter className="px-6 py-4 border-t sm:border-0 bg-background sticky bottom-0 z-10 gap-2 sm:gap-0">
+                <Button variant="outline" className="flex-1 sm:flex-none" onClick={() => setIsAddUserDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button className="flex-1 sm:flex-none" onClick={handleCreateUser}>
+                  Create User
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>

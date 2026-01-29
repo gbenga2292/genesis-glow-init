@@ -50,6 +50,11 @@ import {
     transformCompanySettingsToDB, // Added
     transformCompanySettingsFromDB, // Added
 } from '@/utils/dataTransform';
+import {
+    transformRequestFromDB,
+    transformRequestToDB
+} from '@/utils/requestTransform';
+import type { SiteRequest } from '@/types/request';
 
 // ============================================================================
 // AUTHENTICATION
@@ -770,6 +775,93 @@ export const activityService = {
     }
 };
 
+// ============================================================================
+// SITE REQUESTS
+// ============================================================================
+
+export const requestService = {
+    getRequests: async (): Promise<SiteRequest[]> => {
+        const { data, error } = await supabase
+            .from('site_requests')
+            .select(`
+                *,
+                sites:site_id (name)
+            `)
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.warn('Supabase getRequests error:', error);
+            return [];
+        }
+        return (data || []).map((req: any) => {
+            const transformed = transformRequestFromDB(req);
+            // Add site name from the joined data
+            if (req.sites) {
+                transformed.siteName = req.sites.name;
+            }
+            return transformed;
+        });
+    },
+
+    getRequestsByRequester: async (userId: string): Promise<SiteRequest[]> => {
+        const { data, error } = await supabase
+            .from('site_requests')
+            .select(`
+                *,
+                sites:site_id (name)
+            `)
+            .eq('requestor_id', userId)
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.warn('Supabase getRequestsByRequester error:', error);
+            return [];
+        }
+        return (data || []).map((req: any) => {
+            const transformed = transformRequestFromDB(req);
+            // Add site name from the joined data
+            if (req.sites) {
+                transformed.siteName = req.sites.name;
+            }
+            return transformed;
+        });
+    },
+
+    createRequest: async (request: Partial<SiteRequest>): Promise<SiteRequest> => {
+        const dbRequest = transformRequestToDB(request);
+        const { data, error } = await supabase
+            .from('site_requests')
+            .insert(dbRequest)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return transformRequestFromDB(data);
+    },
+
+    updateRequest: async (id: string, request: Partial<SiteRequest>): Promise<SiteRequest> => {
+        const dbRequest = transformRequestToDB(request);
+        const { data, error } = await supabase
+            .from('site_requests')
+            .update({ ...dbRequest, updated_at: new Date().toISOString() })
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return transformRequestFromDB(data);
+    },
+
+    deleteRequest: async (id: string): Promise<void> => {
+        const { error } = await supabase
+            .from('site_requests')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+    }
+};
+
 // Export all services
 export const dataService = {
     auth: authService,
@@ -785,6 +877,7 @@ export const dataService = {
     companySettings: companySettingsService,
     siteTransactions: siteTransactionService,
     activities: activityService,
+    requests: requestService,
 
     // ============================================================================
     // METRICS SNAPSHOTS

@@ -16,7 +16,8 @@ import {
   LogOut,
   X,
   ChevronRight,
-  Monitor
+  Monitor,
+  HardHat
 } from "lucide-react";
 import { useState } from "react";
 import { useTheme } from "next-themes";
@@ -72,6 +73,7 @@ export const MobileBottomNav = ({ activeTab, onTabChange, onMenuClick, hide = fa
     { id: "sites", label: "Sites", icon: MapPin, group: 'operations' },
     { id: "settings", label: "Settings", icon: Settings, group: 'admin' },
     { id: "recent-activities", label: "Activity Log", icon: History, group: 'admin' },
+    { id: "site-worker-view", label: "Site Worker View", icon: HardHat, group: 'admin' },
   ];
 
   const getRequiredPermissions = (itemId: string) => {
@@ -81,6 +83,7 @@ export const MobileBottomNav = ({ activeTab, onTabChange, onMenuClick, hide = fa
       case 'sites': return 'read_sites';
       case 'settings': return null;
       case 'recent-activities': return null;
+      case 'site-worker-view': return null;
       default: return null;
     }
   };
@@ -88,6 +91,7 @@ export const MobileBottomNav = ({ activeTab, onTabChange, onMenuClick, hide = fa
   const hasAccess = (itemId: string) => {
     if (!isAuthenticated) return false;
     if (itemId === 'recent-activities' && currentUser?.role !== 'admin') return false;
+    if (itemId === 'site-worker-view' && (currentUser?.role === 'admin' || currentUser?.role === 'manager')) return true;
     const permissions = getRequiredPermissions(itemId);
     if (permissions === null) return true;
     return hasPermission(permissions);
