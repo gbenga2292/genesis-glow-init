@@ -386,7 +386,8 @@ export const quickCheckoutService = {
             supabase
                 .from('quick_checkouts')
                 .select('*')
-                .order('checkout_date', { ascending: false }),
+                .order('checkout_date', { ascending: false })
+                .limit(500),
             supabase
                 .from('assets')
                 .select('id, name'),
@@ -475,7 +476,8 @@ export const waybillService = {
         const { data, error } = await supabase
             .from('waybills')
             .select('*')
-            .order('issue_date', { ascending: false });
+            .order('issue_date', { ascending: false })
+            .limit(500);
 
         if (error) throw error;
         return (data || []).map(transformWaybillFromDB);
@@ -525,7 +527,8 @@ export const equipmentLogService = {
         const { data, error } = await supabase
             .from('equipment_logs')
             .select('*')
-            .order('date', { ascending: false });
+            .order('date', { ascending: false })
+            .limit(500);
 
         if (error) throw error;
         return (data || []).map(transformEquipmentLogFromDB);
@@ -575,7 +578,8 @@ export const consumableLogService = {
         const { data, error } = await supabase
             .from('consumable_logs')
             .select('*')
-            .order('date', { ascending: false });
+            .order('date', { ascending: false })
+            .limit(500);
 
         if (error) throw error;
         return (data || []).map(transformConsumableLogFromDB);
@@ -722,7 +726,8 @@ export const siteTransactionService = {
         const { data, error } = await supabase
             .from('site_transactions')
             .select('*')
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: false })
+            .limit(500);
 
         if (error) throw error;
         return (data || []).map(transformSiteTransactionFromDB);
@@ -750,7 +755,8 @@ export const activityService = {
         const { data, error } = await supabase
             .from('activities')
             .select('*')
-            .order('timestamp', { ascending: false });
+            .order('timestamp', { ascending: false })
+            .limit(500);
 
         if (error) throw error;
         return (data || []).map(transformActivityFromDB);
@@ -787,7 +793,8 @@ export const requestService = {
                 *,
                 sites:site_id (name)
             `)
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: false })
+            .limit(500);
 
         if (error) {
             console.warn('Supabase getRequests error:', error);
