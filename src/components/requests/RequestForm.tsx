@@ -119,7 +119,9 @@ export const RequestForm = ({ onSuccess }: { onSuccess?: () => void }) => {
                         </SelectTrigger>
                         <SelectContent>
                             {sites.map(site => (
-                                <SelectItem key={site.id} value={site.id}>{site.name}</SelectItem>
+                                <SelectItem key={site.id} value={site.id}>
+                                    {site.name}{site.clientName ? ` (${site.clientName})` : ''}
+                                </SelectItem>
                             ))}
                         </SelectContent>
                     </Select>

@@ -21,6 +21,12 @@ export class PermissionChecker {
     ],
     staff: [
       'check_inventory', 'view_analytics'
+    ],
+    site_worker: [
+      'check_inventory'
+    ],
+    custom: [
+      'check_inventory'
     ]
   };
 

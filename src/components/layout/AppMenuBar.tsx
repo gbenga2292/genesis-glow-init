@@ -9,8 +9,19 @@ import {
   MenubarTrigger,
   MenubarCheckboxItem,
 } from "@/components/ui/menubar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  DropdownMenuShortcut
+} from "@/components/ui/dropdown-menu";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { Minus, Square, X, Maximize2, Keyboard, Info, FileSpreadsheet, FileText, Menu, User, Settings, LogOut } from "lucide-react";
 import { useTheme } from "next-themes";
-import { Minus, Square, X, Maximize2, Keyboard, Info, FileSpreadsheet, FileText, Menu } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +30,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface AppMenuBarProps {
   onNewAsset?: () => void;
@@ -27,7 +39,7 @@ interface AppMenuBarProps {
   onOpenSettings?: () => void;
   canCreateAsset?: boolean;
   onMobileMenuClick?: () => void;
-  currentUser?: { role: string; name: string } | null;
+  currentUser?: { role: string; name: string; avatar?: string; id?: string; username?: string } | null;
 }
 
 export const AppMenuBar = ({
@@ -39,17 +51,34 @@ export const AppMenuBar = ({
   onMobileMenuClick,
   currentUser,
 }: AppMenuBarProps) => {
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, resolvedTheme } = useTheme();
   const [isMaximized, setIsMaximized] = useState(false);
   const [showAboutDialog, setShowAboutDialog] = useState(false);
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [isElectron, setIsElectron] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     // Check if running in Electron environment
-    setIsElectron(!!(window as any).electronAPI);
-  }, []);
+    const electron = !!(window as any).electronAPI;
+    setIsElectron(electron);
+
+    if (electron && (window as any).electronAPI?.window?.updateTitleBarOverlay) {
+      // Determine if the current theme is light-based or dark-based
+      const lightThemes = ['light', 'sepia', 'monochrome', 'sky'];
+      // resolvedTheme might be 'dark' or 'light' for system, but for explicit themes it is the theme name
+      const currentTheme = theme || resolvedTheme || 'light';
+
+      const isLightTheme = lightThemes.includes(currentTheme) || (currentTheme === 'system' && resolvedTheme === 'light');
+
+      (window as any).electronAPI.window.updateTitleBarOverlay({
+        symbolColor: isLightTheme ? '#000000' : '#ffffff',
+        color: '#00000000', // Transparent background to let the theme background show through
+        height: 30
+      });
+    }
+  }, [theme, resolvedTheme]);
 
   const handleMinimize = () => {
     if (window.electronAPI?.window?.minimize) {
@@ -60,8 +89,6 @@ export const AppMenuBar = ({
   const handleMaximize = () => {
     if (window.electronAPI?.window?.maximize) {
       window.electronAPI.window.maximize();
-      // We rely on the result or an event, but determining state locally for now
-      // Ideally we should listen to window events
       setIsMaximized(prev => !prev);
     }
   };
@@ -133,88 +160,84 @@ export const AppMenuBar = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onNewAsset, onExport, onOpenSettings, onRefresh, canCreateAsset, isElectron]);
 
-
-  /* Export Dialog State */
-  // Moved up
-
   if (!isElectron) return null;
 
   return (
     <>
-      <div className="flex items-center justify-between bg-background/95 backdrop-blur-sm border-b border-border app-drag-region sticky top-0 z-50 h-12 pr-[140px]">
-        {/* Logo and Menu */}
-        <div className="flex items-center app-no-drag">
+      <div className="flex items-center justify-between bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 border-b border-border/40 app-drag-region sticky top-0 z-50 h-[40px] select-none text-xs transition-colors duration-300">
+        {/* Left: Logo and Menu */}
+        <div className="flex items-center app-no-drag pl-2 h-full">
           {onMobileMenuClick && (
             <button
               onClick={onMobileMenuClick}
-              className="px-3 py-2 hover:bg-accent mr-1 md:hidden text-foreground"
+              className="px-2 py-1 hover:bg-accent/50 mr-1 md:hidden text-muted-foreground hover:text-foreground transition-colors rounded-sm"
             >
-              <Menu className="h-5 w-5" />
+              <Menu className="h-4 w-4" />
             </button>
           )}
-          <div className="px-4 py-2 flex items-center gap-2">
-            <img src="favicon.ico" alt="DCEL" className="h-5 w-5 hidden md:block" />
-            <span className="text-sm font-semibold text-foreground">DCEL</span>
+          <div className="flex items-center gap-2 mr-2 px-2 h-full border-r border-border/30 pr-3 my-2">
+            <img src="favicon.ico" alt="DCEL" className="h-4 w-4 hidden md:block opacity-80" />
+            <span className="font-semibold text-foreground/90 tracking-tight hidden md:inline-block">DCEL Inventory</span>
           </div>
 
-          <Menubar className="border-0 bg-transparent h-auto hidden md:flex">
+          <Menubar className="border-0 bg-transparent h-auto p-0 hidden md:flex gap-0.5">
             <MenubarMenu>
-              <MenubarTrigger className="text-xs px-3 py-1.5 font-medium data-[state=open]:bg-accent hover:bg-accent/80 rounded-sm">
+              <MenubarTrigger className="text-[11px] px-2.5 py-1 h-7 font-medium text-muted-foreground data-[state=open]:bg-accent/50 data-[state=open]:text-accent-foreground hover:bg-accent/50 hover:text-accent-foreground rounded-[4px] cursor-default transition-colors">
                 File
               </MenubarTrigger>
-              <MenubarContent className="bg-popover border-border">
-                <MenubarItem onClick={onNewAsset} disabled={!canCreateAsset}>
-                  New Asset <MenubarShortcut>Ctrl+N</MenubarShortcut>
+              <MenubarContent className="bg-popover/95 backdrop-blur-sm border-border/50 shadow-lg min-w-[200px]">
+                <MenubarItem onClick={onNewAsset} disabled={!canCreateAsset} className="text-xs py-1.5">
+                  New Asset <MenubarShortcut className="text-[10px]">Ctrl+N</MenubarShortcut>
                 </MenubarItem>
-                <MenubarItem onClick={() => setShowExportDialog(true)}>
-                  Export Data <MenubarShortcut>Ctrl+E</MenubarShortcut>
+                <MenubarItem onClick={() => setShowExportDialog(true)} className="text-xs py-1.5">
+                  Export Data <MenubarShortcut className="text-[10px]">Ctrl+E</MenubarShortcut>
                 </MenubarItem>
-                <MenubarSeparator />
-                <MenubarItem onClick={handleQuit}>
-                  Exit <MenubarShortcut>Alt+F4</MenubarShortcut>
+                <MenubarSeparator className="bg-border/50" />
+                <MenubarItem onClick={handleQuit} className="text-xs py-1.5">
+                  Exit <MenubarShortcut className="text-[10px]">Alt+F4</MenubarShortcut>
                 </MenubarItem>
-
               </MenubarContent>
             </MenubarMenu>
 
             <MenubarMenu>
-              <MenubarTrigger className="text-xs px-3 py-1.5 font-medium data-[state=open]:bg-accent hover:bg-accent/80 rounded-sm">
+              <MenubarTrigger className="text-[11px] px-2.5 py-1 h-7 font-medium text-muted-foreground data-[state=open]:bg-accent/50 data-[state=open]:text-accent-foreground hover:bg-accent/50 hover:text-accent-foreground rounded-[4px] cursor-default transition-colors">
                 View
               </MenubarTrigger>
-              <MenubarContent className="bg-popover border-border">
-                <MenubarItem onClick={onRefresh}>
-                  Refresh <MenubarShortcut>F5</MenubarShortcut>
+              <MenubarContent className="bg-popover/95 backdrop-blur-sm border-border/50 shadow-lg min-w-[200px]">
+                <MenubarItem onClick={onRefresh} className="text-xs py-1.5">
+                  Refresh <MenubarShortcut className="text-[10px]">F5</MenubarShortcut>
                 </MenubarItem>
-                <MenubarSeparator />
+                <MenubarSeparator className="bg-border/50" />
                 <MenubarCheckboxItem
                   checked={theme === "dark"}
                   onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
+                  className="text-xs py-1.5"
                 >
                   Dark Mode
                 </MenubarCheckboxItem>
-                <MenubarSeparator />
-                <MenubarItem onClick={handleMaximize}>
-                  {isMaximized ? "Restore" : "Maximize"} <MenubarShortcut>F11</MenubarShortcut>
+                <MenubarSeparator className="bg-border/50" />
+                <MenubarItem onClick={handleMaximize} className="text-xs py-1.5">
+                  {isMaximized ? "Restore" : "Maximize"} <MenubarShortcut className="text-[10px]">F11</MenubarShortcut>
                 </MenubarItem>
-                <MenubarItem onClick={handleToggleDevTools}>
-                  Toggle Developer Tools <MenubarShortcut>F12</MenubarShortcut>
+                <MenubarItem onClick={handleToggleDevTools} className="text-xs py-1.5">
+                  Toggle Developer Tools <MenubarShortcut className="text-[10px]">F12</MenubarShortcut>
                 </MenubarItem>
               </MenubarContent>
             </MenubarMenu>
 
             <MenubarMenu>
-              <MenubarTrigger className="text-xs px-3 py-1.5 font-medium data-[state=open]:bg-accent hover:bg-accent/80 rounded-sm">
+              <MenubarTrigger className="text-[11px] px-2.5 py-1 h-7 font-medium text-muted-foreground data-[state=open]:bg-accent/50 data-[state=open]:text-accent-foreground hover:bg-accent/50 hover:text-accent-foreground rounded-[4px] cursor-default transition-colors">
                 Help
               </MenubarTrigger>
-              <MenubarContent className="bg-popover border-border">
-                <MenubarItem disabled>
+              <MenubarContent className="bg-popover/95 backdrop-blur-sm border-border/50 shadow-lg min-w-[200px]">
+                <MenubarItem disabled className="text-xs py-1.5">
                   Documentation
                 </MenubarItem>
-                <MenubarItem onClick={() => setShowShortcutsDialog(true)}>
+                <MenubarItem onClick={() => setShowShortcutsDialog(true)} className="text-xs py-1.5">
                   Keyboard Shortcuts
                 </MenubarItem>
-                <MenubarSeparator />
-                <MenubarItem onClick={() => setShowAboutDialog(true)}>
+                <MenubarSeparator className="bg-border/50" />
+                <MenubarItem onClick={() => setShowAboutDialog(true)} className="text-xs py-1.5">
                   About DCEL
                 </MenubarItem>
               </MenubarContent>
@@ -222,12 +245,58 @@ export const AppMenuBar = ({
           </Menubar>
         </div>
 
-        {/* Window Controls - Handled naturally by Electron titleBarOverlay on Windows */}
-        <div className="flex items-center app-no-drag w-32">
-          {/* Spacer for native controls if needed, but flex-1 would handle it. 
-              Actually, with justify-between, if we have no right element, the left element stays left.
-              We don't need to put anything here. 
-          */}
+        {/* Center: Spacer instead of Search */}
+        <div className="flex-1 app-drag-region"></div>
+
+        {/* Right: Window Controls & Profile */}
+        <div className="flex items-center h-full app-no-drag gap-1">
+          {/* Profile Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <div className="mr-1 flex items-center gap-2 px-2 py-1 hover:bg-accent/50 rounded-md cursor-pointer transition-colors max-w-[150px] h-7 outline-none">
+                <Avatar className="h-4 w-4">
+                  <AvatarImage src={currentUser?.avatar} alt={currentUser?.name} />
+                  <AvatarFallback className="text-[9px] bg-primary text-primary-foreground font-bold flex items-center justify-center w-full h-full">
+                    {currentUser?.name?.charAt(0) || 'U'}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="text-[11px] font-medium truncate hidden md:block opacity-80">
+                  {currentUser?.name || 'User'}
+                </span>
+              </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 bg-popover/95 backdrop-blur-sm">
+              <DropdownMenuLabel>
+                <div className="flex flex-col space-y-1">
+                  <p className="text-sm font-medium leading-none">{currentUser?.name || 'User'}</p>
+                  <p className="text-xs leading-none text-muted-foreground">{currentUser?.role || 'user'}</p>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer">
+                <User className="mr-2 h-4 w-4" />
+                <span>Profile</span>
+                <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onOpenSettings} className="cursor-pointer">
+                <Settings className="mr-2 h-4 w-4" />
+                <span>Settings</span>
+                <DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50" onClick={() => {
+                navigate('/login');
+              }}>
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Log out</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Spacer for Native Window Controls (Desktop) */}
+          {isElectron && (
+            <div className="hidden md:block w-[138px] h-full app-no-drag" />
+          )}
         </div>
       </div>
 
@@ -245,9 +314,7 @@ export const AppMenuBar = ({
               variant="outline"
               className="h-24 flex flex-col items-center justify-center gap-2 hover:bg-accent/50 hover:border-primary/50 transition-all"
               onClick={() => {
-                onExport?.(); // Default behavior triggers Excel for now, but logical separation is good
-                // In Index.tsx we will change this to handle Excel specifically if needed,
-                // but currently onExport does Excel.
+                onExport?.();
                 setShowExportDialog(false);
               }}
             >
@@ -258,10 +325,6 @@ export const AppMenuBar = ({
               variant="outline"
               className="h-24 flex flex-col items-center justify-center gap-2 hover:bg-accent/50 hover:border-primary/50 transition-all"
               onClick={() => {
-                // We need a specific prop for PDF or handle it via a new callback
-                // But since we can't easily change the prop signature without breaking Index.tsx yet,
-                // We will emit a custom event or use the same prop with a parameter if possible.
-                // For now, let's dispatch a custom event that Index.tsx can listen to.
                 window.dispatchEvent(new CustomEvent('trigger-pdf-export'));
                 setShowExportDialog(false);
               }}

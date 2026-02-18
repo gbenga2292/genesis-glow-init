@@ -233,7 +233,7 @@ export const AdvancedFilterSheet = ({
                                 <SelectItem value="Office">Office</SelectItem>
                                 {sites.map((site) => (
                                     <SelectItem key={site.id} value={site.name}>
-                                        {site.name}
+                                        {site.name}{site.clientName ? ` (${site.clientName})` : ''}
                                     </SelectItem>
                                 ))}
                                 {assetLocations.filter(loc => loc && loc !== 'Office' && !sites.some(s => s.name === loc)).map((location) => (

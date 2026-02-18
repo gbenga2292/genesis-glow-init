@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { logger } from "@/lib/logger";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Dashboard } from "@/components/dashboard/Dashboard";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Menu, Plus, Bot, Package, ChevronDown, FileText, Activity, Eye } from "lucide-react";
+import { Menu, Plus, Package, ChevronDown, FileText, Activity, Eye } from "lucide-react";
 import { AppMenuBar } from "@/components/layout/AppMenuBar";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { cn } from "@/lib/utils";
@@ -22,6 +22,7 @@ import { ReturnWaybillForm } from "@/components/waybills/ReturnWaybillForm";
 import { ReturnWaybillDocument } from "@/components/waybills/ReturnWaybillDocument";
 import { ReturnProcessingDialog } from "@/components/waybills/ReturnProcessingDialog";
 import { QuickCheckoutForm } from "@/components/checkout/QuickCheckoutForm";
+import { RecentCheckoutActivityPage } from "@/components/checkout/RecentCheckoutActivityPage";
 import { EmployeeAnalyticsPage } from "@/pages/EmployeeAnalyticsPage";
 import { RecentActivitiesPage } from "@/pages/RecentActivitiesPage";
 
@@ -44,6 +45,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SitesPage } from "@/components/sites/SitesPage";
+import { SiteInventoryPage } from "@/components/sites/SiteInventoryPage";
+
 import { MachinesSection } from "@/components/sites/MachinesSection";
 import { ConsumablesSection } from "@/components/sites/ConsumablesSection";
 import { SiteAnalyticsPage } from "@/pages/SiteAnalyticsPage";
@@ -55,8 +58,8 @@ import { useSiteInventory } from "@/hooks/useSiteInventory";
 import { SiteInventoryItem } from "@/types/inventory";
 import { PullToRefreshLayout } from "@/components/layout/PullToRefreshLayout";
 import { useNetworkStatus } from "@/hooks/use-network-status";
-import { AIAssistantProvider, useAIAssistant } from "@/contexts/AIAssistantContext";
-import { AIAssistantChat } from "@/components/ai/AIAssistantChat";
+import { useActivityTracking } from "@/hooks/useActivityTracking";
+
 import { logActivity } from "@/utils/activityLogger";
 import { SiteWorkerDashboard } from "@/pages/SiteWorkerDashboard";
 import { RequestsPage } from "@/pages/RequestsPage";
@@ -65,10 +68,14 @@ import { AuditCharts } from "@/components/reporting/AuditCharts";
 import { MachineMaintenancePage } from "@/components/maintenance/MachineMaintenancePage";
 import { Machine, MaintenanceLog } from "@/types/maintenance";
 import { generateUnifiedReport } from "@/utils/unifiedReportGenerator";
+import { generateProfessionalPDF } from "@/utils/professionalPDFGenerator";
+import { Capacitor } from "@capacitor/core";
+import { handleMobilePdfAction } from "@/utils/mobilePdfUtils";
 import { exportAssetsToExcel } from "@/utils/exportUtils";
 import { useAppData } from "@/contexts/AppDataContext";
 import { dataService } from "@/services/dataService";
 import { NetworkStatus } from "@/components/NetworkStatus";
+import { DashboardLoadingProvider } from "@/contexts/DashboardLoadingContext";
 
 
 const Index = () => {
@@ -76,17 +83,34 @@ const Index = () => {
   const { isAuthenticated, hasPermission, currentUser } = useAuth();
   const isOnline = useNetworkStatus();
 
+  // Track user activity for last active timestamp
+  useActivityTracking();
+
 
   const isMobile = useIsMobile();
   const params = useParams();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState(location.state?.activeTab || "dashboard");
   const [activeAvailabilityFilter, setActiveAvailabilityFilter] = useState<'all' | 'ready' | 'restock' | 'critical' | 'out' | 'issues' | 'reserved'>('all');
 
   // Reset scroll on tab change
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [activeTab]);
+
+  // Pick up pending active tab set by other pages (e.g., ProfilePage)
+  useEffect(() => {
+    try {
+      const pending = sessionStorage.getItem('pending_active_tab');
+      if (pending) {
+        setActiveTab(pending);
+        sessionStorage.removeItem('pending_active_tab');
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, []);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedWaybillForView, setSelectedWaybillForView] = useState<Waybill | null>(null);
   const [selectedReturnWaybillForView, setSelectedReturnWaybillForView] = useState<Waybill | null>(null);
@@ -96,8 +120,7 @@ const Index = () => {
   const [editingReturnWaybill, setEditingReturnWaybill] = useState<Waybill | null>(null);
   const [selectedAssetForAnalytics, setSelectedAssetForAnalytics] = useState<Asset | null>(null);
   const [analyticsReturnTo, setAnalyticsReturnTo] = useState<{ view: string; tab: string } | null>(null);
-  const [showAIAssistant, setShowAIAssistant] = useState(false);
-  const [aiPrefillData, setAiPrefillData] = useState<any>(null);
+
   const [selectedSiteForInventory, setSelectedSiteForInventory] = useState<Site | null>(null);
   const [selectedSiteForReturnWaybill, setSelectedSiteForReturnWaybill] = useState<Site | null>(null);
 
@@ -121,7 +144,7 @@ const Index = () => {
   // Analytics State
   const [selectedSiteForAnalytics, setSelectedSiteForAnalytics] = useState<Site | null>(null);
   const [analyticsTab, setAnalyticsTab] = useState<'equipment' | 'consumables'>('equipment');
-  const [selectedAssetForDetails, setSelectedAssetForDetails] = useState<{ site: Site, asset: Asset } | null>(null);
+  const [selectedAssetForDetails, setSelectedAssetForDetails] = useState<{ site: Site, asset: Asset, initialTab?: string } | null>(null);
   // Use AppData Context to avoid redundant fetching
   const {
     employees, setEmployees,
@@ -139,6 +162,11 @@ const Index = () => {
   const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
   const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLog[]>([]);
 
+  // Loading states for data
+  const [isAssetsLoaded, setIsAssetsLoaded] = useState(false);
+  const [isWaybillsLoaded, setIsWaybillsLoaded] = useState(false);
+  const [isLogsLoaded, setIsLogsLoaded] = useState(false);
+
   const [isGeneratingAudit, setIsGeneratingAudit] = useState(false);
   const [showAuditDateDialog, setShowAuditDateDialog] = useState(false);
   const [auditStartDate, setAuditStartDate] = useState<string>(`${new Date().getFullYear()}-01-01`);
@@ -150,11 +178,19 @@ const Index = () => {
     refreshAllData();
   }, [refreshAllData]);
 
-  // Load assets from database
+  // Load ALL essential data in parallel for faster loading
   useEffect(() => {
-    (async () => {
+    const loadAllData = async () => {
       try {
-        const loadedAssets = await dataService.assets.getAssets();
+        // Load all data in parallel using Promise.all
+        const [loadedAssets, loadedWaybills, loadedConsumableLogs, loadedMaintenanceLogs] = await Promise.all([
+          dataService.assets.getAssets(),
+          dataService.waybills.getWaybills(),
+          dataService.consumableLogs.getConsumableLogs(),
+          dataService.maintenanceLogs.getMaintenanceLogs()
+        ]);
+
+        // Process assets
         const processedAssets = loadedAssets.map((item: any) => {
           const asset = {
             ...item,
@@ -166,10 +202,37 @@ const Index = () => {
         });
         logger.info('Loaded assets from dataService', { data: { count: processedAssets.length } });
         setAssets(processedAssets);
+        setIsAssetsLoaded(true);
+
+        // Process waybills
+        const processedWaybills = loadedWaybills.map((item: any) => ({
+          ...item,
+          issueDate: new Date(item.issueDate),
+          expectedReturnDate: item.expectedReturnDate ? new Date(item.expectedReturnDate) : undefined,
+          sentToSiteDate: item.sentToSiteDate ? new Date(item.sentToSiteDate) : undefined,
+          createdAt: new Date(item.createdAt),
+          updatedAt: new Date(item.updatedAt)
+        }));
+        logger.info("Loaded waybills from DB", { data: { count: processedWaybills.length } });
+        setWaybills(processedWaybills);
+        setIsWaybillsLoaded(true);
+
+        // Set logs
+        setConsumableLogs(loadedConsumableLogs);
+        setMaintenanceLogs(loadedMaintenanceLogs);
+        setIsLogsLoaded(true);
+
+        logger.info('All dashboard data loaded successfully');
       } catch (error) {
-        logger.error('Failed to load assets from database', error);
+        logger.error('Failed to load dashboard data', error);
+        // Set all to loaded even on error to prevent infinite loading
+        setIsAssetsLoaded(true);
+        setIsWaybillsLoaded(true);
+        setIsLogsLoaded(true);
       }
-    })();
+    };
+
+    loadAllData();
 
     // Listen for asset refresh events from bulk operations
     const handleRefreshAssets = (event: CustomEvent) => {
@@ -185,44 +248,9 @@ const Index = () => {
     };
   }, []);
 
-  // Load waybills from database
-  useEffect(() => {
-    (async () => {
-      try {
-        const loadedWaybills = await dataService.waybills.getWaybills();
-        logger.info("Loaded waybills from DB", { data: { count: loadedWaybills.length } });
-        setWaybills(loadedWaybills.map((item: any) => ({
-          ...item,
-          issueDate: new Date(item.issueDate),
-          expectedReturnDate: item.expectedReturnDate ? new Date(item.expectedReturnDate) : undefined,
-          sentToSiteDate: item.sentToSiteDate ? new Date(item.sentToSiteDate) : undefined,
-          createdAt: new Date(item.createdAt),
-          updatedAt: new Date(item.updatedAt)
-        })));
-      } catch (error) {
-        logger.error('Failed to load waybills from database', error);
-      }
-    })();
-  }, []);
-
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
   const [deletingAsset, setDeletingAsset] = useState<Asset | null>(null);
   const [selectedSite, setSelectedSite] = useState<Site | null>(null);
-
-  // Load consumable and maintenance logs from database
-  useEffect(() => {
-    (async () => {
-      try {
-        const loadedConsumableLogs = await dataService.consumableLogs.getConsumableLogs();
-        setConsumableLogs(loadedConsumableLogs);
-
-        const loadedMaintenanceLogs = await dataService.maintenanceLogs.getMaintenanceLogs();
-        setMaintenanceLogs(loadedMaintenanceLogs);
-      } catch (error) {
-        logger.error('Failed to load logs', error);
-      }
-    })();
-  }, []);
 
 
 
@@ -760,7 +788,7 @@ const Index = () => {
     }
   };
 
-  const handleSentToSite = async (waybill: Waybill, sentToSiteDate: Date) => {
+  const handleSentToSite = async (waybill: Waybill, sentToSiteDate: Date, signWithSignature: boolean = false) => {
     try {
       // 1. Update items: Add to Site (keep reserved status)
       for (const item of waybill.items) {
@@ -786,10 +814,28 @@ const Index = () => {
       }
 
       // 2. Update Waybill
+      // Get signature if requested
+      let signatureUrl: string | undefined;
+      let signatureName: string | undefined;
+
+      if (signWithSignature && currentUser) {
+        try {
+          const sigRes = await (dataService.auth as any).getSignature?.(currentUser.id);
+          if (sigRes?.success && sigRes.url) {
+            signatureUrl = sigRes.url;
+            signatureName = currentUser.name;
+          }
+        } catch (e) {
+          console.warn('Failed to get signature', e);
+        }
+      }
+
       const updatedWaybill = {
         ...waybill,
         status: 'open' as const, // 'open' means active at site
         sentToSiteDate: sentToSiteDate,
+        signatureUrl,
+        signatureName,
         updatedAt: new Date()
       };
       await dataService.waybills.updateWaybill(waybill.id, updatedWaybill);
@@ -825,6 +871,10 @@ const Index = () => {
         setShowWaybillDocument(updatedWaybill);
       }
 
+      // Signature is now saved to the waybill record
+      // Users can print/download the signed PDF later using the Print/Download buttons
+
+
       await logActivity({
         action: 'move',
         entity: 'waybill',
@@ -855,6 +905,9 @@ const Index = () => {
     purpose: string;
     service: string;
     expectedReturnDate?: Date;
+    signatureUrl?: string;
+    signatureName?: string;
+    signatureRole?: string;
   }) => {
     if (!isAuthenticated) {
       toast({
@@ -937,7 +990,10 @@ const Index = () => {
       type: 'return' as const,
       createdAt: new Date(),
       updatedAt: new Date(),
-      createdBy: currentUser?.name || 'Unknown User'
+      createdBy: currentUser?.name || 'Unknown User',
+      signatureUrl: waybillData.signatureUrl,
+      signatureName: waybillData.signatureName,
+      signatureRole: waybillData.signatureRole
     } as Waybill;
 
     try {
@@ -1172,8 +1228,8 @@ const Index = () => {
     setActiveTab('site-analytics'); // Ensure activeTab is also set
   };
 
-  const handleViewAssetDetails = (site: Site, asset: Asset) => {
-    setSelectedAssetForDetails({ site, asset });
+  const handleViewAssetDetails = (site: Site, asset: Asset, initialTab?: string) => {
+    setSelectedAssetForDetails({ site, asset, initialTab });
     setCurrentView('site-asset-details');
     setActiveTab('site-asset-details'); // Ensure activeTab is also set
   };
@@ -1880,10 +1936,13 @@ const Index = () => {
   };
 
 
+  // Check if all data is loaded
+  const isAllDataLoaded = isAssetsLoaded && isWaybillsLoaded && isLogsLoaded;
+
   function renderContent() {
     switch (activeTab) {
       case "dashboard":
-        return <Dashboard assets={assets} waybills={waybills} quickCheckouts={quickCheckouts} sites={sites} equipmentLogs={equipmentLogs} maintenanceLogs={maintenanceLogs} employees={employees} vehicles={vehicles} onQuickLogEquipment={async (log: EquipmentLog) => {
+        return <Dashboard companySettings={companySettings} assets={assets} waybills={waybills} quickCheckouts={quickCheckouts} sites={sites} equipmentLogs={equipmentLogs} maintenanceLogs={maintenanceLogs} employees={employees} vehicles={vehicles} onQuickLogEquipment={async (log: EquipmentLog) => {
           if (!isAuthenticated) {
             toast({
               title: "Authentication Required",
@@ -1913,6 +1972,41 @@ const Index = () => {
             toast({
               title: "Error",
               description: "Failed to save equipment log to database.",
+              variant: "destructive"
+            });
+          }
+        }} onBulkLogEquipment={async (logs: EquipmentLog[]) => {
+          if (!isAuthenticated) {
+            toast({
+              title: "Authentication Required",
+              description: "Please login to add equipment logs",
+              variant: "destructive"
+            });
+            return;
+          }
+
+          try {
+            for (const log of logs) {
+              await dataService.equipmentLogs.createEquipmentLog(log);
+            }
+            const allLogs = await dataService.equipmentLogs.getEquipmentLogs();
+            setEquipmentLogs(allLogs);
+            toast({
+              title: "Bulk Equipment Logs Added",
+              description: `${logs.length} equipment logs saved successfully`
+            });
+
+            await logActivity({
+              action: 'create',
+              entity: 'equipment_log',
+              entityId: logs[0]?.id || 'bulk',
+              details: `Created ${logs.length} equipment logs in bulk`
+            });
+          } catch (error) {
+            logger.error('Failed to save bulk equipment logs', error);
+            toast({
+              title: "Error",
+              description: "Failed to save equipment logs to database.",
               variant: "destructive"
             });
           }
@@ -2001,7 +2095,7 @@ const Index = () => {
             onAddAsset={handleAddAsset}
             sites={sites}
             existingAssets={assets}
-            initialData={aiPrefillData?.formType === 'asset' ? aiPrefillData : undefined}
+
           />
         ) : <div>You must be logged in to add assets.</div>;
       case "waybill-document":
@@ -2036,7 +2130,7 @@ const Index = () => {
           vehicles={vehicles}
           onCreateWaybill={handleCreateWaybill}
           onCancel={() => setActiveTab("dashboard")}
-          initialData={aiPrefillData?.formType === 'waybill' ? aiPrefillData : undefined}
+
         />;
       case "waybills":
         return (
@@ -2105,6 +2199,7 @@ const Index = () => {
           employees={employees}
           vehicles={vehicles}
           siteInventory={getSiteInventory(selectedSite.id)}
+          waybills={waybills}
           onCreateReturnWaybill={handleCreateReturnWaybill}
           onCancel={() => {
             setActiveTab("site-waybills");
@@ -2121,6 +2216,14 @@ const Index = () => {
           onPartialReturn={handlePartialReturn}
           onDeleteCheckout={handleDeleteCheckout}
           onNavigateToAnalytics={() => setActiveTab("employee-analytics")}
+          onNavigateToActivity={() => setActiveTab("checkout-activity")}
+        />;
+      case "checkout-activity":
+        return <RecentCheckoutActivityPage
+          quickCheckouts={quickCheckouts}
+          assets={assets}
+          employees={employees}
+          onBack={() => setActiveTab("quick-checkout")}
         />;
       case "employee-analytics":
         return <EmployeeAnalyticsPage
@@ -2131,18 +2234,7 @@ const Index = () => {
           onUpdateStatus={handleUpdateQuickCheckoutStatus}
         />;
 
-      case "machine-maintenance":
-        return (
-          <MachineMaintenancePage
-            machines={machines}
-            maintenanceLogs={maintenanceLogs}
-            assets={assets}
-            sites={sites}
-            employees={employees}
-            vehicles={vehicles}
-            onSubmitMaintenance={handleSubmitMaintenance}
-          />
-        );
+
 
       case "settings":
         return (
@@ -2260,11 +2352,14 @@ const Index = () => {
             consumableLogs={consumableLogs}
             siteInventory={siteInventory}
             getSiteInventory={getSiteInventory}
-            aiPrefillData={aiPrefillData?.formType === 'site' ? aiPrefillData : undefined}
+
             onViewSiteInventory={(site) => {
               setSelectedSiteForInventory(site);
               setActiveTab('site-inventory');
             }}
+            onViewAssetHistory={(site, asset) => handleViewAssetDetails(site, asset, 'history')}
+            onViewAssetDetails={(site, asset) => handleViewAssetDetails(site, asset)}
+            onViewAssetAnalytics={(site, asset) => handleViewAssetDetails(site, asset, 'analytics')}
             onAddSite={async site => {
               if (!isAuthenticated) {
                 toast({
@@ -2562,233 +2657,63 @@ const Index = () => {
         );
       case "site-inventory":
         return selectedSiteForInventory ? (
-          <div className="space-y-6 animate-fade-in">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent flex items-center gap-2">
-                  <Package className="h-6 w-6 sm:h-8 sm:w-8" />
-                  {selectedSiteForInventory.name} - Materials and Waybills
-                </h1>
-                <p className="text-sm sm:text-base text-muted-foreground mt-2">
-                  View all materials, equipment, and waybills for this site
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setActiveTab('sites');
-                  setSelectedSiteForInventory(null);
-                }}
-              >
-                Back to Sites
-              </Button>
-            </div>
-
-            <div className="space-y-6">
-              {/* Materials List */}
-              <Collapsible defaultOpen={true} className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Package className="h-5 w-5" />
-                    <h3 className="text-lg font-semibold">Materials at Site</h3>
-                  </div>
-                  <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="sm">
-                      <ChevronDown className="h-4 w-4" />
-                    </Button>
-                  </CollapsibleTrigger>
-                </div>
-
-                <CollapsibleContent className="space-y-2">
-                  {(() => {
-                    const materialsAtSite = getSiteInventory(selectedSiteForInventory.id);
-                    return materialsAtSite.length === 0 ? (
-                      <p className="text-muted-foreground">No materials currently at this site.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {materialsAtSite.map((item) => (
-                          <div key={item.assetId} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                            <div className="flex items-center gap-3">
-                              <p className="font-medium">{item.itemName}</p>
-                              {item.itemType && (
-                                <span className="text-sm text-muted-foreground">• {item.itemType}</span>
-                              )}
-                            </div>
-                            <div className="text-right">
-                              <p className={`font-semibold ${item.quantity === 0 ? 'text-destructive' : 'text-foreground'}`}>
-                                {item.quantity} {item.unit}
-                              </p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                Updated: {new Date(item.lastUpdated).toLocaleDateString()}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()}
-                </CollapsibleContent>
-              </Collapsible>
-
-              {/* Machines Section */}
-              <MachinesSection
-                site={selectedSiteForInventory}
-                assets={assets}
-                equipmentLogs={equipmentLogs}
-                employees={employees}
-                waybills={waybills}
-                companySettings={companySettings}
-                onAddEquipmentLog={async (log: EquipmentLog) => {
-                  try {
-                    await dataService.equipmentLogs.createEquipmentLog(log);
-                    const logs = await dataService.equipmentLogs.getEquipmentLogs();
-                    setEquipmentLogs(logs);
-                  } catch (error) {
-                    logger.error('Failed to save equipment log', error);
-                  }
-                }}
-                onUpdateEquipmentLog={async (log: EquipmentLog) => {
-                  try {
-                    await dataService.equipmentLogs.updateEquipmentLog(Number(log.id), log);
-                    const logs = await dataService.equipmentLogs.getEquipmentLogs();
-                    setEquipmentLogs(logs);
-                  } catch (error) {
-                    logger.error('Failed to update equipment log', error);
-                  }
-                }}
-                onViewAnalytics={() => handleViewAnalytics(selectedSiteForInventory, 'equipment')}
-                onViewAssetDetails={(asset) => handleViewAssetDetails(selectedSiteForInventory, asset)}
-                onViewAssetHistory={(asset) => handleViewAssetDetails(selectedSiteForInventory, asset)}
-                onViewAssetAnalytics={(asset) => {
-                  setAnalyticsReturnTo({ view: 'site-inventory', tab: 'site-inventory' });
-                  setSelectedAssetForAnalytics(asset);
-                  setCurrentView('asset-analytics');
-                  setActiveTab('asset-analytics');
-                }}
-              />
-
-              {/* Consumables Section */}
-              <ConsumablesSection
-                site={selectedSiteForInventory}
-                assets={assets}
-                employees={employees}
-                waybills={waybills}
-                consumableLogs={consumableLogs}
-                onAddConsumableLog={async (log: ConsumableUsageLog) => {
-                  try {
-                    await dataService.consumableLogs.createConsumableLog(log);
-                    const logs = await dataService.consumableLogs.getConsumableLogs();
-                    setConsumableLogs(logs);
-                  } catch (error) {
-                    logger.error('Failed to save consumable log', error);
-                  }
-                }}
-                onUpdateConsumableLog={async (log: ConsumableUsageLog) => {
-                  try {
-                    await dataService.consumableLogs.updateConsumableLog(log.id, log);
-                    const logs = await dataService.consumableLogs.getConsumableLogs();
-                    setConsumableLogs(logs);
-                  } catch (error) {
-                    logger.error('Failed to update consumable log', error);
-                  }
-                }}
-                onViewAnalytics={() => handleViewAnalytics(selectedSiteForInventory, 'consumables')}
-                onViewAssetDetails={(asset) => handleViewAssetDetails(selectedSiteForInventory, asset)}
-                onViewAssetHistory={(asset) => handleViewAssetDetails(selectedSiteForInventory, asset)}
-                onViewAssetAnalytics={(asset) => {
-                  setAnalyticsReturnTo({ view: 'site-inventory', tab: 'site-inventory' });
-                  setSelectedAssetForAnalytics(asset);
-                  setCurrentView('asset-analytics');
-                  setActiveTab('asset-analytics');
-                }}
-              />
-
-              {/* Waybills List */}
-              <Collapsible defaultOpen={true} className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
-                    <h3 className="text-lg font-semibold">Waybills for Site</h3>
-                  </div>
-                  <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="sm">
-                      <ChevronDown className="h-4 w-4" />
-                    </Button>
-                  </CollapsibleTrigger>
-                </div>
-
-                <CollapsibleContent className="space-y-2">
-                  {waybills.filter(waybill => String(waybill.siteId) === String(selectedSiteForInventory.id)).length === 0 ? (
-                    <p className="text-muted-foreground">No waybills for this site.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {waybills.filter(waybill => String(waybill.siteId) === String(selectedSiteForInventory.id)).map((waybill) => {
-                        let badgeVariant: "default" | "secondary" | "outline" = 'outline';
-                        if (waybill.status === 'outstanding') {
-                          badgeVariant = 'default';
-                        } else if (waybill.status === 'sent_to_site' || waybill.status === 'partial_returned') {
-                          badgeVariant = 'secondary';
-                        } else if (waybill.status === 'return_completed') {
-                          badgeVariant = 'default';
-                        }
-                        return (
-                          <div key={waybill.id} className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
-                            <div>
-                              <p className="font-medium">{waybill.id}</p>
-                              <p className="text-sm text-muted-foreground">
-                                {waybill.driverName} • {waybill.items.length} items • {waybill.status}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant={badgeVariant}>
-                                {waybill.status.replace('_', ' ')}
-                              </Badge>
-                              <Button
-                                onClick={() => setShowWaybillDocument(waybill)}
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </CollapsibleContent>
-              </Collapsible>
-
-              {/* Actions */}
-              <div className={`flex gap-3 pt-4 ${isMobile ? 'flex-col' : ''}`}>
-                <Button onClick={() => {
-                  setSelectedSiteForReturnWaybill(selectedSiteForInventory);
-                  setActiveTab('create-return-waybill');
-                }} className="flex-1">
-                  <FileText className="h-4 w-4 mr-2" />
-                  Create Return Waybill
-                </Button>
-                <Button
-                  onClick={() => handleShowTransactions(selectedSiteForInventory)}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  <Activity className="h-4 w-4 mr-2" />
-                  View Transactions
-                </Button>
-                <Button
-                  onClick={() => handleGenerateReport(selectedSiteForInventory)}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  <FileText className="h-4 w-4 mr-2" />
-                  Generate Report
-                </Button>
-              </div>
-            </div>
-          </div>
+          <SiteInventoryPage
+            site={selectedSiteForInventory}
+            assets={assets}
+            waybills={waybills}
+            equipmentLogs={equipmentLogs}
+            consumableLogs={consumableLogs}
+            employees={employees}
+            companySettings={companySettings}
+            getSiteInventory={getSiteInventory}
+            isMobile={isMobile}
+            onBack={() => {
+              setActiveTab('sites');
+              setSelectedSiteForInventory(null);
+            }}
+            onCreateReturnWaybill={() => {
+              setSelectedSiteForReturnWaybill(selectedSiteForInventory);
+              setActiveTab('create-return-waybill');
+            }}
+            onShowTransactions={() => handleShowTransactions(selectedSiteForInventory)}
+            onGenerateReport={() => handleGenerateReport(selectedSiteForInventory)}
+            onViewWaybill={handleViewWaybill}
+            onAddEquipmentLog={async (log: EquipmentLog) => {
+              try {
+                await dataService.equipmentLogs.createEquipmentLog(log);
+                const logs = await dataService.equipmentLogs.getEquipmentLogs();
+                setEquipmentLogs(logs);
+              } catch (error) { logger.error('Failed to save equipment log', error); }
+            }}
+            onUpdateEquipmentLog={async (log: EquipmentLog) => {
+              try {
+                await dataService.equipmentLogs.updateEquipmentLog(Number(log.id), log);
+                const logs = await dataService.equipmentLogs.getEquipmentLogs();
+                setEquipmentLogs(logs);
+              } catch (error) { logger.error('Failed to update equipment log', error); }
+            }}
+            onAddConsumableLog={async (log: ConsumableUsageLog) => {
+              try {
+                await dataService.consumableLogs.createConsumableLog(log);
+                const logs = await dataService.consumableLogs.getConsumableLogs();
+                setConsumableLogs(logs);
+              } catch (error) { logger.error('Failed to save consumable log', error); }
+            }}
+            onUpdateConsumableLog={async (log: ConsumableUsageLog) => {
+              try {
+                await dataService.consumableLogs.updateConsumableLog(log.id, log);
+                const logs = await dataService.consumableLogs.getConsumableLogs();
+                setConsumableLogs(logs);
+              } catch (error) { logger.error('Failed to update consumable log', error); }
+            }}
+            onViewAnalyticsEquipment={() => handleViewAnalytics(selectedSiteForInventory, 'equipment')}
+            onViewAnalyticsConsumables={() => handleViewAnalytics(selectedSiteForInventory, 'consumables')}
+            onViewAssetDetails={(asset) => handleViewAssetDetails(selectedSiteForInventory, asset)}
+            onViewAssetHistory={(asset) => handleViewAssetDetails(selectedSiteForInventory, asset, 'history')}
+            onViewAssetAnalytics={(asset) => handleViewAssetDetails(selectedSiteForInventory, asset, 'analytics')}
+          />
         ) : null;
+
       case 'site-analytics':
         return selectedSiteForAnalytics ? (
           <SiteAnalyticsPage
@@ -2814,6 +2739,7 @@ const Index = () => {
         return selectedAssetForDetails ? (
           <SiteAssetDetailsPage
             site={selectedAssetForDetails.site}
+            initialTab={selectedAssetForDetails.initialTab}
             asset={selectedAssetForDetails.asset}
             equipmentLogs={equipmentLogs}
             consumableLogs={consumableLogs}
@@ -2865,20 +2791,20 @@ const Index = () => {
         ) : null;
       case "view-site-transactions":
         return selectedSiteForTransactions ? (
-          <div className="space-y-6 animate-fade-in">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent flex items-center gap-2">
-                  <Activity className="h-6 w-6 sm:h-8 sm:w-8" />
-                  {selectedSiteForTransactions.name} - Transaction History
+          <div className="space-y-4 md:space-y-6 animate-fade-in">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="min-w-0">
+                <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent flex items-center gap-2">
+                  <Activity className="h-5 w-5 sm:h-6 sm:w-6 md:h-7 md:w-7" />
+                  <span className="truncate">{selectedSiteForTransactions.name} - Transaction History</span>
                 </h1>
-                <p className="text-sm sm:text-base text-muted-foreground mt-2">
+                <p className="text-xs sm:text-sm md:text-base text-muted-foreground mt-1 md:mt-2">
                   View all asset movements and transactions for this site
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                 <Select value={transactionsView} onValueChange={(value) => setTransactionsView(value as 'table' | 'tree' | 'flow')}>
-                  <SelectTrigger className="w-[150px]">
+                  <SelectTrigger className="w-full sm:w-[140px] md:w-[150px] h-9">
                     <SelectValue placeholder="View" />
                   </SelectTrigger>
                   <SelectContent>
@@ -2889,18 +2815,21 @@ const Index = () => {
                 </Select>
                 <Button
                   variant="outline"
+                  size={isMobile ? "sm" : "default"}
                   onClick={() => {
                     setActiveTab('site-inventory');
                     setSelectedSiteForTransactions(null);
                   }}
+                  className="w-full sm:w-auto"
                 >
+                  <Eye className="h-4 w-4 mr-2" />
                   Back to Site Inventory
                 </Button>
               </div>
             </div>
 
             <Card className="border-0 shadow-soft">
-              <CardContent className="p-6">
+              <CardContent className="p-3 sm:p-4 md:p-6">
                 <div className="space-y-4">
                   {transactionsView === 'tree' ? (
                     // Tree View - Group by referenceId (waybill) or date
@@ -3109,6 +3038,7 @@ const Index = () => {
                   employees={employees}
                   vehicles={vehicles}
                   siteInventory={getSiteInventory(selectedSiteForReturnWaybill.id)}
+                  waybills={waybills}
                   onCreateReturnWaybill={(waybillData) => {
                     handleCreateReturnWaybill(waybillData);
                     setActiveTab('site-inventory');
@@ -3124,7 +3054,7 @@ const Index = () => {
           </div>
         ) : null;
       default:
-        return <Dashboard assets={assets} waybills={waybills} quickCheckouts={quickCheckouts} sites={sites} equipmentLogs={equipmentLogs} maintenanceLogs={maintenanceLogs} employees={employees} vehicles={vehicles} onQuickLogEquipment={async (log: EquipmentLog) => {
+        return <Dashboard companySettings={companySettings} assets={assets} waybills={waybills} quickCheckouts={quickCheckouts} sites={sites} equipmentLogs={equipmentLogs} maintenanceLogs={maintenanceLogs} employees={employees} vehicles={vehicles} onQuickLogEquipment={async (log: EquipmentLog) => {
           if (!isAuthenticated) {
             toast({
               title: "Authentication Required",
@@ -3334,737 +3264,632 @@ const Index = () => {
     });
   };
 
-  // Handle AI assistant actions
-  const handleAIAction = (action: any) => {
-    if (!action) return;
-
-    if (action.type === 'open_form' && action.data) {
-      const { formType, prefillData } = action.data;
-
-      // Store prefill data with formType embedded
-      setAiPrefillData({ ...prefillData, formType });
-
-      // Close AI assistant
-      setShowAIAssistant(false);
-
-      // Navigate to appropriate tab
-      switch (formType) {
-        case 'waybill':
-          setActiveTab('create-waybill');
-          toast({
-            title: "Waybill Form Ready",
-            description: "Form populated with AI-extracted data",
-          });
-          break;
-
-        case 'asset':
-          setActiveTab('add-asset');
-          toast({
-            title: "Asset Form Ready",
-            description: "Form populated with AI-extracted data",
-          });
-          break;
-
-        case 'return':
-          setActiveTab('waybills');
-          toast({
-            title: "Return Form Ready",
-            description: "Form populated with AI-extracted data",
-          });
-          break;
-
-        case 'site':
-          setActiveTab('sites');
-          toast({
-            title: "Site Form Ready",
-            description: "Form populated with AI-extracted data",
-          });
-          break;
-
-        default:
-          toast({
-            title: "Action Triggered",
-            description: `${formType} form will open`,
-          });
-      }
-    } else if (action.type === 'execute_action' && action.data) {
-      const { action: actionType, waybillId, analyticsType, siteId, ...prefillData } = action.data;
-
-      if (actionType === 'open_analytics') {
-        setActiveTab('dashboard');
-        setShowAIAssistant(false);
-        toast({
-          title: "Opening Analytics",
-          description: siteId ? `Analytics for site` : "Opening analytics dashboard",
-        });
-      } else if (actionType === 'view_waybill' && waybillId) {
-        const waybill = waybills.find(wb => wb.id === waybillId);
-        if (waybill) {
-          if (waybill.type === 'return') {
-            setShowReturnWaybillDocument(waybill);
-          } else {
-            setShowWaybillDocument(waybill);
-          }
-          setShowAIAssistant(false);
-          toast({
-            title: "Viewing Waybill",
-            description: `Opening waybill ${waybillId}`,
-          });
-        } else {
-          toast({
-            title: "Waybill Not Found",
-            description: `Could not find waybill with ID ${waybillId}`,
-            variant: "destructive"
-          });
-        }
-      } else if (actionType === 'create_waybill') {
-        setAiPrefillData({ ...prefillData, formType: 'waybill' });
-        setActiveTab('create-waybill');
-        setShowAIAssistant(false);
-        toast({
-          title: "Waybill Form Ready",
-          description: "Form populated with AI-extracted data",
-        });
-      } else if (actionType === 'create_asset') {
-        setAiPrefillData({ ...prefillData, formType: 'asset' });
-        setActiveTab('add-asset');
-        setShowAIAssistant(false);
-        toast({
-          title: "Asset Form Ready",
-          description: "Form populated with AI-extracted data",
-        });
-      } else if (actionType === 'create_site') {
-        setAiPrefillData({ ...prefillData, formType: 'site' });
-        setActiveTab('sites');
-        setShowAIAssistant(false);
-        toast({
-          title: "Site Form Ready",
-          description: "Form populated with AI-extracted data",
-        });
-      }
-    }
-  };
-
-  // Clear AI prefill data when switching tabs (to prevent stale data)
-  useEffect(() => {
-    setAiPrefillData(null);
-  }, [activeTab]);
-
   const isAssetInventoryTab = activeTab === "assets";
-
-  // Calculate AI enabled state (handle all boolean/string/number falsey variants)
-  const aiConfig = (companySettings as any)?.ai?.remote;
-  const aiEnabledVal = aiConfig?.enabled;
-
-  // Default to false (disabled) if undefined or null. Only enable if explicitly true/truthy.
-  // We exclude 'false' string and '0' string which might be truthy in JS but mean false here.
-  const isAIEnabled = !!aiEnabledVal && aiEnabledVal !== 'false' && aiEnabledVal !== '0';
 
   if (isAuthenticated && (isSiteWorker || siteWorkerView)) {
     return <SiteWorkerDashboard isSimulated={!isSiteWorker} onExit={() => setSiteWorkerView(false)} />;
   }
 
   return (
-    <AIAssistantProvider
-      aiEnabled={isAIEnabled}
-      assets={assets}
-      sites={sites}
-      employees={employees}
-      vehicles={vehicles}
-      onAction={handleAIAction}
+    <DashboardLoadingProvider
+      isAssetsLoaded={isAssetsLoaded}
+      isWaybillsLoaded={isWaybillsLoaded}
+      isLogsLoaded={isLogsLoaded}
     >
-      <div className="flex flex-col h-screen overflow-hidden bg-background">
-        {/* Custom Menu Bar for Desktop */}
-        <div className="hidden md:block">
-          <AppMenuBar
-            onNewAsset={() => setActiveTab("add-asset")}
-            onRefresh={() => window.location.reload()}
-            onExport={() => {
-              if (isAuthenticated) {
-                exportAssetsToExcel(assets, "Full_Inventory_Export");
-                toast({
-                  title: "Export Initiated",
-                  description: "Your inventory data is being exported to Excel."
-                });
-              } else {
-                toast({
-                  title: "Authentication Required",
-                  description: "Please login to export data",
-                  variant: "destructive"
-                });
-              }
-            }}
-            onOpenSettings={() => setActiveTab("settings")}
-            canCreateAsset={hasPermission('write_assets')}
-            onMobileMenuClick={isMobile ? () => setMobileMenuOpen(true) : undefined}
-            currentUser={currentUser}
-          />
+      <>
+
+
+
+        <div className="flex flex-col h-screen overflow-hidden bg-background">
+          {/* Custom Menu Bar for Desktop */}
+          <div className="hidden md:block">
+            <AppMenuBar
+              onNewAsset={() => setActiveTab("add-asset")}
+              onRefresh={() => window.location.reload()}
+              onExport={() => {
+                if (isAuthenticated) {
+                  exportAssetsToExcel(assets, "Full_Inventory_Export");
+                  toast({
+                    title: "Export Initiated",
+                    description: "Your inventory data is being exported to Excel."
+                  });
+                } else {
+                  toast({
+                    title: "Authentication Required",
+                    description: "Please login to export data",
+                    variant: "destructive"
+                  });
+                }
+              }}
+              onOpenSettings={() => setActiveTab("settings")}
+              canCreateAsset={hasPermission('write_assets')}
+              onMobileMenuClick={isMobile ? () => setMobileMenuOpen(true) : undefined}
+              currentUser={currentUser}
+            />
+          </div>
+
+          {/* Mobile Sidebar Sheet */}
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetContent side="left" className="w-64 p-0">
+              <Sidebar
+                activeTab={activeTab}
+                onTabChange={(tab) => {
+                  if (tab === 'site-worker-view') {
+                    setSiteWorkerView(true);
+                    setMobileMenuOpen(false);
+                  } else {
+                    setActiveTab(tab);
+                    setMobileMenuOpen(false);
+                  }
+                }}
+                mode="mobile"
+              />
+            </SheetContent>
+          </Sheet>
+
+          <div className="flex flex-1 overflow-hidden">
+            {/* Desktop Sidebar */}
+            {!isMobile && (
+              <Sidebar
+                activeTab={activeTab}
+                onTabChange={(tab) => {
+                  if (tab === 'site-worker-view') {
+                    setSiteWorkerView(true);
+                    setMobileMenuOpen(false);
+                  } else {
+                    setActiveTab(tab);
+                    setMobileMenuOpen(false);
+                  }
+                }}
+                mode="desktop"
+              />
+            )}
+
+            <main className={cn(
+              "flex-1 overflow-y-auto overflow-x-hidden p-3 md:p-6",
+              isMobile && "pb-20" // Add padding for bottom nav
+            )}>
+              <PullToRefreshLayout>
+                {isAssetInventoryTab && (
+                  <div className="flex items-center justify-between gap-3 mb-4 md:mb-6">
+                    {/* Mobile: Compact row layout */}
+                    {isMobile ? (
+                      <>
+                        {isAuthenticated && hasPermission('write_assets') && (
+                          <Button
+                            variant="default"
+                            onClick={() => setActiveTab("add-asset")}
+                            className="flex-1 bg-gradient-primary"
+                            size="default"
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add Asset
+                          </Button>
+                        )}
+                        {/* Secondary actions in compact buttons */}
+                        <div className="flex gap-2">
+                          {isAuthenticated && hasPermission('write_assets') && currentUser?.role !== 'staff' && (
+                            <BulkImportAssets onImport={handleImport} />
+                          )}
+                          <InventoryReport assets={assets} companySettings={companySettings} />
+                        </div>
+                      </>
+                    ) : (
+                      /* Desktop: Full button row */
+                      <div className="flex gap-4">
+                        {isAuthenticated && hasPermission('write_assets') && (
+                          <Button
+                            variant="default"
+                            onClick={() => setActiveTab("add-asset")}
+                            className="bg-gradient-primary"
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add Asset
+                          </Button>
+                        )}
+                        {isAuthenticated && hasPermission('write_assets') && currentUser?.role !== 'staff' && (
+                          <BulkImportAssets onImport={handleImport} />
+                        )}
+                        <InventoryReport assets={assets} companySettings={companySettings} />
+                      </div>
+                    )}
+                  </div>
+                )}
+                {processingReturnWaybill && (
+                  <ReturnProcessingDialog
+                    waybill={processingReturnWaybill}
+                    onClose={() => setProcessingReturnWaybill(null)}
+                    onSubmit={(returnData) => {
+                      setProcessingReturnWaybill(null);
+                      handleProcessReturn(returnData);
+                    }}
+                  />
+                )}
+
+                {renderContent()}
+              </PullToRefreshLayout>
+
+              {/* Edit Asset - Responsive Container */}
+              <ResponsiveFormContainer
+                open={!!editingAsset}
+                onOpenChange={(open) => !open && setEditingAsset(null)}
+                title="Edit Asset"
+                subtitle={editingAsset?.name}
+                icon={<Package className="h-5 w-5" />}
+                maxWidth="max-w-7xl"
+              >
+                {editingAsset && (
+                  <AddAssetForm
+                    asset={editingAsset}
+                    onSave={handleSaveAsset}
+                    onCancel={() => setEditingAsset(null)}
+                    sites={sites}
+                    existingAssets={assets}
+                  />
+                )}
+              </ResponsiveFormContainer>
+
+              {/* Delete Confirmation Dialog */}
+              <Dialog open={!!deletingAsset} onOpenChange={open => !open && setDeletingAsset(null)}>
+                <DialogContent>
+                  <DialogHeader>
+                    Are you sure you want to delete this asset?
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setDeletingAsset(null)}>
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={confirmDeleteAsset}
+                    >
+                      Yes, Delete
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+
+
+              {/* Waybill Document Modal */}
+              {showWaybillDocument && (
+                <WaybillDocument
+                  waybill={showWaybillDocument}
+                  sites={sites}
+                  vehicles={vehicles}
+                  companySettings={companySettings}
+                  onClose={() => setShowWaybillDocument(null)}
+                />
+              )}
+
+              {/* Return Form Modal */}
+              {showReturnForm && (
+                <ReturnForm
+                  waybill={showReturnForm}
+                  onSubmit={handleProcessReturn}
+                  onClose={() => setShowReturnForm(null)}
+                />
+              )}
+
+              {/* Return Waybill Document Modal */}
+              {showReturnWaybillDocument && (
+                <ReturnWaybillDocument
+                  waybill={showReturnWaybillDocument}
+                  sites={sites}
+                  companySettings={companySettings}
+                  onClose={() => setShowReturnWaybillDocument(null)}
+                />
+              )}
+
+              {/* Edit Waybill - Responsive Container */}
+              <ResponsiveFormContainer
+                open={!!editingWaybill}
+                onOpenChange={(open) => !open && setEditingWaybill(null)}
+                title={`Edit Waybill ${editingWaybill?.id || ''}`}
+                subtitle="Update waybill details"
+                icon={<FileText className="h-5 w-5" />}
+                maxWidth="max-w-5xl"
+              >
+                {editingWaybill && (
+                  <EditWaybillForm
+                    waybill={editingWaybill}
+                    assets={assets}
+                    sites={sites}
+                    employees={employees}
+                    vehicles={vehicles}
+                    onUpdate={async (updatedWaybill) => {
+                      if (!isAuthenticated) return;
+
+                      try {
+                        // 1. Get old waybill to identify changes
+                        const oldWaybill = waybills.find(w => w.id === updatedWaybill.id);
+
+                        // Handle Asset Reservation adjustments if items changed and status allows
+                        if (oldWaybill && oldWaybill.status === 'outstanding' && updatedWaybill.status === 'outstanding') {
+                          // Revert Old Items (Release reservation)
+                          for (const oldItem of oldWaybill.items) {
+                            // We fetch fresh asset state to ensure we have current counts
+                            const assetList = await dataService.assets.getAssets();
+                            const asset = assetList.find(a => a.id === oldItem.assetId);
+                            if (asset) {
+                              const newReserved = Math.max(0, (asset.reservedQuantity || 0) - oldItem.quantity);
+                              const newAvailable = calculateAvailableQuantity(
+                                asset.quantity,
+                                newReserved,
+                                asset.damagedCount,
+                                asset.missingCount,
+                                asset.usedCount || 0
+                              );
+                              await dataService.assets.updateAsset(asset.id, { ...asset, reservedQuantity: newReserved, availableQuantity: newAvailable });
+                            }
+                          }
+
+                          // Apply New Items (Add reservation)
+                          for (const newItem of updatedWaybill.items) {
+                            const assetList = await dataService.assets.getAssets();
+                            const freshAsset = assetList.find(a => a.id === newItem.assetId);
+                            if (freshAsset) {
+                              const newReserved = (freshAsset.reservedQuantity || 0) + newItem.quantity;
+                              const newAvailable = calculateAvailableQuantity(
+                                freshAsset.quantity,
+                                newReserved,
+                                freshAsset.damagedCount,
+                                freshAsset.missingCount,
+                                freshAsset.usedCount || 0
+                              );
+                              await dataService.assets.updateAsset(freshAsset.id, { ...freshAsset, reservedQuantity: newReserved, availableQuantity: newAvailable });
+                            }
+                          }
+                        }
+
+                        // Update Waybill
+                        await dataService.waybills.updateWaybill(updatedWaybill.id, updatedWaybill);
+
+                        // Reload Data
+                        const loadedAssets = await dataService.assets.getAssets();
+                        setAssets(loadedAssets);
+
+                        const loadedWaybills = await dataService.waybills.getWaybills();
+                        setWaybills(loadedWaybills);
+
+                        setEditingWaybill(null);
+                        toast({
+                          title: "Waybill Updated",
+                          description: `Waybill ${updatedWaybill.id} updated successfully.`
+                        });
+                      } catch (error) {
+                        console.error('Failed to update waybill:', error);
+                        toast({
+                          title: "Error",
+                          description: `Failed to update waybill: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                          variant: "destructive"
+                        });
+                      }
+                    }}
+                    onCancel={() => setEditingWaybill(null)}
+                  />
+                )}
+              </ResponsiveFormContainer>
+
+              {/* Edit Return Waybill - Responsive Container */}
+              <ResponsiveFormContainer
+                open={!!editingReturnWaybill}
+                onOpenChange={(open) => !open && setEditingReturnWaybill(null)}
+                title="Edit Return Waybill"
+                subtitle={editingReturnWaybill ? `From ${sites.find(s => s.id === editingReturnWaybill.siteId)?.name || 'Site'}` : ''}
+                icon={<FileText className="h-5 w-5" />}
+                maxWidth="max-w-4xl"
+              >
+                {editingReturnWaybill ? (
+                  <ReturnWaybillForm
+                    site={sites.find(s => s.id === editingReturnWaybill.siteId) || { id: editingReturnWaybill.siteId, name: 'Unknown Site', location: '', description: '', contactPerson: '', phone: '', status: 'active', createdAt: new Date(), updatedAt: new Date() } as Site}
+                    sites={sites}
+                    assets={assets}
+                    employees={employees}
+                    vehicles={vehicles}
+                    siteInventory={getSiteInventory(editingReturnWaybill.siteId)}
+                    waybills={waybills}
+                    initialWaybill={editingReturnWaybill}
+                    isEditMode={true}
+                    onCreateReturnWaybill={handleCreateReturnWaybill}
+                    onUpdateReturnWaybill={handleUpdateReturnWaybill}
+                    onCancel={() => setEditingReturnWaybill(null)}
+                  />
+                ) : null}
+              </ResponsiveFormContainer>
+
+              {/* Asset Analytics is now handled via full-page navigation in renderContent */}
+
+              {/* AI Assistant Dialog */}
+
+
+              {/* Floating AI Assistant Button - Only shown when AI is enabled */}
+
+            </main>
+          </div>
         </div>
 
-        {/* Mobile Sidebar Sheet */}
-        <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-          <SheetContent side="left" className="w-64 p-0">
-            <Sidebar
-              activeTab={activeTab}
-              onTabChange={(tab) => {
-                if (tab === 'site-worker-view') {
-                  setSiteWorkerView(true);
-                  setMobileMenuOpen(false);
-                } else {
-                  setActiveTab(tab);
-                  setMobileMenuOpen(false);
-                }
-              }}
-              mode="mobile"
-            />
-          </SheetContent>
-        </Sheet>
-
-        <div className="flex flex-1 overflow-hidden">
-          {/* Desktop Sidebar */}
-          {!isMobile && (
-            <Sidebar
-              activeTab={activeTab}
-              onTabChange={(tab) => {
-                if (tab === 'site-worker-view') {
-                  setSiteWorkerView(true);
-                  setMobileMenuOpen(false);
-                } else {
-                  setActiveTab(tab);
-                  setMobileMenuOpen(false);
-                }
-              }}
-              mode="desktop"
-            />
-          )}
-
-          <main className={cn(
-            "flex-1 overflow-y-auto overflow-x-hidden p-3 md:p-6",
-            isMobile && "pb-20" // Add padding for bottom nav
-          )}>
-            <PullToRefreshLayout>
-              {isAssetInventoryTab && (
-                <div className="flex flex-col space-y-3 md:space-y-0 md:flex-row md:justify-between md:items-center mb-6">
-                  <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
-                    {isAuthenticated && hasPermission('write_assets') && (
-                      <Button
-                        variant="default"
-                        onClick={() => setActiveTab("add-asset")}
-                        className="w-full sm:w-auto bg-gradient-primary"
-                        size={isMobile ? "lg" : "default"}
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Asset
-                      </Button>
-                    )}
-                    {isAuthenticated && hasPermission('write_assets') && currentUser?.role !== 'staff' && <BulkImportAssets onImport={handleImport} />}
-                    <InventoryReport assets={assets} companySettings={companySettings} />
-
+        {/* Audit Report Generation Loading Dialog */}
+        {
+          isGeneratingAudit && (
+            <Dialog open={true}>
+              <DialogContent className="max-w-md">
+                <div className="flex flex-col items-center justify-center py-8 gap-6">
+                  <div className="relative">
+                    <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary/20 border-t-primary"></div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-lg font-bold text-primary">📊</span>
+                    </div>
                   </div>
 
+                  <div className="text-center space-y-2">
+                    <h3 className="text-lg font-semibold">Generating Operations Audit Report</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Analyzing data and preparing comprehensive report...
+                    </p>
+                  </div>
+
+                  <div className="w-full space-y-3">
+                    <div className="flex items-center gap-3 text-sm">
+                      <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
+                      <span className="text-muted-foreground">Collecting asset data</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-sm">
+                      <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
+                      <span className="text-muted-foreground">Analyzing equipment performance</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-sm">
+                      <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
+                      <span className="text-muted-foreground">Processing consumable usage</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-sm">
+                      <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse"></div>
+                      <span className="text-muted-foreground">Generating PDF document...</span>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground text-center mt-4">
+                    This may take a few seconds depending on data volume.
+                  </p>
                 </div>
-              )}
-              {processingReturnWaybill && (
-                <ReturnProcessingDialog
-                  waybill={processingReturnWaybill}
-                  onClose={() => setProcessingReturnWaybill(null)}
-                  onSubmit={(returnData) => {
-                    setProcessingReturnWaybill(null);
-                    handleProcessReturn(returnData);
-                  }}
-                />
-              )}
-
-              {renderContent()}
-            </PullToRefreshLayout>
-
-            {/* Edit Asset - Responsive Container */}
-            <ResponsiveFormContainer
-              open={!!editingAsset}
-              onOpenChange={(open) => !open && setEditingAsset(null)}
-              title="Edit Asset"
-              subtitle={editingAsset?.name}
-              icon={<Package className="h-5 w-5" />}
-              maxWidth="max-w-7xl"
-            >
-              {editingAsset && (
-                <AddAssetForm
-                  asset={editingAsset}
-                  onSave={handleSaveAsset}
-                  onCancel={() => setEditingAsset(null)}
-                  sites={sites}
-                  existingAssets={assets}
-                />
-              )}
-            </ResponsiveFormContainer>
-
-            {/* Delete Confirmation Dialog */}
-            <Dialog open={!!deletingAsset} onOpenChange={open => !open && setDeletingAsset(null)}>
-              <DialogContent>
-                <DialogHeader>
-                  Are you sure you want to delete this asset?
-                </DialogHeader>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setDeletingAsset(null)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={confirmDeleteAsset}
-                  >
-                    Yes, Delete
-                  </Button>
-                </DialogFooter>
               </DialogContent>
             </Dialog>
+          )
+        }
 
-
-
-            {/* Waybill Document Modal */}
-            {showWaybillDocument && (
-              <WaybillDocument
-                waybill={showWaybillDocument}
-                sites={sites}
-                companySettings={companySettings}
-                onClose={() => setShowWaybillDocument(null)}
-              />
-            )}
-
-            {/* Return Form Modal */}
-            {showReturnForm && (
-              <ReturnForm
-                waybill={showReturnForm}
-                onSubmit={handleProcessReturn}
-                onClose={() => setShowReturnForm(null)}
-              />
-            )}
-
-            {/* Return Waybill Document Modal */}
-            {showReturnWaybillDocument && (
-              <ReturnWaybillDocument
-                waybill={showReturnWaybillDocument}
-                sites={sites}
-                companySettings={companySettings}
-                onClose={() => setShowReturnWaybillDocument(null)}
-              />
-            )}
-
-            {/* Edit Waybill - Responsive Container */}
-            <ResponsiveFormContainer
-              open={!!editingWaybill}
-              onOpenChange={(open) => !open && setEditingWaybill(null)}
-              title={`Edit Waybill ${editingWaybill?.id || ''}`}
-              subtitle="Update waybill details"
-              icon={<FileText className="h-5 w-5" />}
-              maxWidth="max-w-5xl"
-            >
-              {editingWaybill && (
-                <EditWaybillForm
-                  waybill={editingWaybill}
-                  assets={assets}
-                  sites={sites}
-                  employees={employees}
-                  vehicles={vehicles}
-                  onUpdate={async (updatedWaybill) => {
-                    if (!isAuthenticated) return;
-
-                    try {
-                      // 1. Get old waybill to identify changes
-                      const oldWaybill = waybills.find(w => w.id === updatedWaybill.id);
-
-                      // Handle Asset Reservation adjustments if items changed and status allows
-                      if (oldWaybill && oldWaybill.status === 'outstanding' && updatedWaybill.status === 'outstanding') {
-                        // Revert Old Items (Release reservation)
-                        for (const oldItem of oldWaybill.items) {
-                          // We fetch fresh asset state to ensure we have current counts
-                          const assetList = await dataService.assets.getAssets();
-                          const asset = assetList.find(a => a.id === oldItem.assetId);
-                          if (asset) {
-                            const newReserved = Math.max(0, (asset.reservedQuantity || 0) - oldItem.quantity);
-                            const newAvailable = calculateAvailableQuantity(
-                              asset.quantity,
-                              newReserved,
-                              asset.damagedCount,
-                              asset.missingCount,
-                              asset.usedCount || 0
-                            );
-                            await dataService.assets.updateAsset(asset.id, { ...asset, reservedQuantity: newReserved, availableQuantity: newAvailable });
-                          }
-                        }
-
-                        // Apply New Items (Add reservation)
-                        for (const newItem of updatedWaybill.items) {
-                          const assetList = await dataService.assets.getAssets();
-                          const freshAsset = assetList.find(a => a.id === newItem.assetId);
-                          if (freshAsset) {
-                            const newReserved = (freshAsset.reservedQuantity || 0) + newItem.quantity;
-                            const newAvailable = calculateAvailableQuantity(
-                              freshAsset.quantity,
-                              newReserved,
-                              freshAsset.damagedCount,
-                              freshAsset.missingCount,
-                              freshAsset.usedCount || 0
-                            );
-                            await dataService.assets.updateAsset(freshAsset.id, { ...freshAsset, reservedQuantity: newReserved, availableQuantity: newAvailable });
-                          }
-                        }
-                      }
-
-                      // Update Waybill
-                      await dataService.waybills.updateWaybill(updatedWaybill.id, updatedWaybill);
-
-                      // Reload Data
-                      const loadedAssets = await dataService.assets.getAssets();
-                      setAssets(loadedAssets);
-
-                      const loadedWaybills = await dataService.waybills.getWaybills();
-                      setWaybills(loadedWaybills);
-
-                      setEditingWaybill(null);
-                      toast({
-                        title: "Waybill Updated",
-                        description: `Waybill ${updatedWaybill.id} updated successfully.`
-                      });
-                    } catch (error) {
-                      console.error('Failed to update waybill:', error);
-                      toast({
-                        title: "Error",
-                        description: `Failed to update waybill: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                        variant: "destructive"
-                      });
-                    }
-                  }}
-                  onCancel={() => setEditingWaybill(null)}
-                />
-              )}
-            </ResponsiveFormContainer>
-
-            {/* Edit Return Waybill - Responsive Container */}
-            <ResponsiveFormContainer
-              open={!!editingReturnWaybill}
-              onOpenChange={(open) => !open && setEditingReturnWaybill(null)}
-              title="Edit Return Waybill"
-              subtitle={editingReturnWaybill ? `From ${sites.find(s => s.id === editingReturnWaybill.siteId)?.name || 'Site'}` : ''}
-              icon={<FileText className="h-5 w-5" />}
-              maxWidth="max-w-4xl"
-            >
-              {editingReturnWaybill ? (
-                <ReturnWaybillForm
-                  site={sites.find(s => s.id === editingReturnWaybill.siteId) || { id: editingReturnWaybill.siteId, name: 'Unknown Site', location: '', description: '', contactPerson: '', phone: '', status: 'active', createdAt: new Date(), updatedAt: new Date() } as Site}
-                  sites={sites}
-                  assets={assets}
-                  employees={employees}
-                  vehicles={vehicles}
-                  siteInventory={getSiteInventory(editingReturnWaybill.siteId)}
-                  initialWaybill={editingReturnWaybill}
-                  isEditMode={true}
-                  onCreateReturnWaybill={handleCreateReturnWaybill}
-                  onUpdateReturnWaybill={handleUpdateReturnWaybill}
-                  onCancel={() => setEditingReturnWaybill(null)}
-                />
-              ) : null}
-            </ResponsiveFormContainer>
-
-            {/* Asset Analytics is now handled via full-page navigation in renderContent */}
-
-            {/* AI Assistant Dialog */}
-            <Dialog open={showAIAssistant} onOpenChange={setShowAIAssistant}>
-              <DialogContent className="max-w-2xl h-[80vh] p-0">
-                <AIAssistantChat />
-              </DialogContent>
-            </Dialog>
-
-            {/* Floating AI Assistant Button - Only shown when AI is enabled */}
-            {isAIEnabled && (
-              <Button
-                onClick={() => setShowAIAssistant(true)}
-                className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 z-50 bg-gradient-primary"
-                size="icon"
-              >
-                <Bot className="h-6 w-6" />
-              </Button>
-            )}
-          </main>
-        </div>
-      </div>
-
-      {/* Audit Report Generation Loading Dialog */}
-      {isGeneratingAudit && (
-        <Dialog open={true}>
+        {/* Audit Date Range Selection Dialog */}
+        <Dialog open={showAuditDateDialog} onOpenChange={setShowAuditDateDialog}>
           <DialogContent className="max-w-md">
-            <div className="flex flex-col items-center justify-center py-8 gap-6">
-              <div className="relative">
-                <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary/20 border-t-primary"></div>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-lg font-bold text-primary">📊</span>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                📊 Generate Operations Audit Report
+              </DialogTitle>
+              <DialogDescription>
+                Select the date range for the audit report. The report will analyze all operations within this period.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="audit-start-date">Start Date</Label>
+                  <Input
+                    id="audit-start-date"
+                    type="date"
+                    value={auditStartDate}
+                    onChange={(e) => setAuditStartDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="audit-end-date">End Date</Label>
+                  <Input
+                    id="audit-end-date"
+                    type="date"
+                    value={auditEndDate}
+                    onChange={(e) => setAuditEndDate(e.target.value)}
+                  />
                 </div>
               </div>
 
-              <div className="text-center space-y-2">
-                <h3 className="text-lg font-semibold">Generating Operations Audit Report</h3>
-                <p className="text-sm text-muted-foreground">
-                  Analyzing data and preparing comprehensive report...
-                </p>
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const year = new Date().getFullYear();
+                    setAuditStartDate(`${year}-01-01`);
+                    setAuditEndDate(`${year}-12-31`);
+                  }}
+                >
+                  This Year
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const year = new Date().getFullYear() - 1;
+                    setAuditStartDate(`${year}-01-01`);
+                    setAuditEndDate(`${year}-12-31`);
+                  }}
+                >
+                  Last Year
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const now = new Date();
+                    const firstDay = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+                    setAuditStartDate(firstDay.toISOString().split('T')[0]);
+                    setAuditEndDate(now.toISOString().split('T')[0]);
+                  }}
+                >
+                  Last 3 Months
+                </Button>
               </div>
 
-              <div className="w-full space-y-3">
-                <div className="flex items-center gap-3 text-sm">
-                  <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
-                  <span className="text-muted-foreground">Collecting asset data</span>
-                </div>
-                <div className="flex items-center gap-3 text-sm">
-                  <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
-                  <span className="text-muted-foreground">Analyzing equipment performance</span>
-                </div>
-                <div className="flex items-center gap-3 text-sm">
-                  <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
-                  <span className="text-muted-foreground">Processing consumable usage</span>
-                </div>
-                <div className="flex items-center gap-3 text-sm">
-                  <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse"></div>
-                  <span className="text-muted-foreground">Generating PDF document...</span>
-                </div>
+              <div className="bg-muted p-3 rounded-md text-sm">
+                <p className="font-medium mb-1">Report will include:</p>
+                <ul className="text-muted-foreground text-xs space-y-1">
+                  <li>• Financial growth analysis for the period</li>
+                  <li>• Site operations and materials deployed</li>
+                  <li>• Critical equipment utilization</li>
+                  <li>• Consumable usage patterns</li>
+                  <li>• Fleet and employee accountability</li>
+                </ul>
               </div>
+            </div>
 
-              <p className="text-xs text-muted-foreground text-center mt-4">
-                This may take a few seconds depending on data volume.
-              </p>
+            <DialogFooter className="flex gap-2">
+              <Button variant="outline" onClick={() => setShowAuditDateDialog(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowAuditDateDialog(false);
+                  setIsGeneratingAudit(true);
+                }}
+                className="bg-gradient-primary"
+              >
+                Generate Report
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Hidden container for chart capture - off-screen */}
+        {
+          isGeneratingAudit && (
+            <div className="fixed -left-[9999px] -top-[9999px]">
+              <AuditCharts
+                assets={assets}
+                equipmentLogs={equipmentLogs}
+                consumableLogs={consumableLogs}
+                startDate={new Date(auditStartDate)}
+                endDate={new Date(auditEndDate)}
+              />
+            </div>
+          )
+        }
+
+
+        {/* Report Type Selection Dialog */}
+        <Dialog open={showReportTypeDialog} onOpenChange={setShowReportTypeDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Generate Site Report</DialogTitle>
+              <DialogDescription>
+                Select the type of report you want to generate for {selectedSiteForReport?.name}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-2 gap-4 py-4">
+              <Button
+                variant="outline"
+                className="h-24 flex flex-col items-center justify-center gap-2 hover:bg-primary/5 hover:border-primary/50 transition-colors"
+                onClick={handleGenerateMaterialsReport}
+              >
+                <Package className="h-8 w-8 text-primary" />
+                <span>Materials On Site</span>
+              </Button>
+              <Button
+                variant="outline"
+                className="h-24 flex flex-col items-center justify-center gap-2 hover:bg-primary/5 hover:border-primary/50 transition-colors"
+                onClick={handleGenerateTransactionsReport}
+              >
+                <Activity className="h-8 w-8 text-primary" />
+                <span>Site Transactions</span>
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
-      )}
 
-      {/* Audit Date Range Selection Dialog */}
-      <Dialog open={showAuditDateDialog} onOpenChange={setShowAuditDateDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              📊 Generate Operations Audit Report
-            </DialogTitle>
-            <DialogDescription>
-              Select the date range for the audit report. The report will analyze all operations within this period.
-            </DialogDescription>
-          </DialogHeader>
+        {/* Report Preview Dialog */}
+        <Dialog open={showReportPreview} onOpenChange={setShowReportPreview}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Report Preview</DialogTitle>
+              <DialogDescription>
+                Review the data before generating the PDF document.
+              </DialogDescription>
+            </DialogHeader>
 
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="audit-start-date">Start Date</Label>
-                <Input
-                  id="audit-start-date"
-                  type="date"
-                  value={auditStartDate}
-                  onChange={(e) => setAuditStartDate(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="audit-end-date">End Date</Label>
-                <Input
-                  id="audit-end-date"
-                  type="date"
-                  value={auditEndDate}
-                  onChange={(e) => setAuditEndDate(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-2 flex-wrap">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const year = new Date().getFullYear();
-                  setAuditStartDate(`${year}-01-01`);
-                  setAuditEndDate(`${year}-12-31`);
-                }}
-              >
-                This Year
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const year = new Date().getFullYear() - 1;
-                  setAuditStartDate(`${year}-01-01`);
-                  setAuditEndDate(`${year}-12-31`);
-                }}
-              >
-                Last Year
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const now = new Date();
-                  const firstDay = new Date(now.getFullYear(), now.getMonth() - 3, 1);
-                  setAuditStartDate(firstDay.toISOString().split('T')[0]);
-                  setAuditEndDate(now.toISOString().split('T')[0]);
-                }}
-              >
-                Last 3 Months
-              </Button>
-            </div>
-
-            <div className="bg-muted p-3 rounded-md text-sm">
-              <p className="font-medium mb-1">Report will include:</p>
-              <ul className="text-muted-foreground text-xs space-y-1">
-                <li>• Financial growth analysis for the period</li>
-                <li>• Site operations and materials deployed</li>
-                <li>• Critical equipment utilization</li>
-                <li>• Consumable usage patterns</li>
-                <li>• Fleet and employee accountability</li>
-              </ul>
-            </div>
-          </div>
-
-          <DialogFooter className="flex gap-2">
-            <Button variant="outline" onClick={() => setShowAuditDateDialog(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                setShowAuditDateDialog(false);
-                setIsGeneratingAudit(true);
-              }}
-              className="bg-gradient-primary"
-            >
-              Generate Report
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Hidden container for chart capture - off-screen */}
-      {isGeneratingAudit && (
-        <div className="fixed -left-[9999px] -top-[9999px]">
-          <AuditCharts
-            assets={assets}
-            equipmentLogs={equipmentLogs}
-            consumableLogs={consumableLogs}
-            startDate={new Date(auditStartDate)}
-            endDate={new Date(auditEndDate)}
-          />
-        </div>
-      )}
-
-
-      {/* Report Type Selection Dialog */}
-      <Dialog open={showReportTypeDialog} onOpenChange={setShowReportTypeDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Generate Site Report</DialogTitle>
-            <DialogDescription>
-              Select the type of report you want to generate for {selectedSiteForReport?.name}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-4">
-            <Button
-              variant="outline"
-              className="h-24 flex flex-col items-center justify-center gap-2 hover:bg-primary/5 hover:border-primary/50 transition-colors"
-              onClick={handleGenerateMaterialsReport}
-            >
-              <Package className="h-8 w-8 text-primary" />
-              <span>Materials On Site</span>
-            </Button>
-            <Button
-              variant="outline"
-              className="h-24 flex flex-col items-center justify-center gap-2 hover:bg-primary/5 hover:border-primary/50 transition-colors"
-              onClick={handleGenerateTransactionsReport}
-            >
-              <Activity className="h-8 w-8 text-primary" />
-              <span>Site Transactions</span>
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Report Preview Dialog */}
-      <Dialog open={showReportPreview} onOpenChange={setShowReportPreview}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Report Preview</DialogTitle>
-            <DialogDescription>
-              Review the data before generating the PDF document.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="border rounded-lg overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Quantity (Site)</TableHead>
-                    <TableHead>Unit</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {previewAssets.map(asset => (
-                    <TableRow key={asset.id}>
-                      <TableCell className="font-medium">{asset.name}</TableCell>
-                      <TableCell>{asset.category}</TableCell>
-                      <TableCell>{asset.siteQuantities?.[selectedSiteForReport?.id || ''] || 0}</TableCell>
-                      <TableCell>{asset.unitOfMeasurement}</TableCell>
-                      <TableCell>{asset.status}</TableCell>
-                    </TableRow>
-                  ))}
-                  {previewAssets.length === 0 && (
+            <div className="space-y-4">
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
-                        No assets found for this report.
-                      </TableCell>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Quantity (Site)</TableHead>
+                      <TableHead>Unit</TableHead>
+                      <TableHead>Status</TableHead>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {previewAssets.map(asset => (
+                      <TableRow key={asset.id}>
+                        <TableCell className="font-medium">{asset.name}</TableCell>
+                        <TableCell>{asset.category}</TableCell>
+                        <TableCell>{asset.siteQuantities?.[selectedSiteForReport?.id || ''] || 0}</TableCell>
+                        <TableCell>{asset.unitOfMeasurement}</TableCell>
+                        <TableCell>{asset.status}</TableCell>
+                      </TableRow>
+                    ))}
+                    {previewAssets.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
+                          No assets found for this report.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
-          </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowReportPreview(false)}>Cancel</Button>
-            <Button onClick={() => {
-              generateReport(previewAssets, `Status Report: ${selectedSiteForReport?.name}`);
-              setShowReportPreview(false);
-            }}>
-              Generate PDF
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowReportPreview(false)}>Cancel</Button>
+              <Button onClick={() => {
+                generateReport(previewAssets, `Status Report: ${selectedSiteForReport?.name}`);
+                setShowReportPreview(false);
+              }}>
+                Generate PDF
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
-      {/* Mobile Bottom Navigation */}
-      {isMobile && (
-        <MobileBottomNav
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          onMenuClick={() => setMobileMenuOpen(true)}
-          hide={
-            !!editingAsset ||
-            !!editingWaybill ||
-            !!editingReturnWaybill ||
-            !!showReturnForm ||
-            !!processingReturnWaybill ||
-            !!showWaybillDocument ||
-            !!showReturnWaybillDocument ||
-            activeTab === 'add-asset' ||
-            activeTab === 'create-waybill' ||
-            activeTab === 'waybill-document' ||
-            activeTab === 'return-waybill-document' ||
-            activeTab === 'prepare-return-waybill' ||
-            activeTab === 'site-inventory' ||
-            activeTab === 'asset-analytics' ||
-            activeTab === 'employee-analytics'
-          }
-        />
-      )}
-
-      {/* Network Status Indicator */}
-      <NetworkStatus />
-
-    </AIAssistantProvider>
+        {/* Mobile Bottom Navigation */}
+        {
+          isMobile && (
+            <MobileBottomNav
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              onMenuClick={() => setMobileMenuOpen(true)}
+              hide={
+                !!editingAsset ||
+                !!editingWaybill ||
+                !!editingReturnWaybill ||
+                !!showReturnForm ||
+                !!processingReturnWaybill ||
+                !!showWaybillDocument ||
+                !!showReturnWaybillDocument ||
+                activeTab === 'add-asset' ||
+                activeTab === 'create-waybill' ||
+                activeTab === 'waybill-document' ||
+                activeTab === 'return-waybill-document' ||
+                activeTab === 'prepare-return-waybill' ||
+                activeTab === 'site-inventory' ||
+                activeTab === 'asset-analytics' ||
+                activeTab === 'employee-analytics'
+              }
+            />
+          )}
+        <NetworkStatus />
+      </>
+    </DashboardLoadingProvider>
   );
 };
 
 export default Index;
+

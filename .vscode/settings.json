@@ -2,6 +2,12 @@
     "css.validate": false,
     "less.validate": false,
     "scss.validate": false,
+    "mssql.enableSqlTools": false,
+    "mssql.query.displayBitAsNumber": false,
+    "mssql.showConnectionsInExplorer": false,
+    "[sql]": {
+        "editor.defaultFormatter": null
+    },
     "tailwindCSS.experimental.classRegex": [
         [
             "cva\\(([^)]*)\\)",

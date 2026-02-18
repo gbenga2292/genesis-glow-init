@@ -33,6 +33,7 @@ interface SiteAssetDetailsPageProps {
     onUpdateEquipmentLog: (log: EquipmentLog) => Promise<void> | void;
     onAddConsumableLog: (log: ConsumableUsageLog) => Promise<void> | void;
     onUpdateConsumableLog: (log: ConsumableUsageLog) => Promise<void> | void;
+    initialTab?: string;
 }
 
 export const SiteAssetDetailsPage = ({
@@ -47,12 +48,13 @@ export const SiteAssetDetailsPage = ({
     onAddEquipmentLog,
     onUpdateEquipmentLog,
     onAddConsumableLog,
-    onUpdateConsumableLog
+    onUpdateConsumableLog,
+    initialTab = "log-entry"
 }: SiteAssetDetailsPageProps) => {
     const { toast } = useToast();
     const isMobile = useIsMobile();
     const isEquipment = asset.type === 'equipment';
-    const [activeTab, setActiveTab] = useState("log-entry");
+    const [activeTab, setActiveTab] = useState(initialTab);
     const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
 
     // Equipment Form State
@@ -90,7 +92,7 @@ export const SiteAssetDetailsPage = ({
     // Load existing log when date changes
     useEffect(() => {
         if (!selectedDate) return;
-        
+
         // Use String() for safe comparison
         const siteId = String(site.id);
         const assetId = String(asset.id);
@@ -315,9 +317,9 @@ export const SiteAssetDetailsPage = ({
         <div className="flex flex-col h-full bg-background animate-fade-in">
             {/* Header - Mobile responsive */}
             <div className="flex items-center gap-2 sm:gap-4 p-3 sm:p-6 border-b sticky top-0 bg-background z-10">
-                <Button 
-                    variant="outline" 
-                    size="icon" 
+                <Button
+                    variant="outline"
+                    size="icon"
                     onClick={onBack}
                     className="shrink-0 h-9 w-9 sm:h-10 sm:w-10"
                     aria-label="Go back"

@@ -10,16 +10,18 @@ interface SendToSiteDialogProps {
   waybill: Waybill;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSend: (waybill: Waybill, sentToSiteDate: Date) => void;
+  onSend: (waybill: Waybill, sentToSiteDate: Date, signWithSignature?: boolean) => void;
 }
 
 export const SendToSiteDialog = ({ waybill, open, onOpenChange, onSend }: SendToSiteDialogProps) => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
   const handleSend = () => {
-    onSend(waybill, selectedDate);
+    onSend(waybill, selectedDate, signWithSignature);
     onOpenChange(false);
   };
+
+  const [signWithSignature, setSignWithSignature] = useState<boolean>(false);
 
   return (
     <ResponsiveFormContainer
@@ -41,6 +43,11 @@ export const SendToSiteDialog = ({ waybill, open, onOpenChange, onSend }: SendTo
           />
         </div>
         
+        <div className="flex items-center gap-2">
+          <input id="sign-with" type="checkbox" checked={signWithSignature} onChange={(e) => setSignWithSignature(e.target.checked)} />
+          <label htmlFor="sign-with" className="text-sm">Sign this waybill with my uploaded signature</label>
+        </div>
+
         <div className="flex flex-col sm:flex-row gap-3 pt-4">
           <Button 
             variant="outline" 

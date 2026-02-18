@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+﻿import React, { useState, useEffect, useMemo } from "react";
 import { logger } from "@/lib/logger";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { CompanySettings as CompanySettingsType, Employee, Asset, Waybill, QuickCheckout, Site, SiteTransaction, Activity, Vehicle } from "@/types/asset";
-import { Settings, Upload, Save, Building, Phone, Globe, Trash2, Download, UploadCloud, Loader2, Sun, FileText, Activity as ActivityIcon, Users, UserPlus, Edit, UserMinus, Car, Database, Bot, BarChart3, FileJson, ChevronDown, ChevronRight, Mail, Zap, Lock, Pencil, Sparkles, X } from "lucide-react";
+import { Settings, Upload, Save, Building, Phone, Globe, Trash2, Download, UploadCloud, Loader2, Sun, FileText, Activity as ActivityIcon, Users, UserPlus, Edit, UserMinus, Car, Database, BarChart3, FileJson, ChevronDown, ChevronRight, Mail, Zap, Lock, Pencil, Sparkles, X, Search } from "lucide-react";
 import { AppUpdateSettings } from "./AppUpdateSettings";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "next-themes";
@@ -26,6 +26,18 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { dataService } from "@/services/dataService";
 import { Combobox } from "@/components/ui/combobox";
 import { VehicleAnalyticsPage } from "@/pages/VehicleAnalyticsPage";
+import { PasswordStrengthMeter } from "@/components/user-management/PasswordStrengthMeter";
+import { AvatarGenerator } from "@/components/user-management/AvatarGenerator";
+import { LastActiveStatus } from "@/components/user-management/LastActiveStatus";
+import { UserCard } from "@/components/user-management/UserCard";
+import { LoginHistoryDrawer } from "@/components/user-management/LoginHistoryDrawer";
+import { UserTimelineDrawer } from "@/components/user-management/UserTimelineDrawer";
+import { RolePermissionsManager } from "@/components/user-management/RolePermissionsManager";
+import { BulkActionsBar } from "@/components/user-management/BulkActionsBar";
+import { InviteFlow } from "@/components/user-management/InviteFlow";
+import { EnhancedUserManagement } from "./EnhancedUserManagement";
+import { EnhancedEmployeeManagement } from "./EnhancedEmployeeManagement";
+import { EnhancedVehicleManagement } from "./EnhancedVehicleManagement";
 
 interface CompanySettingsProps {
   settings: CompanySettingsType;
@@ -68,7 +80,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     theme: "light",
     notifications: { email: true, push: true },
     maintenanceFrequency: 60,
-    currencySymbol: "₦",
+    currencySymbol: "â‚¦",
     electricityRate: 200
   };
 
@@ -121,6 +133,17 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
   const [editUserEmail, setEditUserEmail] = useState('');
   const [showPermissionsTable, setShowPermissionsTable] = useState(true);
 
+  // Enhanced User Management State
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [selectedLoginHistoryUserId, setSelectedLoginHistoryUserId] = useState<string | null>(null);
+  const [isLoginHistoryOpen, setIsLoginHistoryOpen] = useState(false);
+  const [selectedTimelineUserId, setSelectedTimelineUserId] = useState<string | null>(null);
+  const [isTimelineOpen, setIsTimelineOpen] = useState(false);
+  const [isRolePermissionsOpen, setIsRolePermissionsOpen] = useState(false);
+  const [isInviteFlowOpen, setIsInviteFlowOpen] = useState(false);
+  const [useCardLayout, setUseCardLayout] = useState(true);
+
   const [selectedBackupItems, setSelectedBackupItems] = useState(new Set([
     'users', 'assets', 'waybills', 'quickCheckouts', 'sites', 'siteTransactions', 'employees', 'vehicles', 'companySettings', 'equipmentLogs', 'consumableLogs', 'activities'
   ]));
@@ -145,132 +168,9 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
   const [isNasDbOpen, setIsNasDbOpen] = useState(true);
   const [isBackupInProgress, setIsBackupInProgress] = useState(false);
   const [lastBackupTime, setLastBackupTime] = useState<number>(0);
-
-  // AI (remote) settings - simplified: enable remote AI via API key
-  const [aiEnabled, setAiEnabled] = useState<boolean>(false);
-  const [aiProvider, setAiProvider] = useState<string>('openai');
-  const [aiApiKey, setAiApiKey] = useState<string>('');
-  const [aiEndpoint, setAiEndpoint] = useState<string>('');
-  const [aiModel, setAiModel] = useState<string>('');
-  const [aiStatus, setAiStatus] = useState<any>(null);
-  const [keyStatus, setKeyStatus] = useState<any>(null);
-  const [modelsLoading, setModelsLoading] = useState(false);
-  const [googleModels, setGoogleModels] = useState<string[]>([]);
-  const [availableModels, setAvailableModels] = useState<string[]>([]);
-  // Initialize AI settings from props
-  useEffect(() => {
-    if (settings?.ai?.remote) {
-      const r = settings.ai.remote;
-      // Handle various truthy/falsy formats stored in DB
-      const isEnabled = !!r.enabled && r.enabled !== 'false' && r.enabled !== '0';
-      setAiEnabled(isEnabled);
-      setAiProvider(r.provider || 'openai');
-      setAiApiKey(r.apiKey || '');
-      setAiEndpoint(r.endpoint || '');
-      setAiModel(r.model || '');
-      setHasInitializedFromSettings(true);
-    }
-  }, [settings]);
-
-  const [hasInitializedFromSettings, setHasInitializedFromSettings] = useState(false);
-
-  // Function to fetch Google AI models
-  const fetchGoogleModels = async () => {
-    if (!aiApiKey || aiProvider !== 'google') {
-      toast({
-        title: "Error",
-        description: "API key required and provider must be Google",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setModelsLoading(true);
-    try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${aiApiKey}`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      const models = data.models?.map((model: any) => model.name.replace('models/', '')) || [];
-      setGoogleModels(models);
-      toast({
-        title: "Models Fetched",
-        description: `Found ${models.length} Google AI models`
-      });
-    } catch (error) {
-      logger.error('Failed to fetch Google models', error);
-      toast({
-        title: "Fetch Failed",
-        description: "Failed to fetch models from Google AI",
-        variant: "destructive"
-      });
-      setGoogleModels([]);
-    } finally {
-      setModelsLoading(false);
-    }
-  };
-
-  // Multi-key management
-  const [savedApiKeys, setSavedApiKeys] = useState<Record<string, any>>({});
-  const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
-  const [newKeyName, setNewKeyName] = useState<string>('');
-  const [newKeyValue, setNewKeyValue] = useState<string>('');
-  const [newKeyProvider, setNewKeyProvider] = useState<string>('openai');
-  const [newKeyEndpoint, setNewKeyEndpoint] = useState<string>('');
-  const [newKeyModel, setNewKeyModel] = useState<string>('');
-  const [editingKeyId, setEditingKeyId] = useState<number | null>(null);
-  const [selectedSavedKey, setSelectedSavedKey] = useState<string>('');
-  const [showSavedClientsDialog, setShowSavedClientsDialog] = useState(false);
-  const [usingSavedClient, setUsingSavedClient] = useState<boolean>(false);
-
-  // Initialize AI settings from props on component mount
-  useEffect(() => {
-    // Prevent re-initialization if we have already loaded settings
-    if (hasInitializedFromSettings) return;
-
-    let isActive = true;
-
-    (async () => {
-      try {
-        if (!isActive) return;
-
-        // Initialize directly from settings prop
-        if (settings && (settings as any)?.ai?.remote) {
-          const remote = (settings as any).ai.remote;
-          const r = remote.enabled;
-          setAiEnabled(r !== false && r !== 0 && r !== '0' && r !== 'false');
-          setAiProvider(remote.provider || 'openai');
-          setAiApiKey(remote.apiKey || '');
-          setAiEndpoint(remote.endpoint || '');
-
-          if (remote.model) {
-            setAiModel(remote.model);
-          }
-          setHasInitializedFromSettings(true);
-        }
-      } catch (err) {
-        logger.error('Failed to load AI settings', err);
-      }
-    })();
+  const [activeSettingsTab, setActiveSettingsTab] = useState("company");
 
 
-    return () => { isActive = false; };
-  }, [settings, hasInitializedFromSettings]);
-
-  useEffect(() => {
-    if (!aiEndpoint.trim()) {
-      if (aiProvider === 'openai') {
-        setAiEndpoint('https://api.openai.com/v1/chat/completions');
-      } else if (aiProvider === 'anthropic') {
-        setAiEndpoint('https://api.anthropic.com/v1/messages');
-      } else if (aiProvider === 'google') {
-        setAiEndpoint('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent');
-      } else if (aiProvider === 'grok') {
-        setAiEndpoint('https://api.x.ai/v1/chat/completions');
-      }
-    }
-  }, [aiProvider, aiEndpoint]);
 
   // Load backup scheduler status
   useEffect(() => {
@@ -295,37 +195,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     loadBackupSchedulerStatus();
   }, []);
 
-  // Set default model for providers if not set (only on first mount, before settings load)
-  useEffect(() => {
-    // Only set default if:
-    // 1. Model is empty AND
-    // 2. No saved key selected AND
-    // 3. We haven't loaded from settings yet (prevents overwriting on settings reload)
-    if (!aiModel.trim() && !selectedSavedKey && !hasInitializedFromSettings) {
-      if (aiProvider === 'openai') {
-        setAiModel('gpt-3.5-turbo');
-      } else if (aiProvider === 'anthropic') {
-        setAiModel('claude-3-haiku-20240307');
-      } else if (aiProvider === 'google') {
-        setAiModel('gemini-1.5-flash');
-      } else if (aiProvider === 'grok') {
-        setAiModel('grok-beta');
-      }
-    }
-  }, [aiProvider, aiModel, selectedSavedKey, hasInitializedFromSettings]);
 
-  // Derive provider from endpoint when endpoint changes
-  useEffect(() => {
-    if (!aiEndpoint.trim()) return;
-    let derived = 'custom';
-    if (aiEndpoint.includes('openai.com')) derived = 'openai';
-    else if (aiEndpoint.includes('googleapis.com') || aiEndpoint.includes('generativelanguage.googleapis.com')) derived = 'google';
-    else if (aiEndpoint.includes('api.anthropic.com')) derived = 'anthropic';
-    else if (aiEndpoint.includes('api.x.ai')) derived = 'grok';
-    if (derived !== aiProvider) {
-      setAiProvider(derived);
-    }
-  }, [aiEndpoint, aiProvider]);
 
   const [showActivityLog, setShowActivityLog] = useState(false);
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
@@ -373,6 +243,17 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     loadActivities();
   }, [showActivityLog]); // Reload when activity log dialog opens
 
+  // Load users when users tab is opened
+  useEffect(() => {
+    if (activeSettingsTab === 'users' && hasPermission('manage_users')) {
+      const loadUsers = async () => {
+        const loadedUsers = await getUsers();
+        setUsers(loadedUsers);
+      };
+      loadUsers();
+    }
+  }, [activeSettingsTab, hasPermission]);
+
   const handleClearActivities = async () => {
     await clearActivities();
     setActivities([]);
@@ -388,6 +269,31 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       entity: 'activities',
       details: 'Cleared all activity logs'
     });
+  };
+
+  // Filtered users based on search query
+  const filteredUsers = useMemo(() => {
+    if (!userSearchQuery.trim()) {
+      return users;
+    }
+    const query = userSearchQuery.toLowerCase();
+    return users.filter(user =>
+      user.name.toLowerCase().includes(query) ||
+      user.username.toLowerCase().includes(query) ||
+      user.role.toLowerCase().includes(query) ||
+      (user.email?.toLowerCase().includes(query))
+    );
+  }, [users, userSearchQuery]);
+
+  // Handle user selection for bulk operations
+  const handleSelectUser = (userId: string, checked: boolean) => {
+    const newSelected = new Set(selectedUserIds);
+    if (checked) {
+      newSelected.add(userId);
+    } else {
+      newSelected.delete(userId);
+    }
+    setSelectedUserIds(newSelected);
   };
 
   const handleAddEmployee = async () => {
@@ -769,343 +675,29 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     });
   };
 
-  const handleSave = () => {
-    toast({
-      title: "Settings Saved",
-      description: "Company settings have been updated successfully."
-    });
-
-    // Persist AI settings into company settings record (best-effort)
-    const aiConfigToSave: any = {
-      remote: {
-        enabled: !!aiEnabled,
-        provider: aiProvider,
-        apiKey: aiApiKey || null,
-        endpoint: aiEndpoint || null,
-        model: aiModel || null,
-        selectedSavedKey: selectedSavedKey || null
-      }
-    };
-
-    (async () => {
-      try {
-        // Merge AI config with existing form data
-        const updated = { ...(formData as any), ai: aiConfigToSave };
-
-        // Save using dataService
-        const savedSettings = await dataService.companySettings.updateCompanySettings(updated);
-        logger.info('AI settings saved to Supabase', { data: { savedSettings } });
-
-        // Update parent state with the fresh data
-        onSave(savedSettings);
-
-        // Show success message
-        toast({
-          title: "AI Settings Saved",
-          description: "Your AI configuration has been persisted."
-        });
-      } catch (err) {
-        logger.error('Failed to persist AI settings', err);
-        toast({
-          title: "Save Failed",
-          description: "Failed to save AI settings. Please try again.",
-          variant: "destructive"
-        });
-      }
-    })();
-
-    // Configure runtime via IPC bridge (main process will accept remote config)
+  const handleSave = async () => {
     try {
-      if ((window as any).llm?.configure) {
-        (window as any).llm.configure(aiConfigToSave).catch(() => { });
-      }
-    } catch (err) {
-      // ignore
-    }
-  };
+      const savedSettings = await dataService.companySettings.updateCompanySettings(formData);
 
-  const handleAddApiKey = () => {
-    if (!newKeyName.trim() || !newKeyValue.trim()) {
+      // Update parent state with the fresh data
+      onSave(savedSettings);
+
+      // Show success message
       toast({
-        title: "Error",
-        description: "Please enter both a name and API key",
+        title: "Settings Saved",
+        description: "Company settings have been updated successfully."
+      });
+    } catch (err) {
+      logger.error('Failed to save settings', err);
+      toast({
+        title: "Save Failed",
+        description: "Failed to save settings. Please try again.",
         variant: "destructive"
       });
-      return;
-    }
-
-    // Validate API key format based on endpoint
-    let endpoint = newKeyEndpoint.trim();
-    let derivedProvider = 'custom';
-    if (endpoint.includes('openai.com')) {
-      derivedProvider = 'openai';
-    } else if (endpoint.includes('googleapis.com') || endpoint.includes('generativelanguage.googleapis.com')) {
-      derivedProvider = 'google';
-    } else if (endpoint.includes('api.anthropic.com')) {
-      derivedProvider = 'anthropic';
-    } else if (endpoint.includes('api.x.ai')) {
-      derivedProvider = 'grok';
-    }
-
-    // Set default endpoint if not provided
-    if (!endpoint) {
-      if (derivedProvider === 'openai') endpoint = 'https://api.openai.com/v1/chat/completions';
-      else if (derivedProvider === 'anthropic') endpoint = 'https://api.anthropic.com/v1/messages';
-      else if (derivedProvider === 'grok') endpoint = 'https://api.x.ai/v1/chat/completions';
-      else if (derivedProvider === 'google') endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
-    }
-
-    // Validate key format
-    const key = newKeyValue.trim();
-    let isValidKey = true;
-    let keyError = '';
-
-    if (derivedProvider === 'openai' && !key.startsWith('sk-')) {
-      isValidKey = false;
-      keyError = 'OpenAI API keys should start with "sk-". Please check your key.';
-    } else if (derivedProvider === 'google' && !key.startsWith('AIzaSy')) {
-      isValidKey = false;
-      keyError = 'Google API keys should start with "AIzaSy". Please check your key.';
-    } else if (derivedProvider === 'anthropic' && !key.startsWith('sk-ant-')) {
-      isValidKey = false;
-      keyError = 'Anthropic API keys should start with "sk-ant-". Please check your key.';
-    } else if (derivedProvider === 'grok' && !key.startsWith('xai-')) {
-      isValidKey = false;
-      keyError = 'Grok API keys should start with "xai-". Please check your key.';
-    }
-
-    if (!isValidKey) {
-      toast({
-        title: "Invalid API Key Format",
-        description: keyError,
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsLoading(true);
-    (async () => {
-      try {
-        // Save to database (create or update depending on editingKeyId)
-        // Ensure model is always set from newKeyModel, aiModel, or default
-        const payload = {
-          key_name: newKeyName.trim(),
-          provider: derivedProvider,
-          api_key: key,
-          endpoint: endpoint,
-          model: (newKeyModel || aiModel || 'gpt-3.5-turbo').trim() || 'gpt-3.5-turbo'
-        };
-        let result: any;
-        if (editingKeyId) {
-          result = await window.electronAPI.db.updateSavedApiKey(editingKeyId, payload);
-        } else {
-          result = await window.electronAPI.db.createSavedApiKey(payload);
-        }
-
-        // Reload saved keys from database
-        const updatedKeys = await window.electronAPI.db.getSavedApiKeys();
-        const keysMap: Record<string, any> = {};
-        updatedKeys.forEach((key: any) => {
-          keysMap[key.key_name] = key;
-        });
-        setSavedApiKeys(keysMap);
-
-        // Mark newly created/updated key as active and persist to settings
-        try {
-          let newId: number | null = null;
-          if (editingKeyId) {
-            newId = editingKeyId;
-          } else if (result && Array.isArray(result) && result[0] && result[0].id) {
-            newId = result[0].id;
-          } else if (result && result.id) {
-            newId = result.id;
-          }
-          if (newId && window.electronAPI.db?.setActiveApiKey) {
-            await window.electronAPI.db.setActiveApiKey(newId);
-
-            // Also update the selected key in settings
-            setSelectedSavedKey(newKeyName.trim());
-            // reflect active flag in local state
-            const refreshed = await window.electronAPI.db.getSavedApiKeys();
-            const refreshedMap: Record<string, any> = {};
-            refreshed.forEach((k: any) => { refreshedMap[k.key_name] = k; });
-            setSavedApiKeys(refreshedMap);
-            setSelectedSavedKey(newKeyName.trim());
-          }
-        } catch (err) {
-          logger.warn('Failed to set active key after save', err);
-        }
-
-        toast({
-          title: "Key Saved",
-          description: `API key "${newKeyName.trim()}" has been saved to database.`
-        });
-
-        // Reset form
-        setNewKeyName('');
-        setNewKeyValue('');
-        setNewKeyEndpoint('');
-        setNewKeyModel('gpt-4');
-        setEditingKeyId(null);
-        setShowApiKeyDialog(false);
-      } catch (err) {
-        console.error('Failed to save API key', err);
-        toast({
-          title: "Save Failed",
-          description: "Failed to save API key to database",
-          variant: "destructive"
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    })();
-  };
-
-  const handleSelectSavedKey = async (keyName: string, providedKeyData?: any, isAutoLoad = false) => {
-    try {
-      const keyData = providedKeyData || savedApiKeys[keyName];
-      if (!keyData) {
-        console.warn('Saved key not found', keyName);
-        return;
-      }
-      if (typeof keyData === 'string') {
-        // Old localStorage format
-        const parsed = JSON.parse(keyData);
-        setAiProvider(parsed.provider || 'openai');
-        setAiApiKey(parsed.apiKey || '');
-        setAiEndpoint(parsed.endpoint || '');
-        // Preserve in-memory aiModel if parsed.model is empty
-        if (parsed.model) {
-          setAiModel(parsed.model);
-        }
-      } else {
-        // New database format: prefer key_ref (secure store) if present
-        setAiProvider(keyData.provider || 'openai');
-        setAiEndpoint(keyData.endpoint || '');
-        // Preserve in-memory aiModel if keyData.model is empty
-        if (keyData.model) {
-          setAiModel(keyData.model);
-        }
-        if (keyData.key_ref && window.electronAPI.db?.getApiKeyFromKeyRef) {
-          // retrieve from secure store
-          try {
-            const secret = await window.electronAPI.db.getApiKeyFromKeyRef(keyData.key_ref);
-            if (secret) setAiApiKey(secret);
-          } catch (err) {
-            console.error('Failed to retrieve API key from secure store', err);
-          }
-        } else {
-          setAiApiKey(keyData.api_key || '');
-        }
-      }
-
-      if (!isAutoLoad) {
-        toast({
-          title: "Key Loaded",
-          description: `API key "${keyName}" has been loaded.`
-        });
-      }
-      // Auto-enable remote AI when a saved client is loaded
-      setAiEnabled(true);
-      setUsingSavedClient(true);
-
-      // Auto-configure and start the LLM
-      try {
-        const aiConfigToSave: any = {
-          remote: {
-            enabled: true,
-            provider: aiProvider,
-            apiKey: aiApiKey || null,
-            endpoint: aiEndpoint || null,
-            model: aiModel || null
-          }
-        };
-        await (window as any).llm?.configure(aiConfigToSave);
-        const startRes = await (window as any).llm?.start();
-        if (!isAutoLoad && startRes?.success) {
-          toast({
-            title: 'AI Ready',
-            description: startRes.message || 'Remote AI provider configured and started.'
-          });
-        }
-      } catch (err) {
-        console.warn('Auto-configure/start failed', err);
-      }
-    } catch (err) {
-      console.error('Failed to load key', err);
-      // Suppress API key related error notifications
-      if (!err.message?.includes('API key') && !err.message?.includes('Authentication failed')) {
-        toast({
-          title: "Error",
-          description: "Failed to load saved key",
-          variant: "destructive"
-        });
-      }
     }
   };
 
-  const handleEditSavedKey = (keyName: string) => {
-    try {
-      const keyData = savedApiKeys[keyName];
-      if (!keyData) return;
-      // keyData may be string (old) or object (db)
-      let parsed: any = keyData;
-      if (typeof keyData === 'string') parsed = JSON.parse(keyData);
 
-      setEditingKeyId(parsed.id || null);
-      setNewKeyName(keyName);
-      setNewKeyValue(parsed.api_key || parsed.apiKey || '');
-      setNewKeyEndpoint(parsed.endpoint || '');
-      setNewKeyModel(parsed.model || 'gpt-3.5-turbo');
-      setShowApiKeyDialog(true);
-    } catch (err) {
-      console.error('Failed to open edit dialog', err);
-      toast({ title: 'Error', description: 'Failed to open edit dialog', variant: 'destructive' });
-    }
-  };
-
-  const handleDeleteApiKey = (keyName: string) => {
-    setIsLoading(true);
-    (async () => {
-      try {
-        const keyData = savedApiKeys[keyName];
-        let keyId = keyData?.id;
-
-        if (!keyId && typeof keyData === 'string') {
-          // Old localStorage format, just delete from state
-          const updatedKeys = { ...savedApiKeys };
-          delete updatedKeys[keyName];
-          setSavedApiKeys(updatedKeys);
-          localStorage.setItem('ai_api_keys', JSON.stringify(updatedKeys));
-        } else if (keyId) {
-          // Delete from database
-          await window.electronAPI.db.deleteSavedApiKey(keyId);
-
-          // Reload saved keys from database
-          const updatedKeys = await window.electronAPI.db.getSavedApiKeys();
-          const keysMap: Record<string, any> = {};
-          updatedKeys.forEach((key: any) => {
-            keysMap[key.key_name] = key;
-          });
-          setSavedApiKeys(keysMap);
-        }
-
-        toast({
-          title: "Key Deleted",
-          description: `API key "${keyName}" has been removed.`
-        });
-      } catch (err) {
-        console.error('Failed to delete API key', err);
-        toast({
-          title: "Delete Failed",
-          description: "Failed to delete API key",
-          variant: "destructive"
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    })();
-  };
 
   const handleReset = async () => {
     // Confirmation handled by UI Dialog
@@ -1286,7 +878,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       setIsLoading(true);
 
       try {
-        console.log('🔄 Manual backup triggered from UI (Supabase Mode)');
+        console.log('ðŸ”„ Manual backup triggered from UI (Supabase Mode)');
 
         // 1. Generate Backup Data locally (using Supabase)
         const backupData = await dataService.system.createBackup();
@@ -1689,16 +1281,8 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
         onWaybillsChange(waybills);
         window.dispatchEvent(new Event('refreshWaybills'));
 
-        if (hasDB && (window as any).electronAPI?.manualSync) {
-          try {
-            const syncRes = await (window as any).electronAPI.manualSync();
-            if (!syncRes || !syncRes.success) {
-              logger.warn('Manual sync after restore reported failure', { data: { syncRes } });
-            }
-          } catch (err) {
-            logger.warn('Manual sync after restore failed', err);
-          }
-
+        // Reload waybills from database after restore
+        if (hasDB) {
           try {
             const persistedWaybills = await window.electronAPI.db.getWaybills();
             if (persistedWaybills && typeof onWaybillsChange === 'function') {
@@ -2092,19 +1676,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     fetchUsers();
   }, [hasPermission, getUsers]);
 
-  // Fetch key status from main (secure store / DB) for display
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const s = await (window as any).llm?.getKeyStatus();
-        if (mounted) setKeyStatus(s);
-      } catch (err) {
-        // ignore
-      }
-    })();
-    return () => { mounted = false; };
-  }, []);
+
 
   const handleCreateUser = async () => {
     if (!newUserName.trim() || !newUserUsername.trim() || !newUserPassword.trim()) return;
@@ -2226,7 +1798,6 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       tabs.push(
         { value: "employees", label: "Employees", shortLabel: "Staff", icon: <UserPlus className="h-4 w-4" /> },
         { value: "vehicles", label: "Vehicles", shortLabel: "Cars", icon: <Car className="h-4 w-4" /> },
-        { value: "ai", label: "AI Settings", shortLabel: "AI", icon: <Bot className="h-4 w-4" /> },
         { value: "data", label: "Data Management", shortLabel: "Data", icon: <Database className="h-4 w-4" /> },
         { value: "updates", label: "App Updates", shortLabel: "Updates", icon: <Sparkles className="h-4 w-4" /> }
       );
@@ -2269,8 +1840,6 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
       label: role
     }));
   }, [employees]);
-
-  const [activeSettingsTab, setActiveSettingsTab] = useState("company");
 
   return (
     <div className="space-y-4 md:space-y-6 animate-fade-in">
@@ -2490,12 +2059,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                 <div className="flex flex-col items-center space-y-4">
                   <div className="w-32 h-32 border-2 border-dashed border-muted-foreground/25 rounded-lg overflow-hidden flex items-center justify-center bg-gray-50">
                     <img
-                      src={logoPreview || formData.logo || "/logo.png"}
+                      src={logoPreview || formData.logo || "./logo.png"}
                       alt="Company Logo"
                       className="w-full h-full object-contain"
                       onError={(e) => {
                         // Fallback if logo.png is missing or broken
-                        e.currentTarget.src = "/favicon.ico";
+                        e.currentTarget.src = "./favicon.ico";
                       }}
                     />
                   </div>
@@ -2553,6 +2122,18 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
 
       {/* User Management Tab */}
       {activeSettingsTab === "users" && hasPermission('manage_users') && (
+        <EnhancedUserManagement
+          users={users}
+          onUsersChange={setUsers}
+          employees={employees}
+          activities={activities}
+          onSave={handleSave}
+          isLoading={isLoading}
+        />
+      )}
+
+      {/* Old User Management Tab - Archived */}
+      {false && (
         <div className="space-y-4 md:space-y-6 mt-4">
           <Card className="border-0 shadow-soft">
             <CardHeader className="pb-3 md:pb-6">
@@ -2568,6 +2149,26 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                   <Button onClick={() => setIsAddUserDialogOpen(true)} className="gap-2 flex-1 sm:flex-none" size={isMobile ? "sm" : "default"}>
                     <UserPlus className="h-4 w-4" />
                     Add User
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size={isMobile ? "sm" : "default"}
+                    className="gap-2 flex-1 sm:flex-none"
+                    onClick={() => {
+                      const baseUrl = window.location.origin + window.location.pathname;
+                      const inviteLink = `${baseUrl}#/signup?invite=dcel-inv-2024`;
+                      const subject = encodeURIComponent('You have been invited to join DCEL Inventory');
+                      const body = encodeURIComponent(`Hello,\n\nYou have been invited to create an account on DCEL Inventory.\n\nClick the link below to sign up:\n${inviteLink}\n\nThis link will take you to the registration page.\n\nRegards,\n${currentUser?.name || 'Admin'}`);
+                      window.open(`mailto:?subject=${subject}&body=${body}`, '_self');
+                      toast({
+                        title: "Invite Email",
+                        description: "Your email client should open with the invite link. You can also copy the link manually."
+                      });
+                      navigator.clipboard.writeText(inviteLink).catch(() => { });
+                    }}
+                  >
+                    <Mail className="h-4 w-4" />
+                    Send Invite
                   </Button>
                   <Button variant="outline" onClick={() => setShowPermissionsTable(!showPermissionsTable)} size={isMobile ? "sm" : "default"} className="flex-1 sm:flex-none text-xs sm:text-sm">
                     {showPermissionsTable ? 'List View' : 'Table View'}
@@ -2777,6 +2378,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                     placeholder="johndoe"
                     autoComplete="off"
                   />
+                  <p className="text-xs text-muted-foreground">User will login with this username (no email required)</p>
                 </div>
 
                 <div className="space-y-2">
@@ -2826,7 +2428,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
               <DialogHeader>
                 <DialogTitle>Restoring Data</DialogTitle>
                 <DialogDescription>
-                  The restore is running — progress updates will appear here.
+                  The restore is running â€” progress updates will appear here.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-3 py-2">
@@ -2838,7 +2440,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                     <div className="font-medium">Errors</div>
                     <ul className="text-xs text-destructive max-h-40 overflow-auto">
                       {restoreProgress.errors.map((e: any, i: number) => (
-                        <li key={i} className="truncate">{e.section}: {e.id || ''} — {String(e.error || e.message || e)}</li>
+                        <li key={i} className="truncate">{e.section}: {e.id || ''} â€” {String(e.error || e.message || e)}</li>
                       ))}
                     </ul>
                   </div>
@@ -2864,10 +2466,22 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           </div>
         </div>
       )}
+      {/* End of archived User Management Tab */}
 
       {/* Employees Tab */}
       {activeSettingsTab === "employees" && (
-        <div className="space-y-6">
+        <EnhancedEmployeeManagement
+          employees={employees}
+          onEmployeesChange={onEmployeesChange}
+          employeeRoles={employeeRoles}
+          hasPermission={hasPermission}
+          onAnalytics={(emp) => setAnalyticsEmployee(emp)}
+        />
+      )}
+
+      {/* Old Employee Management Tab - Archived */}
+      {false && (
+        <>
           <Card className="border-0 shadow-soft">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -3009,11 +2623,22 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
               Save Settings
             </Button>
           </div>
-        </div>
+        </>
       )}
+      {/* End of archived Employee Management Tab */}
 
       {/* Vehicles Tab */}
       {activeSettingsTab === "vehicles" && (
+        <EnhancedVehicleManagement
+          vehicles={vehicles}
+          onVehiclesChange={onVehiclesChange}
+          hasPermission={hasPermission}
+          onAnalytics={(veh) => setAnalyticsVehicle(veh)}
+        />
+      )}
+
+      {/* Old Vehicle Management Tab - Archived */}
+      {false && (
         <div className="space-y-6">
           <Card className="border-0 shadow-soft">
             <CardHeader>
@@ -3141,367 +2766,72 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
           </div>
         </div>
       )}
+      {/* End of archived Vehicle Management Tab */}
 
-      {/* AI Assistant (Remote/API key) Configuration Tab */}
-      {activeSettingsTab === "ai" && (
-        <div className="space-y-6">
-          {/* Top-level controls: Add / View saved AI clients are now compact dialogs */}
-
-          <Card className="border-0 shadow-soft">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Bot className="h-5 w-5" />
-                AI Assistant Configuration
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Master AI Enable/Disable Toggle */}
-              <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border">
-                <div className="space-y-1">
-                  <Label htmlFor="ai-enabled" className="text-base font-semibold">Enable AI Assistant</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Turn on to use AI-powered natural language task execution throughout the app
-                  </p>
-                </div>
-                <Switch
-                  id="ai-enabled"
-                  checked={aiEnabled}
-                  onCheckedChange={setAiEnabled}
-                />
-              </div>
-
-              {aiEnabled && (
-                <>
-                  <p className="text-sm text-muted-foreground mb-2">Compact AI client manager — add clients, choose which client to use, then test/start the remote provider.</p>
-
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={() => setShowApiKeyDialog(true)}>
-                      <Upload className="h-4 w-4 mr-2" /> Add AI Client
-                    </Button>
-
-                    <Button variant="ghost" onClick={() => setShowSavedClientsDialog(true)}>
-                      View Saved AI Clients
-                    </Button>
-                  </div>
-
-                  {/* Add / Edit AI Client Dialog */}
-                  <Dialog open={showApiKeyDialog} onOpenChange={setShowApiKeyDialog}>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>{editingKeyId ? 'Edit AI Client' : 'Add AI Client'}</DialogTitle>
-                        <DialogDescription>Provide a name, API key, endpoint (optional) and model (optional).</DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4 py-4">
-                        <div>
-                          <Label htmlFor="keyName">Name</Label>
-                          <Input id="keyName" placeholder="e.g., Work OpenAI" value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} />
-                        </div>
-
-                        {/* Provider is now derived from endpoint: if an endpoint is provided the client is treated as 'custom', otherwise 'openai' */}
-
-                        <div>
-                          <Label htmlFor="keyValue">API Key</Label>
-                          <Input id="keyValue" type="password" placeholder="sk-..." value={newKeyValue} onChange={(e) => setNewKeyValue(e.target.value)} />
-                        </div>
-
-                        <div>
-                          <Label htmlFor="keyEndpoint">Endpoint (optional)</Label>
-                          <Input id="keyEndpoint" placeholder="https://api.openai.com/v1/chat/completions" value={newKeyEndpoint} onChange={(e) => setNewKeyEndpoint(e.target.value)} />
-                        </div>
-
-
-                      </div>
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => { setShowApiKeyDialog(false); setEditingKeyId(null); }}>Cancel</Button>
-                        <Button onClick={handleAddApiKey} className="bg-gradient-primary">{editingKeyId ? 'Save Changes' : 'Save Client'}</Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-
-                  <div className="mt-2">
-                    <Label htmlFor="aiClientSelect">Select AI Client</Label>
-                    <Select value={selectedSavedKey || undefined} onValueChange={(v) => {
-                      setSelectedSavedKey(v);
-                      handleSelectSavedKey(v);
-                    }}>
-                      <SelectTrigger id="aiClientSelect">
-                        <SelectValue placeholder="Choose client" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {/* Saved AI clients (select to auto-load) */}
-                        {Object.keys(savedApiKeys).map(k => {
-                          const d = savedApiKeys[k];
-                          const provider = typeof d === 'string' ? JSON.parse(d).provider : d.provider;
-                          return <SelectItem key={k} value={k}>{`${k} (${provider})`}</SelectItem>;
-                        })}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                    <div>
-                      <Label htmlFor="apiKey">API Key</Label>
-                      <Input id="apiKey" type="password" value={aiApiKey} onChange={(e) => setAiApiKey(e.target.value)} placeholder="Enter API Key" />
-                    </div>
-                    <div>
-                      <Label htmlFor="endpoint">Endpoint</Label>
-                      <Input id="endpoint" value={aiEndpoint} onChange={(e) => setAiEndpoint(e.target.value)} placeholder="https://api.openai.com/v1/chat/completions" />
-                    </div>
-                  </div>
-
-                  <div className="mt-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <Label htmlFor="model">Model</Label>
-                      {aiProvider === 'google' && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => fetchGoogleModels()}
-                          disabled={modelsLoading || !aiApiKey}
-                          className="text-xs"
-                        >
-                          {modelsLoading ? (
-                            <>
-                              <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                              Fetching...
-                            </>
-                          ) : (
-                            'Fetch Models'
-                          )}
-                        </Button>
-                      )}
-                    </div>
-                    {aiProvider === 'google' && googleModels.length > 0 ? (
-                      <Select value={aiModel} onValueChange={setAiModel}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select Google Model" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {googleModels.map(model => <SelectItem key={model} value={model}>{model}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Input id="model" value={aiModel} onChange={(e) => setAiModel(e.target.value)} placeholder="gpt-3.5-turbo" />
-                    )}
-                  </div>
-
-
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
-                    <Button
-                      variant="outline"
-                      onClick={async () => {
-                        setIsLoading(true);
-                        try {
-                          // Configure remote settings first (persist key to secure store if possible)
-                          // Ensure remote is enabled for the test; also reflect in UI toggle
-                          setAiEnabled(true);
-                          const cfg = { remote: { enabled: true, provider: aiProvider, apiKey: aiApiKey || null, endpoint: aiEndpoint || null, model: aiModel || null } };
-                          await (window as any).llm?.configure(cfg).catch(() => { });
-
-                          // Use start() which now runs a detailed connectivity check and returns a message
-                          const startRes = await (window as any).llm?.start();
-                          const status = await (window as any).llm?.status();
-                          setAiStatus(status);
-
-                          if (startRes?.success) {
-                            toast({ title: 'AI Ready', description: startRes.message || 'Remote AI provider configured and reachable.' });
-                          } else {
-                            toast({ title: 'AI Not Reachable', description: startRes?.error || 'The provider did not respond as expected. Check your API key and endpoint.', variant: 'destructive' });
-                          }
-                        } catch (err) {
-                          toast({ title: 'Connection Failed', description: String(err), variant: 'destructive' });
-                        } finally { setIsLoading(false); }
-                      }}
-                    >
-                      Test Connection
-                    </Button>
-
-                    <Button
-                      onClick={async () => {
-                        setIsLoading(true);
-                        try {
-                          const res = await (window as any).llm?.start();
-                          if (res?.success) toast({ title: 'AI Started', description: res.message });
-                          else toast({ title: 'Start Failed', description: res?.error || 'Failed to start', variant: 'destructive' });
-                        } finally { setIsLoading(false); }
-                      }}
-                    >
-                      Start
-                    </Button>
-
-                    <Button
-                      variant="outline"
-                      onClick={async () => {
-                        setIsLoading(true);
-                        try {
-                          const res = await (window as any).llm?.stop();
-                          if (res?.success) toast({ title: 'AI Stopped', description: res.message });
-                        } finally { setIsLoading(false); }
-                      }}
-                    >
-                      Stop
-                    </Button>
-                  </div>
-
-                  {aiStatus && (
-                    <div className="mt-2 p-3 rounded-md bg-muted text-sm space-y-1">
-                      <p className="font-medium">Status: {aiStatus.available ? '✓ Available' : '✗ Not Available'}</p>
-                      {aiStatus.url && <p className="text-xs text-muted-foreground">URL: {aiStatus.url}</p>}
-                    </div>
-                  )}
-
-                  {/* Saved Clients viewer dialog */}
-                  <Dialog open={showSavedClientsDialog} onOpenChange={setShowSavedClientsDialog}>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Saved AI Clients</DialogTitle>
-                        <DialogDescription>View and manage your saved AI client configurations.</DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-2 py-2">
-                        {Object.keys(savedApiKeys).length === 0 ? (
-                          <p className="text-sm text-muted-foreground">No saved clients</p>
-                        ) : (
-                          Object.keys(savedApiKeys).map((k) => {
-                            const d = savedApiKeys[k];
-                            const provider = typeof d === 'string' ? JSON.parse(d).provider : d.provider;
-                            return (
-                              <div key={k} className="flex items-center justify-between p-2 border rounded">
-                                <div>
-                                  <div className="font-medium">{k}</div>
-                                  <div className="text-xs text-muted-foreground">{provider}</div>
-                                </div>
-                                <div className="flex gap-2">
-                                  <Button size="sm" variant="outline" onClick={() => { handleSelectSavedKey(k); setShowSavedClientsDialog(false); }}>Load</Button>
-                                  <Button size="sm" variant="ghost" onClick={() => handleEditSavedKey(k)}>Edit</Button>
-                                  <Button size="sm" variant="destructive" onClick={() => handleDeleteApiKey(k)}>Delete</Button>
-                                </div>
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setShowSavedClientsDialog(false)}>Close</Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-
-
-                  <div className="pt-4 border-t">
-                    <div className="flex items-center justify-between gap-4 mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="text-sm">
-                          <div className="font-medium">API Key Storage</div>
-                          <div className="text-xs text-muted-foreground">{keyStatus ? (keyStatus.inSecureStore ? 'Stored in secure OS credential store' : (keyStatus.inDB ? 'Stored in database only' : 'No API key saved')) : 'Checking...'}</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          onClick={async () => {
-                            setIsLoading(true);
-                            try {
-                              const res = await (window as any).llm?.migrateKeys();
-                              toast({ title: res?.success ? 'Migration started' : 'Migration failed', description: res?.message || res?.error || '' });
-                              const s = await (window as any).llm?.getKeyStatus();
-                              setKeyStatus(s);
-                            } catch (err) {
-                              toast({ title: 'Migration Error', description: String(err), variant: 'destructive' });
-                            } finally { setIsLoading(false); }
-                          }}
-                        >
-                          Migrate Key to Secure Store
-                        </Button>
-
-                        <Button
-                          variant="outline"
-                          onClick={async () => {
-                            setIsLoading(true);
-                            try {
-                              if (window.electronAPI?.db?.migrateSavedKeysToKeytar) {
-                                const r = await window.electronAPI.db.migrateSavedKeysToKeytar();
-                                toast({ title: 'Saved Keys Migration', description: `Migrated ${r?.migrated || 0} saved keys to secure store` });
-                                // reload saved keys
-                                const updatedKeys = await window.electronAPI.db.getSavedApiKeys();
-                                const keysMap: Record<string, any> = {};
-                                updatedKeys.forEach((k: any) => { keysMap[k.key_name] = k; });
-                                setSavedApiKeys(keysMap);
-                              } else {
-                                toast({ title: 'Not Available', description: 'Migration helper not available', variant: 'destructive' });
-                              }
-                            } catch (err) {
-                              logger.error('Saved keys migration failed', err);
-                              toast({ title: 'Migration Failed', description: String(err), variant: 'destructive' });
-                            } finally { setIsLoading(false); }
-                          }}
-                        >
-                          Migrate Saved Keys
-                        </Button>
-
-                        <Button
-                          variant="destructive"
-                          onClick={async () => {
-                            setIsLoading(true);
-                            try {
-                              // clear only secure store copy by default
-                              await (window as any).llm?.clearKey({ removeFromDB: false });
-                              const s = await (window as any).llm?.getKeyStatus();
-                              setKeyStatus(s);
-                              toast({ title: 'Cleared', description: 'Cleared secure store copy of API key.' });
-                            } catch (err) {
-                              toast({ title: 'Clear Failed', description: String(err), variant: 'destructive' });
-                            } finally { setIsLoading(false); }
-                          }}
-                        >
-                          Clear Secure Key
-                        </Button>
-
-                      </div>
-                    </div>
-
-                    <div className="flex justify-end">
-                      <Button onClick={handleSave} className="bg-gradient-primary hover:scale-105 transition-all duration-300 shadow-medium" disabled={isLoading}>
-                        <Save className="h-4 w-4 mr-2" />
-                        Save AI Settings
-                      </Button>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {!aiEnabled && (
-                <div className="text-center py-12 text-muted-foreground">
-                  <Bot className="h-16 w-16 mx-auto mb-4 opacity-20" />
-                  <p className="text-sm font-medium">AI Assistant is currently disabled</p>
-                  <p className="text-xs mt-2">Enable the toggle above to configure and use AI features</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
 
       {/* Data Management Tab */}
       {activeSettingsTab === "data" && (
-        <div className="space-y-6">
-          <Card className="border-0 shadow-soft">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Database className="h-5 w-5" />
-                Data Management
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Backup, restore, or reset all your inventory data. Use these features carefully as some actions cannot be undone.
-              </p>
+        <div className="space-y-6 mt-4">
 
-              <div className="flex flex-wrap gap-3">
-                {hasPermission('reset_data') && (
+          {/* Top action cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+            {/* Backup card */}
+            <Card className="border-0 shadow-soft">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Download className="h-5 w-5 text-primary" />
+                  Backup Data
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  Download a JSON snapshot of all selected data sections. Store it safely — you can restore from it later.
+                </p>
+                <Button className="w-full gap-2" variant="outline" disabled={isLoading} onClick={() => setIsBackupDialogOpen(true)}>
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  Create Backup
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Restore card */}
+            {hasPermission('restore_data') && (
+              <Card className="border-0 shadow-soft">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <UploadCloud className="h-5 w-5 text-amber-500" />
+                    Restore Data
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-xs text-muted-foreground">
+                    Upload a previously created JSON backup file to restore your data into the database.
+                  </p>
+                  <Button className="w-full gap-2" variant="outline" disabled={isLoading} onClick={() => setIsRestoreOpen(true)}>
+                    <UploadCloud className="h-4 w-4" />
+                    Restore from File
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Reset card */}
+            {hasPermission('reset_data') && (
+              <Card className="border border-destructive/30 bg-destructive/5 shadow-soft">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base text-destructive">
+                    <Trash2 className="h-5 w-5" />
+                    Reset All Data
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-xs text-muted-foreground">
+                    Permanently wipe all inventory data from the database. <strong>This cannot be undone.</strong>
+                  </p>
                   <AlertDialog open={isResetOpen} onOpenChange={setIsResetOpen}>
                     <AlertDialogTrigger asChild>
-                      <Button variant="destructive" disabled={isLoading} className="gap-2">
+                      <Button variant="destructive" className="w-full gap-2" disabled={isLoading}>
                         <Trash2 className="h-4 w-4" />
                         Reset All Data
                       </Button>
@@ -3510,700 +2840,408 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                       <AlertDialogHeader>
                         <AlertDialogTitle>Reset All Data</AlertDialogTitle>
                         <AlertDialogDescription>
-                          This will permanently delete all assets, waybills, returns, sites, employees, vehicles, and settings data. This action cannot be undone.
+                          This will permanently delete all assets, waybills, returns, sites, employees, vehicles, and settings. This action <strong>cannot be undone</strong>. Make sure you have a backup first.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction onClick={handleReset} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                           {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                          Reset All Data
+                          Yes, Reset Everything
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
-                )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
 
-                <Dialog open={isBackupDialogOpen} onOpenChange={setIsBackupDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" disabled={isLoading} className="gap-2">
-                      {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4" />}
-                      Backup Data
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-md">
-                    <DialogHeader>
-                      <DialogTitle>Create Backup</DialogTitle>
-                      <DialogDescription>
-                        Select which data to backup. Backups will be saved to NAS automatically.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4">
-                      {/* Backup Type Selector */}
-                      <div className="space-y-2">
-                        <Label className="text-sm font-semibold">Backup Type (Select One or Both)</Label>
-                        <div className="space-y-2">
-                          <div className="flex items-center space-x-2">
-                            <Checkbox
-                              id="backup-json"
-                              checked={backupTypes.has('json')}
-                              onCheckedChange={(checked) => {
-                                const newTypes = new Set(backupTypes);
-                                if (checked) {
-                                  newTypes.add('json');
-                                } else {
-                                  newTypes.delete('json');
-                                }
-                                setBackupTypes(newTypes);
-                              }}
-                            />
-                            <Label htmlFor="backup-json" className="flex items-center gap-2 cursor-pointer">
-                              <FileJson className="h-4 w-4" />
-                              <span>JSON Backup</span>
-                            </Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Checkbox
-                              id="backup-database"
-                              checked={backupTypes.has('database')}
-                              onCheckedChange={(checked) => {
-                                const newTypes = new Set(backupTypes);
-                                if (checked) {
-                                  newTypes.add('database');
-                                } else {
-                                  newTypes.delete('database');
-                                }
-                                setBackupTypes(newTypes);
-                              }}
-                            />
-                            <Label htmlFor="backup-database" className="flex items-center gap-2 cursor-pointer">
-                              <Database className="h-4 w-4" />
-                              <span>Database Backup</span>
-                            </Label>
-                          </div>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {backupTypes.has('json') && backupTypes.has('database')
-                            ? '📦 Both backups will be saved to NAS'
-                            : backupTypes.has('json')
-                              ? '📄 JSON backup will be saved to NAS'
-                              : backupTypes.has('database')
-                                ? '💾 Database backup will be saved to NAS'
-                                : '⚠️ Please select at least one backup type'}
-                        </p>
-                      </div>
-
-                      {/* Section Selector (only for JSON backup) */}
-                      {backupTypes.has('json') && (
-                        <div className="space-y-2">
-                          <Label className="text-sm font-semibold">Select Data Sections</Label>
-                          <div className="max-h-60 overflow-y-auto space-y-2 border rounded-md p-3">
-                            {backupOptions.map((option) => (
-                              <div key={option.id} className="flex items-center space-x-2">
-                                <Checkbox
-                                  id={option.id}
-                                  checked={selectedBackupItems.has(option.id)}
-                                  onCheckedChange={(checked) => {
-                                    const newSet = new Set(selectedBackupItems);
-                                    if (checked) {
-                                      newSet.add(option.id);
-                                    } else {
-                                      newSet.delete(option.id);
-                                    }
-                                    setSelectedBackupItems(newSet);
-                                  }}
-                                />
-                                <Label htmlFor={option.id} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                  {option.label}
-                                </Label>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={handleBackupCancel}>
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={handleBackupConfirm}
-                        disabled={isLoading || backupTypes.size === 0 || (backupTypes.has('json') && selectedBackupItems.size === 0)}
-                      >
-                        {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                        Create Backup
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-
-                {/* Backup Data button restored - now saves to NAS automatically */}
-
-                <Dialog open={isRestoreOpen} onOpenChange={(open) => {
-                  setIsRestoreOpen(open);
-                  if (!open) {
-                    setLoadedBackupData(null);
-                    setAvailableSections([]);
-                    setRestoreSelectedSections(new Set());
-                    setShowRestoreSectionSelector(false);
-                    setIsRestoreComplete(false);
-                    setRestoreProgress({ phase: 'idle', total: 0, done: 0, message: '', errors: [] });
-                  }
-                }}>
-                  {hasPermission('restore_data') && (
-                    <DialogTrigger asChild>
-                      <Button variant="outline" disabled={isLoading} className="gap-2">
-                        <UploadCloud className="h-4 w-4" />
-                        Restore Data
-                      </Button>
-                    </DialogTrigger>
-                  )}
-                  <DialogContent className="max-w-2xl">
-                    {!showRestoreSectionSelector && !isRestoringLive ? (
-                      <>
-                        <DialogHeader>
-                          <DialogTitle>Restore Data from Backup</DialogTitle>
-                          <DialogDescription>
-                            Select a backup file (.json or .db) to restore your data.
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-4">
-                          <div>
-                            <Label htmlFor="restore-file">Backup File</Label>
-                            <Input
-                              id="restore-file"
-                              type="file"
-                              accept=".json,.db,.sqlite"
-                              onChange={handleFileSelect}
-                              className="mt-1"
-                              disabled={isLoading}
-                            />
-                            {restoreFile && (
-                              <p className="text-sm text-muted-foreground mt-1">
-                                Selected: {restoreFile.name}
-                              </p>
-                            )}
-                          </div>
-                          {error && (
-                            <p className="text-sm text-destructive">{error}</p>
-                          )}
-                        </div>
-                      </>
-                    ) : showRestoreSectionSelector && !isRestoringLive ? (
-                      <>
-                        <DialogHeader>
-                          <DialogTitle>Select Sections to Restore</DialogTitle>
-                          <DialogDescription>
-                            Choose which data sections you want to restore from the backup ({availableSections.length} available).
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-4 max-h-80 overflow-y-auto">
-                          {availableSections.map((section) => (
-                            <div key={section} className="flex items-center space-x-3 p-2 rounded hover:bg-accent">
-                              <input
-                                type="checkbox"
-                                id={`restore-${section}`}
-                                checked={restoreSelectedSections.has(section)}
-                                onChange={(e) => {
-                                  const newSections = new Set(restoreSelectedSections);
-                                  if (e.target.checked) {
-                                    newSections.add(section);
-                                  } else {
-                                    newSections.delete(section);
-                                  }
-                                  setRestoreSelectedSections(newSections);
-                                }}
-                                disabled={isLoading}
-                              />
-                              <Label htmlFor={`restore-${section}`} className="flex-1 cursor-pointer">
-                                {section.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}
-                              </Label>
-                            </div>
-                          ))}
-                        </div>
-                        <DialogFooter>
-                          <Button variant="outline" onClick={() => {
-                            setShowRestoreSectionSelector(false);
-                            setRestoreFile(null);
-                            setLoadedBackupData(null);
-                          }} disabled={isLoading}>
-                            Back
-                          </Button>
-                          <Button onClick={handleRestore} disabled={restoreSelectedSections.size === 0 || isLoading}>
-                            {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                            Start Restore
-                          </Button>
-                        </DialogFooter>
-                      </>
-                    ) : (
-                      <>
-                        <DialogHeader>
-                          <DialogTitle>
-                            {isRestoreComplete ? '✓ Restore Completed' : 'Restoring Data'}
-                          </DialogTitle>
-                          <DialogDescription>
-                            {restoreProgress.phase}
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-6">
-                          {/* Progress Bar */}
-                          <div className="space-y-2">
-                            <div className="flex justify-between text-sm">
-                              <span className="font-medium">{restoreProgress.message}</span>
-                              <span className="text-muted-foreground">
-                                {restoreProgress.done}/{restoreProgress.total}
-                              </span>
-                            </div>
-                            <div className="w-full bg-secondary rounded-full h-2">
-                              <div
-                                className={`h-2 rounded-full transition-all duration-300 ${isRestoreComplete ? 'bg-green-500' : 'bg-blue-500'
-                                  }`}
-                                style={{
-                                  width: `${restoreProgress.total > 0 ? (restoreProgress.done / restoreProgress.total) * 100 : 0}%`
-                                }}
-                              />
-                            </div>
-                          </div>
-
-                          {/* Error List */}
-                          {restoreProgress.errors.length > 0 && (
-                            <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 max-h-48 overflow-y-auto">
-                              <h3 className="font-semibold text-sm mb-2 text-destructive">Errors ({restoreProgress.errors.length})</h3>
-                              <ul className="space-y-1">
-                                {restoreProgress.errors.map((err: any, idx: number) => (
-                                  <li key={idx} className="text-xs text-destructive/80">
-                                    <span className="font-medium">{err.section}:</span> {err.id} - {err.error}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-
-                          {/* Completion Message */}
-                          {isRestoreComplete && (
-                            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                              <p className="text-sm text-green-800">
-                                ✓ Restore completed successfully! All selected data has been restored.
-                              </p>
-                            </div>
-                          )}
-                        </div>
-
-                        {isRestoreComplete && (
-                          <DialogFooter>
-                            <Button onClick={() => {
-                              setIsRestoreOpen(false);
-                              setLoadedBackupData(null);
-                              setAvailableSections([]);
-                              setRestoreSelectedSections(new Set());
-                              setShowRestoreSectionSelector(false);
-                              setIsRestoreComplete(false);
-                              setRestoreProgress({ phase: 'idle', total: 0, done: 0, message: '', errors: [] });
-                              setRestoreFile(null);
-                            }}>
-                              Close
-                            </Button>
-                          </DialogFooter>
-                        )}
-                      </>
-                    )}
-
-                    {!isRestoringLive && !isRestoreComplete && showRestoreSectionSelector === false && restoreFile === null && (
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsRestoreOpen(false)}>
-                          Cancel
-                        </Button>
-                      </DialogFooter>
-                    )}
-                  </DialogContent>
-                </Dialog>
-
-                <Dialog open={showActivityLog} onOpenChange={setShowActivityLog}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" className="gap-2">
-                      <ActivityIcon className="h-4 w-4" />
-                      View Activity Log
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col">
-                    <DialogHeader>
-                      <DialogTitle>Activity Log</DialogTitle>
-                      <DialogDescription>
-                        View all system activities and user actions. {activities.length} total activities.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="flex-1 overflow-hidden">
-                      <div className="flex justify-between items-center mb-4">
-                        <Button variant="outline" onClick={handleBackupActivities} size="sm">
-                          <Download className="h-3 w-3 mr-1" />
-                          Export TXT
-                        </Button>
-                        <AlertDialog open={isClearConfirmOpen} onOpenChange={setIsClearConfirmOpen}>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="destructive" size="sm" disabled={!isAdmin}>
-                              <Trash2 className="h-3 w-3 mr-1" />
-                              Clear Log
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Clear Activity Log</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                This will permanently delete all activity logs. This action cannot be undone.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={handleClearActivities} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                                Clear Log
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                      {activities.length === 0 ? (
-                        <div className="flex items-center justify-center h-48 text-muted-foreground">
-                          No activities recorded yet.
-                        </div>
-                      ) : (
-                        <div className="overflow-auto max-h-[calc(80vh-200px)]">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Timestamp</TableHead>
-                                <TableHead>User</TableHead>
-                                <TableHead>Action</TableHead>
-                                <TableHead>Entity</TableHead>
-                                <TableHead>Entity ID</TableHead>
-                                <TableHead>Details</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {[...activities].reverse().map((activity, idx) => (
-                                <TableRow key={activity.id || idx}>
-                                  <TableCell className="font-mono text-xs">
-                                    {new Date(activity.timestamp).toLocaleString()}
-                                  </TableCell>
-                                  <TableCell>{activity.userName}</TableCell>
-                                  <TableCell className="capitalize">{activity.action}</TableCell>
-                                  <TableCell className="capitalize">{activity.entity}</TableCell>
-                                  <TableCell>{activity.entityId || '-'}</TableCell>
-                                  <TableCell className="max-w-xs truncate">{activity.details}</TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      )}
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              </div>
-
-              {/* Automatic Backup Scheduler Panel */}
-              {window.backupScheduler && (
-                <Card className="border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-transparent mt-6">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Database className="h-5 w-5 text-primary" />
-                      Automatic Backup Scheduler
-                    </CardTitle>
-                    <p className="text-sm text-muted-foreground">
-                      Configure automatic daily backups to NAS and local storage
-                    </p>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    {/* Status Overview */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="p-4 border rounded-lg bg-card">
-                        <div className="text-sm font-medium text-muted-foreground">Status</div>
-                        <div className="text-2xl font-bold mt-1">
-                          {autoBackupEnabled ? (
-                            <span className="text-green-600">Enabled</span>
-                          ) : (
-                            <span className="text-gray-500">Disabled</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="p-4 border rounded-lg bg-card">
-                        <div className="text-sm font-medium text-muted-foreground">Next Backup</div>
-                        <div className="text-lg font-semibold mt-1">
-                          {backupSchedulerStatus?.nextRun
-                            ? (() => {
-                              try {
-                                const nextRun = backupSchedulerStatus.nextRun;
-                                // Handle different date formats
-                                const date = nextRun instanceof Date ? nextRun : new Date(nextRun);
-                                return !isNaN(date.getTime()) ? date.toLocaleString() : 'Today at 5:00 PM';
-                              } catch {
-                                return 'Today at 5:00 PM';
-                              }
-                            })()
-                            : 'Today at 5:00 PM'}
-                        </div>
-                      </div>
-                      <div className="p-4 border rounded-lg bg-card">
-                        <div className="text-sm font-medium text-muted-foreground">NAS Status</div>
-                        <div className="text-lg font-semibold mt-1 flex items-center gap-2">
-                          {nasAccessible === null ? (
-                            <span className="text-gray-500">Checking...</span>
-                          ) : nasAccessible ? (
-                            <>
-                              <span className="h-2 w-2 rounded-full bg-green-500"></span>
-                              <span className="text-green-600">Accessible</span>
-                            </>
-                          ) : (
-                            <>
-                              <span className="h-2 w-2 rounded-full bg-red-500"></span>
-                              <span className="text-red-600">Not Accessible</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Controls */}
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between p-4 border rounded-lg">
-                        <div className="space-y-1">
-                          <Label className="text-base font-semibold">Enable Automatic Backups</Label>
-                          <p className="text-sm text-muted-foreground">
-                            Backups run daily at 5:00 PM (17:00)
-                          </p>
-                        </div>
-                        {hasPermission('restore_data') && (
-                          <Switch
-                            checked={autoBackupEnabled}
-                            onCheckedChange={handleAutoBackupToggle}
-                          />
-                        )}
-                      </div>
-
-                      <div className="p-4 border rounded-lg space-y-3">
-                        <div>
-                          <Label className="text-base font-semibold">Retention Period</Label>
-                          <p className="text-sm text-muted-foreground mb-2">
-                            Number of days to keep backups
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <Input
-                            type="number"
-                            min="1"
-                            max="365"
-                            value={backupRetentionDays}
-                            onChange={(e) => {
-                              const days = parseInt(e.target.value);
-                              if (days > 0 && days <= 365) {
-                                setBackupRetentionDays(days);
-                              }
-                            }}
-                            className="w-24"
-                          />
-                          <span className="text-sm text-muted-foreground">days</span>
-                          <Button
-                            size="sm"
-                            onClick={() => handleRetentionChange(backupRetentionDays)}
-                            disabled={isLoading || !hasPermission('restore_data')}
-                          >
-                            Apply
-                          </Button>
-                        </div>
-                      </div>
-
-                      <div className="p-4 border rounded-lg space-y-3">
-                        <div>
-                          <Label className="text-base font-semibold">NAS Backup Path</Label>
-                          <p className="text-sm text-muted-foreground">
-                            {backupSchedulerStatus?.nasBackupPath || '\\\\MYCLOUDEX2ULTRA\\Operations\\Inventory System\\Backups'}
-                          </p>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleCheckNAS}
-                            disabled={isLoading}
-                          >
-                            Check NAS Accessibility
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex flex-wrap gap-3">
-                      {/* Backup Now button removed - use "Backup Data" dialog at top of page */}
-                      <Button
-                        variant="outline"
-                        onClick={async () => {
-                          if (window.backupScheduler) {
-                            const backups = await window.backupScheduler.listBackups();
-                            setBackupsList(backups);
-                            toast({ title: "Backups List Refreshed" });
-                          }
-                        }}
-                        className="gap-2"
-                      >
-                        <ActivityIcon className="h-4 w-4" />
-                        Refresh List
-                      </Button>
-                    </div>
-
-                    {/* Backups List */}
-                    {backupsList && (
-                      <div className="space-y-4">
-                        <div className="border-t pt-4">
-                          <h3 className="text-lg font-semibold mb-3">Recent NAS Backups</h3>
-
-                          {/* Local Backups - Disabled (only saving to NAS) */}
-                          {/* <div className="mb-4">
-                            <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                              Local Backups ({backupsList.local?.length || 0})
-                            </h4>
-                            {backupsList.local && backupsList.local.length > 0 ? (
-                              <div className="space-y-2 max-h-40 overflow-y-auto">
-                                {backupsList.local.slice(0, 5).map((backup: any) => (
-                                  <div key={backup.path} className="flex items-center justify-between p-2 border rounded text-sm">
-                                    <div className="flex-1">
-                                      <div className="font-medium">{backup.name}</div>
-                                      <div className="text-xs text-muted-foreground">
-                                        {new Date(backup.created).toLocaleString()} • {(backup.size / 1024 / 1024).toFixed(2)} MB • {backup.age} days old
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <p className="text-sm text-muted-foreground">No local backups found</p>
-                            )}
-                          </div> */}
-
-                          {/* NAS Backups */}
-                          {nasAccessible && (
-                            <div className="space-y-4">
-                              {/* JSON Backups */}
-                              <div className="border rounded-md">
-                                <button
-                                  onClick={() => setIsNasJsonOpen(!isNasJsonOpen)}
-                                  className="flex items-center justify-between w-full p-3 hover:bg-muted/50 transition-colors"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    {isNasJsonOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                                    <h4 className="font-semibold text-sm">NAS JSON Backups</h4>
-                                  </div>
-                                  <span className="text-xs text-muted-foreground mr-2">{backupsList.nas?.json?.length || 0} files</span>
-                                </button>
-
-                                {isNasJsonOpen && (
-                                  <div className="px-3 pb-3">
-                                    {backupsList.nas?.json && backupsList.nas.json.length > 0 ? (
-                                      <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                                        {backupsList.nas.json.map((backup: any) => (
-                                          <div key={backup.path} className="flex items-center justify-between p-2 rounded-lg border bg-green-50/50 dark:bg-green-950/20 hover:bg-green-100/50 dark:hover:bg-green-900/30 transition-colors">
-                                            <div className="flex-1">
-                                              <div className="font-medium text-sm flex items-center gap-2">
-                                                <FileText className="h-3 w-3 text-green-600" />
-                                                {backup.name}
-                                              </div>
-                                              <div className="text-xs text-muted-foreground ml-5">
-                                                {new Date(backup.created).toLocaleString()} • {(backup.size / 1024 / 1024).toFixed(2)} MB • {backup.age} days old
-                                              </div>
-                                            </div>
-                                            {hasPermission('restore_data') && (
-                                              <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="ml-2 h-8 w-8 p-0"
-                                                onClick={() => handleRestoreFromNAS(backup.path)}
-                                                disabled={isLoading}
-                                                title="Restore from this backup"
-                                              >
-                                                <UploadCloud className="h-4 w-4 text-green-700 dark:text-green-400" />
-                                              </Button>
-                                            )}
-                                          </div>
-                                        ))}
-                                      </div>
-                                    ) : (
-                                      <p className="text-sm text-muted-foreground py-2 italic ml-5">No NAS JSON backups found</p>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* DB Backups */}
-                              <div className="border rounded-md">
-                                <button
-                                  onClick={() => setIsNasDbOpen(!isNasDbOpen)}
-                                  className="flex items-center justify-between w-full p-3 hover:bg-muted/50 transition-colors"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    {isNasDbOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                                    <h4 className="font-semibold text-sm">NAS Database Backups</h4>
-                                  </div>
-                                  <span className="text-xs text-muted-foreground mr-2">{backupsList.nas?.database?.length || 0} files</span>
-                                </button>
-
-                                {isNasDbOpen && (
-                                  <div className="px-3 pb-3">
-                                    {backupsList.nas?.database && backupsList.nas.database.length > 0 ? (
-                                      <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                                        {backupsList.nas.database.map((backup: any) => (
-                                          <div key={backup.path} className="flex items-center justify-between p-2 rounded-lg border bg-blue-50/50 dark:bg-blue-950/20 hover:bg-blue-100/50 dark:hover:bg-blue-900/30 transition-colors">
-                                            <div className="flex-1">
-                                              <div className="font-medium text-sm flex items-center gap-2">
-                                                <Database className="h-3 w-3 text-blue-600" />
-                                                {backup.name}
-                                              </div>
-                                              <div className="text-xs text-muted-foreground ml-5">
-                                                {new Date(backup.created).toLocaleString()} • {(backup.size / 1024 / 1024).toFixed(2)} MB • {backup.age} days old
-                                              </div>
-                                            </div>
-                                            {hasPermission('restore_data') && (
-                                              <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="ml-2 h-8 w-8 p-0"
-                                                onClick={() => handleRestoreFromNAS(backup.path)}
-                                                disabled={isLoading}
-                                                title="Restore from this backup"
-                                              >
-                                                <UploadCloud className="h-4 w-4 text-blue-700 dark:text-blue-400" />
-                                              </Button>
-                                            )}
-                                          </div>
-                                        ))}
-                                      </div>
-                                    ) : (
-                                      <p className="text-sm text-muted-foreground py-2 italic ml-5">No NAS database backups found</p>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
+          {/* Activity Log */}
+          <Card className="border-0 shadow-soft">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <ActivityIcon className="h-5 w-5" />
+                Activity Log
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground mb-3">View and export a record of all user actions in the system.</p>
+              <Button variant="outline" className="gap-2" onClick={() => setShowActivityLog(true)}>
+                <ActivityIcon className="h-4 w-4" />
+                View Activity Log
+              </Button>
             </CardContent>
           </Card>
 
-          <div className="flex justify-end">
-            <Button
-              onClick={handleSave}
-              className="bg-gradient-primary hover:scale-105 transition-all duration-300 shadow-medium"
-              disabled={isLoading}
-            >
-              <Save className="h-4 w-4 mr-2" />
-              Save Settings
-            </Button>
-          </div>
+          {/* Automatic Backup Scheduler Panel (Electron only) */}
+          {window.backupScheduler && (
+            <Card className="border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Database className="h-5 w-5 text-primary" />
+                  Automatic Backup Scheduler
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">Configure automatic daily backups to NAS and local storage</p>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-4 border rounded-lg bg-card">
+                    <div className="text-sm font-medium text-muted-foreground">Status</div>
+                    <div className="text-2xl font-bold mt-1">
+                      {autoBackupEnabled ? <span className="text-green-600">Enabled</span> : <span className="text-gray-500">Disabled</span>}
+                    </div>
+                  </div>
+                  <div className="p-4 border rounded-lg bg-card">
+                    <div className="text-sm font-medium text-muted-foreground">Next Backup</div>
+                    <div className="text-lg font-semibold mt-1">
+                      {backupSchedulerStatus?.nextRun
+                        ? (() => { try { const d = new Date(backupSchedulerStatus.nextRun); return !isNaN(d.getTime()) ? d.toLocaleString() : 'Today at 5:00 PM'; } catch { return 'Today at 5:00 PM'; } })()
+                        : 'Today at 5:00 PM'}
+                    </div>
+                  </div>
+                  <div className="p-4 border rounded-lg bg-card">
+                    <div className="text-sm font-medium text-muted-foreground">NAS Status</div>
+                    <div className="text-lg font-semibold mt-1 flex items-center gap-2">
+                      {nasAccessible === null ? <span className="text-gray-500">Checking...</span>
+                        : nasAccessible
+                          ? <><span className="h-2 w-2 rounded-full bg-green-500" /><span className="text-green-600">Accessible</span></>
+                          : <><span className="h-2 w-2 rounded-full bg-red-500" /><span className="text-red-600">Not Accessible</span></>}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="space-y-1">
+                      <Label className="text-base font-semibold">Enable Automatic Backups</Label>
+                      <p className="text-sm text-muted-foreground">Backups run daily at 5:00 PM (17:00)</p>
+                    </div>
+                    {hasPermission('restore_data') && (
+                      <Switch checked={autoBackupEnabled} onCheckedChange={handleAutoBackupToggle} />
+                    )}
+                  </div>
+
+                  <div className="p-4 border rounded-lg space-y-3">
+                    <Label className="text-base font-semibold">Retention Period</Label>
+                    <p className="text-sm text-muted-foreground">Number of days to keep backups</p>
+                    <div className="flex items-center gap-4">
+                      <Input type="number" min="1" max="365" value={backupRetentionDays}
+                        onChange={(e) => { const d = parseInt(e.target.value); if (d > 0 && d <= 365) setBackupRetentionDays(d); }}
+                        className="w-24" />
+                      <span className="text-sm text-muted-foreground">days</span>
+                      <Button size="sm" onClick={() => handleRetentionChange(backupRetentionDays)} disabled={isLoading || !hasPermission('restore_data')}>Apply</Button>
+                    </div>
+                  </div>
+
+                  <div className="p-4 border rounded-lg space-y-3">
+                    <Label className="text-base font-semibold">NAS Backup Path</Label>
+                    <p className="text-sm text-muted-foreground">{backupSchedulerStatus?.nasBackupPath || '\\\\MYCLOUDEX2ULTRA\\Operations\\Inventory System\\Backups'}</p>
+                    <Button variant="outline" size="sm" onClick={handleCheckNAS} disabled={isLoading}>Check NAS Accessibility</Button>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <Button variant="outline" onClick={async () => { if (window.backupScheduler) { const b = await window.backupScheduler.listBackups(); setBackupsList(b); toast({ title: "Backups List Refreshed" }); } }} className="gap-2">
+                    <ActivityIcon className="h-4 w-4" />
+                    Refresh List
+                  </Button>
+                </div>
+
+                {backupsList && (
+                  <div className="space-y-4 border-t pt-4">
+                    <h3 className="text-lg font-semibold">Recent NAS Backups</h3>
+                    {nasAccessible && (
+                      <div className="space-y-4">
+                        <div className="border rounded-md">
+                          <button onClick={() => setIsNasJsonOpen(!isNasJsonOpen)} className="flex items-center justify-between w-full p-3 hover:bg-muted/50 transition-colors">
+                            <div className="flex items-center gap-2">
+                              {isNasJsonOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              <h4 className="font-semibold text-sm">NAS JSON Backups</h4>
+                            </div>
+                            <span className="text-xs text-muted-foreground mr-2">{backupsList.nas?.json?.length || 0} files</span>
+                          </button>
+                          {isNasJsonOpen && (
+                            <div className="px-3 pb-3">
+                              {backupsList.nas?.json?.length > 0 ? (
+                                <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                                  {backupsList.nas.json.map((backup) => (
+                                    <div key={backup.path} className="flex items-center justify-between p-2 rounded-lg border bg-green-50/50 dark:bg-green-950/20">
+                                      <div className="flex-1">
+                                        <div className="font-medium text-sm flex items-center gap-2"><FileText className="h-3 w-3 text-green-600" />{backup.name}</div>
+                                        <div className="text-xs text-muted-foreground ml-5">{new Date(backup.created).toLocaleString()} • {(backup.size / 1024 / 1024).toFixed(2)} MB • {backup.age} days old</div>
+                                      </div>
+                                      {hasPermission('restore_data') && (
+                                        <Button variant="ghost" size="sm" className="ml-2 h-8 w-8 p-0" onClick={() => handleRestoreFromNAS(backup.path)} disabled={isLoading} title="Restore from this backup">
+                                          <UploadCloud className="h-4 w-4 text-green-700 dark:text-green-400" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : <p className="text-sm text-muted-foreground py-2 italic ml-5">No NAS JSON backups found</p>}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="border rounded-md">
+                          <button onClick={() => setIsNasDbOpen(!isNasDbOpen)} className="flex items-center justify-between w-full p-3 hover:bg-muted/50 transition-colors">
+                            <div className="flex items-center gap-2">
+                              {isNasDbOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              <h4 className="font-semibold text-sm">NAS Database Backups</h4>
+                            </div>
+                            <span className="text-xs text-muted-foreground mr-2">{backupsList.nas?.database?.length || 0} files</span>
+                          </button>
+                          {isNasDbOpen && (
+                            <div className="px-3 pb-3">
+                              {backupsList.nas?.database?.length > 0 ? (
+                                <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                                  {backupsList.nas.database.map((backup) => (
+                                    <div key={backup.path} className="flex items-center justify-between p-2 rounded-lg border bg-blue-50/50 dark:bg-blue-950/20">
+                                      <div className="flex-1">
+                                        <div className="font-medium text-sm flex items-center gap-2"><Database className="h-3 w-3 text-blue-600" />{backup.name}</div>
+                                        <div className="text-xs text-muted-foreground ml-5">{new Date(backup.created).toLocaleString()} • {(backup.size / 1024 / 1024).toFixed(2)} MB • {backup.age} days old</div>
+                                      </div>
+                                      {hasPermission('restore_data') && (
+                                        <Button variant="ghost" size="sm" className="ml-2 h-8 w-8 p-0" onClick={() => handleRestoreFromNAS(backup.path)} disabled={isLoading} title="Restore from this backup">
+                                          <UploadCloud className="h-4 w-4 text-blue-700 dark:text-blue-400" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : <p className="text-sm text-muted-foreground py-2 italic ml-5">No NAS database backups found</p>}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
+
+      {/* Backup Dialog */}
+      <Dialog open={isBackupDialogOpen} onOpenChange={setIsBackupDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Download className="h-5 w-5 text-primary" />Create Backup</DialogTitle>
+            <DialogDescription>Select which data sections to include in the backup file.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2 max-h-72 overflow-y-auto">
+            <div className="flex items-center justify-between mb-2">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Data Sections</Label>
+              <button className="text-xs text-primary underline" onClick={() => setSelectedBackupItems(new Set(backupOptions.map(o => o.id)))}>Select All</button>
+            </div>
+            {backupOptions.map((option) => (
+              <div key={option.id} className="flex items-center space-x-2 p-2 rounded-lg hover:bg-muted/50">
+                <Checkbox
+                  id={`bk-${option.id}`}
+                  checked={selectedBackupItems.has(option.id)}
+                  onCheckedChange={(checked) => {
+                    const s = new Set(selectedBackupItems);
+                    checked ? s.add(option.id) : s.delete(option.id);
+                    setSelectedBackupItems(s);
+                  }}
+                />
+                <Label htmlFor={`bk-${option.id}`} className="cursor-pointer text-sm">{option.label}</Label>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsBackupDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleBackupConfirm} disabled={isLoading || selectedBackupItems.size === 0} className="gap-2">
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              Download Backup
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Restore Dialog */}
+      <Dialog open={isRestoreOpen} onOpenChange={(open) => {
+        setIsRestoreOpen(open);
+        if (!open) {
+          setLoadedBackupData(null); setAvailableSections([]); setRestoreSelectedSections(new Set());
+          setShowRestoreSectionSelector(false); setIsRestoreComplete(false);
+          setRestoreProgress({ phase: 'idle', total: 0, done: 0, message: '', errors: [] });
+          setRestoreFile(null);
+        }
+      }}>
+        <DialogContent className="max-w-2xl">
+          {!showRestoreSectionSelector && !isRestoringLive && !isRestoreComplete && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2"><UploadCloud className="h-5 w-5 text-amber-500" />Restore Data from Backup</DialogTitle>
+                <DialogDescription>Select a JSON backup file to restore your data.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <label htmlFor="restore-file-input"
+                  className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-xl p-10 text-center cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors">
+                  <UploadCloud className="h-10 w-10 text-muted-foreground mb-3" />
+                  <p className="text-sm font-medium">{restoreFile ? restoreFile.name : 'Click to browse or drag & drop'}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Supports .json backup files</p>
+                  <input id="restore-file-input" type="file" accept=".json,.db,.sqlite" onChange={handleFileSelect} className="hidden" />
+                </label>
+                {error && <p className="text-sm text-destructive">{error}</p>}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsRestoreOpen(false)}>Cancel</Button>
+              </DialogFooter>
+            </>
+          )}
+
+          {showRestoreSectionSelector && !isRestoringLive && !isRestoreComplete && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Select Sections to Restore</DialogTitle>
+                <DialogDescription>Choose which data sections to restore from the backup ({availableSections.length} available).</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2 max-h-72 overflow-y-auto py-2">
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Available Sections</Label>
+                  <button className="text-xs text-primary underline" onClick={() => setRestoreSelectedSections(new Set(availableSections))}>Select All</button>
+                </div>
+                {availableSections.map((section) => (
+                  <div key={section} className="flex items-center space-x-3 p-2 rounded-lg hover:bg-accent">
+                    <Checkbox
+                      id={`rs-${section}`}
+                      checked={restoreSelectedSections.has(section)}
+                      onCheckedChange={(checked) => {
+                        const s = new Set(restoreSelectedSections);
+                        checked ? s.add(section) : s.delete(section);
+                        setRestoreSelectedSections(s);
+                      }}
+                      disabled={isLoading}
+                    />
+                    <Label htmlFor={`rs-${section}`} className="flex-1 cursor-pointer">
+                      {section.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setShowRestoreSectionSelector(false); setRestoreFile(null); setLoadedBackupData(null); }} disabled={isLoading}>Back</Button>
+                <Button onClick={handleRestore} disabled={restoreSelectedSections.size === 0 || isLoading} className="gap-2">
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
+                  Start Restore
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+
+          {(isRestoringLive || isRestoreComplete) && (
+            <>
+              <DialogHeader>
+                <DialogTitle>{isRestoreComplete ? 'Restore Completed' : 'Restoring Data...'}</DialogTitle>
+                <DialogDescription>{restoreProgress.phase}</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="font-medium">{restoreProgress.message}</span>
+                    <span className="text-muted-foreground">{restoreProgress.done}/{restoreProgress.total}</span>
+                  </div>
+                  <div className="w-full bg-secondary rounded-full h-2">
+                    <div className={`h-2 rounded-full transition-all duration-300 ${isRestoreComplete ? 'bg-green-500' : 'bg-blue-500'}`}
+                      style={{ width: `${restoreProgress.total > 0 ? (restoreProgress.done / restoreProgress.total) * 100 : isRestoreComplete ? 100 : 30}%` }} />
+                  </div>
+                </div>
+                {restoreProgress.errors?.length > 0 && (
+                  <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 max-h-40 overflow-y-auto">
+                    <h3 className="font-semibold text-sm mb-2 text-destructive">Errors ({restoreProgress.errors.length})</h3>
+                    <ul className="space-y-1">
+                      {restoreProgress.errors.map((err, idx) => (
+                        <li key={idx} className="text-xs text-destructive/80"><span className="font-medium">{err.section}:</span> {err.message || err.error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {isRestoreComplete && (
+                  <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-3">
+                    <p className="text-sm text-green-800 dark:text-green-300">Restore completed successfully!</p>
+                  </div>
+                )}
+              </div>
+              {isRestoreComplete && (
+                <DialogFooter>
+                  <Button onClick={() => {
+                    setIsRestoreOpen(false); setLoadedBackupData(null); setAvailableSections([]);
+                    setRestoreSelectedSections(new Set()); setShowRestoreSectionSelector(false);
+                    setIsRestoreComplete(false); setRestoreProgress({ phase: 'idle', total: 0, done: 0, message: '', errors: [] });
+                    setRestoreFile(null);
+                  }}>Close</Button>
+                </DialogFooter>
+              )}
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Activity Log Dialog */}
+      <Dialog open={showActivityLog} onOpenChange={setShowActivityLog}>
+        <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Activity Log</DialogTitle>
+            <DialogDescription>View all system activities and user actions. {activities.length} total activities.</DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden">
+            <div className="flex justify-between items-center mb-4">
+              <Button variant="outline" onClick={handleBackupActivities} size="sm">
+                <Download className="h-3 w-3 mr-1" />Export TXT
+              </Button>
+              <AlertDialog open={isClearConfirmOpen} onOpenChange={setIsClearConfirmOpen}>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="sm" disabled={!isAdmin}><Trash2 className="h-3 w-3 mr-1" />Clear Log</Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Clear Activity Log</AlertDialogTitle>
+                    <AlertDialogDescription>This will permanently delete all activity logs. This action cannot be undone.</AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleClearActivities} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Clear Log</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+            {activities.length === 0 ? (
+              <div className="flex items-center justify-center h-48 text-muted-foreground">No activities recorded yet.</div>
+            ) : (
+              <div className="overflow-auto max-h-[calc(80vh-200px)]">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Timestamp</TableHead>
+                      <TableHead>User</TableHead>
+                      <TableHead>Action</TableHead>
+                      <TableHead>Entity</TableHead>
+                      <TableHead>Entity ID</TableHead>
+                      <TableHead>Details</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {[...activities].reverse().map((activity, idx) => (
+                      <TableRow key={activity.id || idx}>
+                        <TableCell className="font-mono text-xs">{new Date(activity.timestamp).toLocaleString()}</TableCell>
+                        <TableCell>{activity.userName}</TableCell>
+                        <TableCell className="capitalize">{activity.action}</TableCell>
+                        <TableCell className="capitalize">{activity.entity}</TableCell>
+                        <TableCell>{activity.entityId || '-'}</TableCell>
+                        <TableCell className="max-w-xs truncate">{activity.details}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* App Updates Tab */}
       {activeSettingsTab === 'updates' && (

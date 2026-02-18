@@ -23,7 +23,7 @@ export const SyncStatusBanner = () => {
   useEffect(() => {
     // Check if running in Electron
     const checkElectron = async () => {
-      if (window.electronAPI?.getSyncStatus) {
+      if ((window as any).electronAPI?.getSyncStatus) {
         setIsElectron(true);
         loadSyncStatus();
       }
@@ -33,8 +33,8 @@ export const SyncStatusBanner = () => {
 
   const loadSyncStatus = async () => {
     try {
-      if (!window.electronAPI?.getSyncStatus) return;
-      const status = await window.electronAPI.getSyncStatus();
+      if (!(window as any).electronAPI?.getSyncStatus) return;
+      const status = await (window as any).electronAPI.getSyncStatus();
       setSyncStatus(status);
     } catch (error) {
       console.error("Error loading sync status:", error);
@@ -42,11 +42,11 @@ export const SyncStatusBanner = () => {
   };
 
   const handleManualSync = async () => {
-    if (!window.electronAPI?.manualSync) return;
+    if (!(window as any).electronAPI?.manualSync) return;
     
     setIsSyncing(true);
     try {
-      const result = await window.electronAPI.manualSync();
+      const result = await (window as any).electronAPI.manualSync();
       
       if (result.success) {
         toast.success("Database synced successfully", {

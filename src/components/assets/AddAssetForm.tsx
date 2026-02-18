@@ -16,23 +16,17 @@ interface AddAssetFormProps {
   onCancel?: () => void;
   sites?: Site[];
   existingAssets?: Asset[];
-  initialData?: {
-    name?: string;
-    quantity?: number;
-    category?: string;
-    type?: string;
-    unit?: string;
-  };
+
 }
 
-export const AddAssetForm = ({ onAddAsset, asset, onSave, onCancel, sites, existingAssets = [], initialData }: AddAssetFormProps) => {
+export const AddAssetForm = ({ onAddAsset, asset, onSave, onCancel, sites, existingAssets = [] }: AddAssetFormProps) => {
   const [formData, setFormData] = useState({
-    name: initialData?.name || asset?.name || '',
+    name: asset?.name || '',
     description: asset?.description || '',
-    quantity: initialData?.quantity || asset?.quantity || 0,
-    unitOfMeasurement: initialData?.unit || asset?.unitOfMeasurement || 'pcs',
-    category: (initialData?.category as 'dewatering' | 'waterproofing' | 'tiling' | 'ppe' | 'office') || asset?.category || 'dewatering' as 'dewatering' | 'waterproofing' | 'tiling' | 'ppe' | 'office',
-    type: (initialData?.type as 'consumable' | 'non-consumable' | 'tools' | 'equipment') || asset?.type || 'equipment' as 'consumable' | 'non-consumable' | 'tools' | 'equipment',
+    quantity: asset?.quantity || 0,
+    unitOfMeasurement: asset?.unitOfMeasurement || 'pcs',
+    category: asset?.category || 'dewatering' as 'dewatering' | 'waterproofing' | 'tiling' | 'ppe' | 'office',
+    type: asset?.type || 'equipment' as 'consumable' | 'non-consumable' | 'tools' | 'equipment',
     location: asset?.location || '',
     lowStockLevel: asset?.lowStockLevel || 10,
     criticalStockLevel: asset?.criticalStockLevel || 5,

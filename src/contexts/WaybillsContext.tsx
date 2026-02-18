@@ -3,6 +3,7 @@ import { Waybill } from '@/types/asset';
 import { useToast } from '@/hooks/use-toast';
 import { logger } from '@/lib/logger';
 import { dataService } from '@/services/dataService';
+import { performanceMonitor } from '@/utils/performanceMonitor';
 
 interface WaybillsContextType {
   waybills: Waybill[];
@@ -11,6 +12,7 @@ interface WaybillsContextType {
   deleteWaybill: (id: string) => Promise<void>;
   getWaybillById: (id: string) => Waybill | undefined;
   refreshWaybills: () => Promise<void>;
+  isLoading: boolean;
 }
 
 const WaybillsContext = createContext<WaybillsContextType | undefined>(undefined);
@@ -29,8 +31,10 @@ export const WaybillsProvider: React.FC<{ children: React.ReactNode; currentUser
 }) => {
   const { toast } = useToast();
   const [waybills, setWaybills] = useState<Waybill[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const loadWaybills = useCallback(async () => {
+    performanceMonitor.start('load-waybills');
     try {
       const loadedWaybills = await dataService.waybills.getWaybills();
       setWaybills(loadedWaybills.map((item: any) => ({
@@ -41,8 +45,12 @@ export const WaybillsProvider: React.FC<{ children: React.ReactNode; currentUser
         createdAt: new Date(item.createdAt || item.created_at),
         updatedAt: new Date(item.updatedAt || item.updated_at)
       })));
+      performanceMonitor.end('load-waybills', { count: loadedWaybills.length });
     } catch (error) {
+      performanceMonitor.end('load-waybills', { error: true });
       logger.error('Failed to load waybills from database', error);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
@@ -159,7 +167,8 @@ export const WaybillsProvider: React.FC<{ children: React.ReactNode; currentUser
       updateWaybill,
       deleteWaybill,
       getWaybillById,
-      refreshWaybills
+      refreshWaybills,
+      isLoading
     }}>
       {children}
     </WaybillsContext.Provider>

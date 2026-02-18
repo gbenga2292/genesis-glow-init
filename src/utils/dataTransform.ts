@@ -230,6 +230,8 @@ export function transformWaybillFromDB(dbWaybill: any): any {
     siteId: (dbWaybill.site_id || dbWaybill.siteId) ? String(dbWaybill.site_id || dbWaybill.siteId) : undefined,
     returnToSiteId: (dbWaybill.return_to_site_id || dbWaybill.returnToSiteId) ? String(dbWaybill.return_to_site_id || dbWaybill.returnToSiteId) : undefined,
     createdBy: dbWaybill.created_by || dbWaybill.createdBy,
+    signatureUrl: dbWaybill.signature_url || dbWaybill.signatureUrl,
+    signatureName: dbWaybill.signature_name || dbWaybill.signatureName,
   };
 }
 
@@ -254,6 +256,8 @@ export function transformWaybillToDB(waybill: any): any {
     created_at: waybill.createdAt,
     updated_at: waybill.updatedAt,
     created_by: waybill.createdBy,
+    signature_url: waybill.signatureUrl,
+    signature_name: waybill.signatureName,
   };
 }
 

@@ -3,6 +3,7 @@ import { Asset } from '@/types/asset';
 import { useToast } from '@/hooks/use-toast';
 import { logger } from '@/lib/logger';
 import { dataService } from '@/services/dataService';
+import { performanceMonitor } from '@/utils/performanceMonitor';
 
 interface AssetsContextType {
   assets: Asset[];
@@ -11,6 +12,7 @@ interface AssetsContextType {
   deleteAsset: (id: string) => Promise<void>;
   getAssetById: (id: string) => Asset | undefined;
   refreshAssets: () => Promise<void>;
+  isLoading: boolean;
 }
 
 const AssetsContext = createContext<AssetsContextType | undefined>(undefined);
@@ -26,8 +28,10 @@ export const useAssets = () => {
 export const AssetsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { toast } = useToast();
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const loadAssets = useCallback(async () => {
+    performanceMonitor.start('load-assets');
     try {
       const loadedAssets = await dataService.assets.getAssets();
       setAssets(loadedAssets.map((item: any) => ({
@@ -35,8 +39,12 @@ export const AssetsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         createdAt: new Date(item.createdAt || item.created_at),
         updatedAt: new Date(item.updatedAt || item.updated_at)
       })));
+      performanceMonitor.end('load-assets', { count: loadedAssets.length });
     } catch (error) {
+      performanceMonitor.end('load-assets', { error: true });
       logger.error('Failed to load assets from database', error);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
@@ -157,7 +165,8 @@ export const AssetsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       updateAsset,
       deleteAsset,
       getAssetById,
-      refreshAssets
+      refreshAssets,
+      isLoading
     }}>
       {children}
     </AssetsContext.Provider>

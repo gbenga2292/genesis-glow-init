@@ -71,38 +71,6 @@ export const generateUnifiedReport = async (config: ReportConfig): Promise<void>
   // Create new PDF document with specified orientation
   const doc = new jsPDF(orientation);
 
-  // Add company logo if available
-  if (companySettings.logo) {
-    try {
-      const img = await loadImage(companySettings.logo);
-
-      // Calculate aspect ratio to fit within 30x20 box
-      const maxW = 30;
-      const maxH = 20;
-      const aspect = img.width / img.height;
-
-      let finalW = maxW;
-      let finalH = maxW / aspect;
-
-      if (finalH > maxH) {
-        finalH = maxH;
-        finalW = maxH * aspect;
-      }
-
-      // Determine format from data URI if possible, otherwise let jsPDF auto-detect
-      let format: string | undefined = undefined;
-      if (companySettings.logo.startsWith('data:image/png')) format = 'PNG';
-      else if (companySettings.logo.startsWith('data:image/jpeg')) format = 'JPEG';
-      else if (companySettings.logo.startsWith('data:image/jpg')) format = 'JPEG';
-      // If it's a URL or other format, leaving it undefined often works best for auto-detection
-      // or we can default to 'JPEG' if undefined, but 'PNG' is safer for transparency.
-
-      doc.addImage(companySettings.logo, format as any, 20, 10, finalW, finalH);
-    } catch (error) {
-      logger.warn('Could not add logo to PDF', { context: 'UnifiedReportGenerator', data: { error } });
-    }
-  }
-
   /* 
     Brand Standard: 
     - Font: Helvetica (Standard Professional)
@@ -115,13 +83,75 @@ export const generateUnifiedReport = async (config: ReportConfig): Promise<void>
   doc.setFontSize(22);
   doc.setFont('helvetica', 'bold');
 
-  const companyName = companySettings.companyName || 'Asset Management System';
+  const defaultCompanyName = "Dewatering Construction Etc Limited";
+  const companyName = companySettings.companyName || defaultCompanyName;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 20;
+
+  // Measure all text widths to ensure correct logo positioning (avoid overlap)
+  doc.setFontSize(22);
+  doc.setFont('helvetica', 'bold');
   const companyNameWidth = doc.getTextWidth(companyName);
-  // If logo exists, align to right of logo (60), else left align (20)
-  const nameX = companySettings.logo ? 60 : 20;
 
-  doc.text(companyName, nameX, 15);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
 
+  const addressStr = companySettings.address || "";
+  const phoneStr = companySettings.phone ? `Phone: ${companySettings.phone}` : "";
+  const emailStr = companySettings.email ? `Email: ${companySettings.email}` : "";
+
+  const addressWidth = doc.getTextWidth(addressStr);
+  const phoneWidth = doc.getTextWidth(phoneStr);
+  const emailWidth = doc.getTextWidth(emailStr);
+
+  const maxTextWidth = Math.max(companyNameWidth, addressWidth, phoneWidth, emailWidth);
+
+  // Add company logo if available or use default
+  const logoUrl = companySettings.logo || '/logo.png';
+
+  if (logoUrl) {
+    try {
+      const img = await loadImage(logoUrl);
+
+      // Calculate aspect ratio to fit within 60x40 box (2x larger)
+      const maxW = 60;
+      const maxH = 40;
+      const aspect = img.width / img.height;
+
+      let finalW = maxW;
+      let finalH = maxW / aspect;
+
+      if (finalH > maxH) {
+        finalH = maxH;
+        finalW = maxH * aspect;
+      }
+
+      // Determine format from data URI or file extension
+      let format: string | undefined = undefined;
+      if (logoUrl.startsWith('data:image/png')) format = 'PNG';
+      else if (logoUrl.startsWith('data:image/jpeg')) format = 'JPEG';
+      else if (logoUrl.startsWith('data:image/jpg')) format = 'JPEG';
+      else if (logoUrl.toLowerCase().endsWith('.png')) format = 'PNG';
+      else if (logoUrl.toLowerCase().endsWith('.jpg') || logoUrl.toLowerCase().endsWith('.jpeg')) format = 'JPEG';
+
+      // Position logo to the left of the MAXIMUM text width with padding
+      const logoPadding = 15;
+      const logoX = pageWidth - margin - maxTextWidth - finalW - logoPadding;
+
+      doc.addImage(logoUrl, format as any, logoX, 5, finalW, finalH);
+    } catch (error) {
+      logger.warn('Could not add logo to PDF', { context: 'UnifiedReportGenerator', data: { error } });
+    }
+  }
+
+  // Draw Text Information
+
+  // 1. Company Name
+  doc.setFontSize(22);
+  doc.setFont('helvetica', 'bold');
+  doc.text(companyName, pageWidth - margin, 15, { align: 'right' });
+
+  // 2. Contact Details
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(50, 50, 50); // Dark grey for contact info
@@ -129,29 +159,28 @@ export const generateUnifiedReport = async (config: ReportConfig): Promise<void>
   let headerY = 22;
   const lineHeight = 5;
 
-  if (companySettings.address) {
-    doc.text(companySettings.address, nameX, headerY);
+  if (addressStr) {
+    doc.text(addressStr, pageWidth - margin, headerY, { align: 'right' });
     headerY += lineHeight;
   }
-  if (companySettings.phone) {
-    doc.text(`Phone: ${companySettings.phone}`, nameX, headerY);
+  if (phoneStr) {
+    doc.text(phoneStr, pageWidth - margin, headerY, { align: 'right' });
     headerY += lineHeight;
   }
-  if (companySettings.email) {
-    doc.text(`Email: ${companySettings.email}`, nameX, headerY);
+  if (emailStr) {
+    doc.text(emailStr, pageWidth - margin, headerY, { align: 'right' });
   }
 
   // Draw a professional separator line
-  const pageWidth = doc.internal.pageSize.getWidth();
   doc.setDrawColor(200, 200, 200);
   doc.setLineWidth(0.5);
-  doc.line(20, 42, pageWidth - 20, 42);
+  doc.line(20, 55, pageWidth - 20, 55);
 
   // Add report title and metadata - Compact Layout
   doc.setFontSize(18);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(0, 0, 0); // Black for title
-  doc.text(title, 20, 52);
+  doc.text(title, 20, 65);
 
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
@@ -159,21 +188,21 @@ export const generateUnifiedReport = async (config: ReportConfig): Promise<void>
 
   // Combine Generated on and Report Type
   const dateStr = `Generated on: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`;
-  doc.text(dateStr, 20, 58);
+  doc.text(dateStr, 20, 71);
 
   if (reportType) {
-    doc.text(`Report Type: ${reportType.toUpperCase()}`, 20, 63);
+    doc.text(`Report Type: ${reportType.toUpperCase()}`, 20, 76);
   }
 
   // Subtitle (if any)
-  let tableStartY = 75;
+  let tableStartY = 88;
   if (subtitle) {
     doc.setFontSize(11);
     doc.setFont('helvetica', 'italic');
     doc.setTextColor(0, 0, 0);
-    doc.text(subtitle, 20, 70);
+    doc.text(subtitle, 20, 83);
   } else {
-    tableStartY = 68;
+    tableStartY = 83;
   }
 
   doc.setTextColor(0, 0, 0); // Ensure black for table content

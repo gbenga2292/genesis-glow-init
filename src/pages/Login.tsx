@@ -1,64 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { logger } from '@/lib/logger';
 import { useAuth } from '@/contexts/AuthContext';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 
 const Login = () => {
-  const { isAuthenticated, login, getUsers } = useAuth();
+  const { isAuthenticated, login, verifyMFALogin } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [tempUserId, setTempUserId] = useState('');
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'error' | 'success'>('error');
-  const [users, setUsers] = useState<Array<{ id: string; username: string; name: string }>>([]);
-  const [selectedUserId, setSelectedUserId] = useState('');
-  const [showManualEntry, setShowManualEntry] = useState(false);
-
-  // Load users on component mount
-  useEffect(() => {
-    const loadUsers = async () => {
-      try {
-        const userList = await getUsers();
-        const loadedUsers = userList.map(user => ({ id: user.id, username: user.username, name: user.name }));
-        
-        // If no users found, add the default admin user as an option
-        if (loadedUsers.length === 0) {
-          setUsers([
-            { id: 'admin', username: 'admin', name: 'Administrator (Default)' }
-          ]);
-        } else {
-          setUsers(loadedUsers);
-        }
-      } catch (error) {
-        logger.error('Failed to load users', error);
-        // Fallback to default admin user
-        setUsers([
-          { id: 'admin', username: 'admin', name: 'Administrator (Default)' }
-        ]);
-      }
-    };
-    loadUsers();
-  }, [getUsers]);
-
-  // Update username when user is selected
-  useEffect(() => {
-    if (selectedUserId === 'manual-entry') {
-      setShowManualEntry(true);
-      setUsername('');
-    } else if (selectedUserId) {
-      setShowManualEntry(false);
-      const selectedUser = users.find(user => user.id === selectedUserId);
-      if (selectedUser) {
-        setUsername(selectedUser.username);
-      }
-    }
-  }, [selectedUserId, users]);
+  const [isLoading, setIsLoading] = useState(false);
 
   if (isAuthenticated) {
     return <Navigate to="/" replace />;
@@ -67,12 +27,35 @@ const Login = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage('');
+    setIsLoading(true);
 
     const result = await login(username, password);
-    if (!result.success) {
+    if (result.success) {
+      // Redirect handled by useEffect
+    } else if (result.mfaRequired && result.userId) {
+      setMfaRequired(true);
+      setTempUserId(result.userId);
+      setMessageType('success');
+      setMessage('Please enter your MFA code');
+    } else {
       setMessageType('error');
       setMessage(result.message || 'Invalid credentials');
     }
+    setIsLoading(false);
+  };
+
+  const handleMFAVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMessage('');
+    setIsLoading(true);
+
+    const result = await verifyMFALogin(tempUserId, mfaCode);
+    if (!result.success) {
+      setMessageType('error');
+      setMessage(result.message || 'Invalid code');
+      setIsLoading(false);
+    }
+    // Success will trigger redirect via isAuthenticated
   };
 
   return (
@@ -87,75 +70,69 @@ const Login = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="user-select">Select User</Label>
-              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a user or enter credentials" />
-                </SelectTrigger>
-                <SelectContent>
-                  {users.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.name}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value="manual-entry">
-                    ✏️ Enter Credentials
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              {username && !showManualEntry && (
-                <div className="text-sm text-muted-foreground mt-1">
-                  Username: {username}
+          <form onSubmit={mfaRequired ? handleMFAVerify : handleSubmit} className="space-y-4">
+            {!mfaRequired ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="username">Email or Username</Label>
+                  <Input
+                    id="username"
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Enter your email"
+                    required
+                    autoFocus
+                  />
                 </div>
-              )}
-            </div>
-            
-            {showManualEntry && (
+
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    required
+                  />
+                  <div className="text-right">
+                    <Link to="/forgot-password" className="text-xs text-primary hover:underline">
+                      Forgot password?
+                    </Link>
+                  </div>
+                </div>
+              </>
+            ) : (
               <div className="space-y-2">
-                <Label htmlFor="manual-username">Username</Label>
+                <Label htmlFor="mfa-code">Authentication Code</Label>
                 <Input
-                  id="manual-username"
+                  id="mfa-code"
                   type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Enter username"
+                  value={mfaCode}
+                  onChange={(e) => setMfaCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
+                  placeholder="000000"
+                  className="text-center text-2xl tracking-widest"
+                  maxLength={6}
                   required
+                  autoFocus
                 />
+                <p className="text-xs text-muted-foreground text-center">
+                  Enter the 6-digit code from your authenticator app.
+                </p>
               </div>
             )}
-            
-            <div className="space-y-2">
-              <Label htmlFor="password" className={(showManualEntry && !username) || !selectedUserId ? "opacity-50" : ""}>
-                Password
-              </Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={
-                  (showManualEntry && !username) || !selectedUserId
-                    ? "Select user or enter username first"
-                    : "Enter password"
-                }
-                required
-                autoFocus={!showManualEntry}
-                disabled={(showManualEntry && !username) || !selectedUserId}
-                className={(showManualEntry && !username) || !selectedUserId ? "opacity-50 cursor-not-allowed" : ""}
-              />
-            </div>
-            
+
             {message && (
               <Alert variant={messageType === 'error' ? 'destructive' : 'default'}>
                 <AlertDescription>{message}</AlertDescription>
               </Alert>
             )}
-            
-            <Button type="submit" className="w-full">
-              Login
+
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? 'Verifying...' : (mfaRequired ? 'Verify Code' : 'Login')}
             </Button>
+
           </form>
         </CardContent>
       </Card>

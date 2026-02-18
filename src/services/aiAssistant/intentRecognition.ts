@@ -1,3 +1,4 @@
+// @ts-ignore - compromise may not have type declarations
 import nlp from 'compromise';
 import { AIIntent, AIContext } from './types';
 import { matchesActionSynonym } from './synonyms';

@@ -6,16 +6,22 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   plugins: {
     SplashScreen: {
-      launchShowDuration: 2000,
-      launchAutoHide: true,
-      launchFadeOutDuration: 500,
-      backgroundColor: '#0f172a',
-      androidSplashResourceName: 'splash',
-      androidScaleType: 'CENTER_CROP',
-      showSpinner: false,
-      splashFullScreen: true,
-      splashImmersive: true
+      launchShowDuration: 0,
+      launchAutoHide: false,
+      launchFadeOutDuration: 0,
+      showSpinner: false
     }
+  },
+  // Exclude Electron and unnecessary files from Android sync
+  android: {
+    // Only copy essential web assets to Android
+    includePlugins: [
+      '@capacitor/app',
+      '@capacitor/filesystem',
+      '@capacitor/share',
+      '@capacitor/splash-screen',
+      '@capawesome/capacitor-live-update'
+    ]
   }
 };
 

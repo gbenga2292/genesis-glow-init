@@ -1,15 +1,19 @@
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useState, useEffect } from "react";
+
+import { useNavigate } from "react-router-dom";
+
+
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Asset, Site, Waybill, WaybillItem, CompanySettings, Employee, SiteTransaction, Vehicle } from "@/types/asset";
 import { EquipmentLog } from "@/types/equipment";
 import { SiteInventoryItem } from "@/types/inventory";
-import { MapPin, Plus, Edit, Trash2, MoreVertical, FileText, Package, Activity, Eye, ChevronDown } from "lucide-react";
+import { MapPin, Plus, Edit, Trash2, MoreVertical, FileText, Package, Activity, Eye, ChevronDown, Phone, User, Building2, Wrench, Calendar, Info, ArrowUpDown } from "lucide-react";
 import { WaybillDocument } from "../waybills/WaybillDocument";
 import { MobileActionMenu, ActionMenuItem } from "@/components/ui/mobile-action-menu";
 import { useAuth } from "@/contexts/AuthContext";
@@ -50,6 +54,10 @@ interface SitesPageProps {
     vehicle: string;
     purpose: string;
     expectedReturnDate?: Date;
+    service?: string;
+    signatureUrl?: string | null;
+    signatureName?: string;
+    signatureRole?: string;
   }) => void;
   onProcessReturn: (returnData: any) => void;
   onAddEquipmentLog: (log: EquipmentLog) => void;
@@ -57,7 +65,10 @@ interface SitesPageProps {
   onAddConsumableLog: (log: ConsumableUsageLog) => void;
   onUpdateConsumableLog: (log: ConsumableUsageLog) => void;
   onViewSiteInventory?: (site: Site) => void;
-  aiPrefillData?: any;
+  onViewAssetHistory?: (site: Site, asset: Asset) => void;
+  onViewAssetDetails?: (site: Site, asset: Asset) => void;
+  onViewAssetAnalytics?: (site: Site, asset: Asset) => void;
+
 }
 
 const defaultCompanySettings: CompanySettings = {
@@ -76,7 +87,359 @@ const defaultCompanySettings: CompanySettings = {
   },
 };
 
-export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transactions, equipmentLogs, consumableLogs, siteInventory, getSiteInventory, companySettings, onAddSite, onUpdateSite, onDeleteSite, onUpdateAsset, onCreateWaybill, onCreateReturnWaybill, onProcessReturn, onAddEquipmentLog, onUpdateEquipmentLog, onAddConsumableLog, onUpdateConsumableLog, onViewSiteInventory, aiPrefillData }: SitesPageProps) => {
+// ── SiteDetailsSheet sub-component ─────────────────────────────────────────
+const SERVICE_LABELS: Record<string, string> = {
+  dewatering: 'Dewatering',
+  waterproofing: 'Waterproofing',
+  tiling: 'Tiling',
+  sales: 'Sales',
+  repairs: 'Repairs',
+  maintenance: 'Maintenance',
+};
+
+const DetailRow = ({ icon, label, value }: { icon: React.ReactNode; label: string; value?: string | null }) => {
+  if (!value) return null;
+  return (
+    <div className="flex items-start gap-3 py-3 border-b border-border/50 last:border-0">
+      <div className="h-7 w-7 rounded-lg bg-muted flex items-center justify-center shrink-0 mt-0.5">
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium mb-0.5">{label}</p>
+        <p className="text-sm text-foreground">{value}</p>
+      </div>
+    </div>
+  );
+};
+
+const SiteDetailsSheet = ({ site, open, onOpenChange, onEdit }: {
+  site: Site | null;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onEdit: () => void;
+}) => {
+  if (!site) return null;
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-full sm:max-w-md flex flex-col gap-0 p-0">
+        {/* Header */}
+        <SheetHeader className="px-5 pt-5 pb-4 border-b border-border/60">
+          <div className="flex items-center gap-3">
+            <div className={cn(
+              "h-10 w-10 rounded-xl flex items-center justify-center shrink-0",
+              site.status === 'active' ? 'bg-primary/10' : 'bg-muted'
+            )}>
+              <MapPin className={cn("h-5 w-5", site.status === 'active' ? 'text-primary' : 'text-muted-foreground')} />
+            </div>
+            <div className="min-w-0">
+              <SheetTitle className="text-base font-semibold truncate">{site.name}</SheetTitle>
+              {site.location && (
+                <p className="text-xs text-muted-foreground truncate">{site.location}</p>
+              )}
+            </div>
+            <Badge
+              variant={site.status === 'active' ? 'default' : 'secondary'}
+              className="ml-auto shrink-0 text-[10px] h-5"
+            >
+              {site.status}
+            </Badge>
+          </div>
+        </SheetHeader>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-5 py-2">
+          {/* Services */}
+          {site.service && site.service.length > 0 && (
+            <div className="py-3 border-b border-border/50">
+              <div className="flex items-start gap-3">
+                <div className="h-7 w-7 rounded-lg bg-muted flex items-center justify-center shrink-0 mt-0.5">
+                  <Wrench className="h-3.5 w-3.5 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium mb-1.5">Services</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {site.service.map(s => (
+                      <Badge key={s} variant="outline" className="text-xs">
+                        {SERVICE_LABELS[s] ?? s}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DetailRow icon={<Info className="h-3.5 w-3.5 text-muted-foreground" />} label="Description" value={site.description} />
+          <DetailRow icon={<Building2 className="h-3.5 w-3.5 text-muted-foreground" />} label="Client" value={site.clientName} />
+          <DetailRow icon={<User className="h-3.5 w-3.5 text-muted-foreground" />} label="Contact Person" value={site.contactPerson} />
+          <DetailRow icon={<Phone className="h-3.5 w-3.5 text-muted-foreground" />} label="Phone" value={site.phone} />
+          <DetailRow
+            icon={<Calendar className="h-3.5 w-3.5 text-muted-foreground" />}
+            label="Created"
+            value={site.createdAt ? new Date(site.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : undefined}
+          />
+          <DetailRow
+            icon={<Calendar className="h-3.5 w-3.5 text-muted-foreground" />}
+            label="Last Updated"
+            value={site.updatedAt ? new Date(site.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : undefined}
+          />
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-4 border-t border-border/60">
+          <Button className="w-full" variant="outline" onClick={onEdit}>
+            <Edit className="h-4 w-4 mr-2" />
+            Edit Site
+          </Button>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+};
+
+// ── SiteItemsDialog sub-component ──────────────────────────────────────────
+interface SiteItemsDialogProps {
+  selectedSite: Site;
+  assets: Asset[];
+  waybills: Waybill[];
+  equipmentLogs: EquipmentLog[];
+  consumableLogs: ConsumableUsageLog[];
+  employees: Employee[];
+  companySettings?: CompanySettings;
+  getSiteInventory: (siteId: string) => SiteInventoryItem[];
+  onClose: () => void;
+  onCreateReturnWaybill: () => void;
+  onShowTransactions: () => void;
+  onGenerateReport: () => void;
+  onViewWaybill: (waybill: Waybill) => void;
+  onAddEquipmentLog: (log: EquipmentLog) => void;
+  onUpdateEquipmentLog: (log: EquipmentLog) => void;
+  onAddConsumableLog: (log: ConsumableUsageLog) => void;
+  onUpdateConsumableLog: (log: ConsumableUsageLog) => void;
+  onViewAssetHistory: (asset: Asset) => void;
+  onViewAssetDetails?: (asset: Asset) => void;
+  onViewAssetAnalytics?: (asset: Asset) => void;
+}
+
+const SiteItemsDialog: React.FC<SiteItemsDialogProps> = ({
+  selectedSite, assets, waybills, equipmentLogs, consumableLogs, employees,
+  companySettings, getSiteInventory, onClose, onCreateReturnWaybill,
+  onShowTransactions, onGenerateReport, onViewWaybill,
+  onAddEquipmentLog, onUpdateEquipmentLog, onAddConsumableLog, onUpdateConsumableLog,
+  onViewAssetHistory, onViewAssetDetails, onViewAssetAnalytics
+}) => {
+  const [activeTab, setActiveTab] = useState<'materials' | 'machines' | 'consumables' | 'waybills'>('materials');
+  const materialsAtSite = getSiteInventory(selectedSite.id);
+  const siteWaybills = waybills.filter(w => String(w.siteId) === String(selectedSite.id));
+
+  const tabs = [
+    { id: 'materials' as const, label: 'Materials', count: materialsAtSite.length },
+    { id: 'machines' as const, label: 'Machines', count: null },
+    { id: 'consumables' as const, label: 'Consumables', count: null },
+    { id: 'waybills' as const, label: 'Waybills', count: siteWaybills.length },
+  ];
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent onClose={onClose} className="max-w-3xl max-h-[88vh] p-0 gap-0 flex flex-col overflow-hidden">
+
+        {/* Sticky header */}
+        <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b bg-card shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <MapPin className="h-4 w-4 text-primary" />
+            </div>
+            <div className="min-w-0">
+              <DialogTitle className="text-sm font-semibold leading-tight truncate">
+                {selectedSite.name}
+              </DialogTitle>
+              {selectedSite.location && (
+                <p className="text-xs text-muted-foreground truncate">{selectedSite.location}</p>
+              )}
+            </div>
+            <Badge variant={selectedSite.status === 'active' ? 'default' : 'secondary'} className="text-[10px] h-4 px-1.5 shrink-0">
+              {selectedSite.status}
+            </Badge>
+          </div>
+          {/* Quick actions */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="sm" className="h-7 text-xs px-2.5" onClick={onCreateReturnWaybill}>
+                    <FileText className="h-3.5 w-3.5 mr-1" />Return
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p>Create Return Waybill</p></TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="sm" variant="outline" className="h-7 text-xs px-2.5" onClick={onShowTransactions}>
+                    <Activity className="h-3.5 w-3.5 mr-1" />Transactions
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p>View Transactions</p></TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="sm" variant="outline" className="h-7 w-7 p-0" onClick={onGenerateReport}>
+                    <FileText className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p>Generate Report</p></TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        </div>
+
+        {/* Tab strip */}
+        <div className="flex border-b bg-card shrink-0 px-5 gap-0">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors",
+                activeTab === tab.id
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {tab.label}
+              {tab.count !== null && (
+                <span className={cn(
+                  "rounded-full px-1.5 text-[10px] font-semibold",
+                  activeTab === tab.id ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
+                )}>
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab content */}
+        <div className="flex-1 overflow-y-auto px-5 py-3">
+
+          {/* Materials */}
+          {activeTab === 'materials' && (
+            <div>
+              {materialsAtSite.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <Package className="h-8 w-8 text-muted-foreground/40 mb-2" />
+                  <p className="text-sm text-muted-foreground">No materials currently at this site.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-border/50">
+                  {materialsAtSite.map((item) => (
+                    <div key={item.assetId} className="flex items-center justify-between py-2.5 gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="h-6 w-6 rounded bg-muted flex items-center justify-center shrink-0">
+                          <Package className="h-3 w-3 text-muted-foreground" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{item.itemName}</p>
+                          {item.itemType && <p className="text-xs text-muted-foreground">{item.itemType}</p>}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className={cn("text-sm font-semibold", item.quantity === 0 ? 'text-destructive' : 'text-foreground')}>
+                          {item.quantity} <span className="text-xs font-normal text-muted-foreground">{item.unit}</span>
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">{new Date(item.lastUpdated).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Machines */}
+          {activeTab === 'machines' && (
+            <MachinesSection
+              site={selectedSite}
+              assets={assets}
+              equipmentLogs={equipmentLogs}
+              employees={employees}
+              waybills={waybills}
+              companySettings={companySettings}
+              onAddEquipmentLog={onAddEquipmentLog}
+              onUpdateEquipmentLog={onUpdateEquipmentLog}
+              onViewAssetHistory={onViewAssetHistory}
+              onViewAssetDetails={onViewAssetDetails}
+              onViewAssetAnalytics={onViewAssetAnalytics}
+            />
+          )}
+
+          {/* Consumables */}
+          {activeTab === 'consumables' && (
+            <ConsumablesSection
+              site={selectedSite}
+              assets={assets}
+              employees={employees}
+              waybills={waybills}
+              consumableLogs={consumableLogs}
+              onAddConsumableLog={onAddConsumableLog}
+              onUpdateConsumableLog={onUpdateConsumableLog}
+              onViewAssetHistory={onViewAssetHistory}
+              onViewAssetDetails={onViewAssetDetails}
+              onViewAssetAnalytics={onViewAssetAnalytics}
+            />
+          )}
+
+          {/* Waybills */}
+          {activeTab === 'waybills' && (
+            <div>
+              {siteWaybills.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <FileText className="h-8 w-8 text-muted-foreground/40 mb-2" />
+                  <p className="text-sm text-muted-foreground">No waybills for this site.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-border/50">
+                  {siteWaybills.map((waybill) => {
+                    const statusColor =
+                      waybill.status === 'return_completed' ? 'text-emerald-500' :
+                        waybill.status === 'outstanding' ? 'text-amber-500' :
+                          waybill.status === 'partial_returned' ? 'text-blue-500' : 'text-muted-foreground';
+                    return (
+                      <div key={waybill.id} className="flex items-center justify-between py-2.5 gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="h-6 w-6 rounded bg-muted flex items-center justify-center shrink-0">
+                            <FileText className="h-3 w-3 text-muted-foreground" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate font-mono">{waybill.id}</p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {waybill.driverName} · {waybill.items.length} item{waybill.items.length !== 1 ? 's' : ''}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className={cn("text-xs font-medium capitalize", statusColor)}>
+                            {waybill.status.replace(/_/g, ' ')}
+                          </span>
+                          <Button onClick={() => onViewWaybill(waybill)} variant="ghost" size="sm" className="h-7 w-7 p-0">
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// ── SitesPage ────────────────────────────────────────────────────────────────
+
+export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transactions, equipmentLogs, consumableLogs, siteInventory, getSiteInventory, companySettings, onAddSite, onUpdateSite, onDeleteSite, onUpdateAsset, onCreateWaybill, onCreateReturnWaybill, onProcessReturn, onAddEquipmentLog, onUpdateEquipmentLog, onAddConsumableLog, onUpdateConsumableLog, onViewSiteInventory, onViewAssetHistory, onViewAssetDetails, onViewAssetAnalytics }: SitesPageProps) => {
   // Merge provided companySettings with defaults, only using non-empty values from database
   const effectiveCompanySettings: CompanySettings = {
     ...defaultCompanySettings,
@@ -85,6 +448,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
     ) : {})
   };
   const [showForm, setShowForm] = useState(false);
+
   const [editingSite, setEditingSite] = useState<Site | null>(null);
   const [selectedSite, setSelectedSite] = useState<Site | null>(null);
   const [showItemsModal, setShowItemsModal] = useState(false);
@@ -97,6 +461,8 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
   const [transactionsView, setTransactionsView] = useState<'table' | 'tree' | 'flow'>('table');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [siteToDelete, setSiteToDelete] = useState<Site | null>(null);
+  const [showDetailsSheet, setShowDetailsSheet] = useState(false);
+  const [siteForDetails, setSiteForDetails] = useState<Site | null>(null);
   const [deleteOptions, setDeleteOptions] = useState<{
     hasAssets: boolean;
     hasOutstandingWaybills: boolean;
@@ -108,9 +474,11 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
   const [selectedWaybill, setSelectedWaybill] = useState<Waybill | null>(null);
   const [showWaybillView, setShowWaybillView] = useState(false);
   const [siteFilter, setSiteFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [siteSortBy, setSiteSortBy] = useState<'name' | 'client' | 'status' | 'assets' | 'waybills'>('name');
   const { isAuthenticated, hasPermission } = useAuth();
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
 
   // Load site filter from localStorage on component mount
   useEffect(() => {
@@ -126,12 +494,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
   }, [siteFilter]);
 
   // Auto-open form when AI provides prefill data
-  useEffect(() => {
-    if (aiPrefillData?.formType === 'site') {
-      setEditingSite(null);
-      setShowForm(true);
-    }
-  }, [aiPrefillData]);
+
 
   const handleAdd = () => {
     setEditingSite(null);
@@ -411,225 +774,108 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
     });
   };
 
-  // Filter sites based on status
-  const filteredSites = sites.filter(site => {
-    if (siteFilter === 'active') return site.status === 'active';
-    if (siteFilter === 'inactive') return site.status === 'inactive';
-    return true; // 'all' shows all sites
-  });
+  // Filter + sort sites
+  const filteredSites = sites
+    .filter(site => {
+      if (siteFilter === 'active') return site.status === 'active';
+      if (siteFilter === 'inactive') return site.status === 'inactive';
+      return true;
+    })
+    .sort((a, b) => {
+      switch (siteSortBy) {
+        case 'client':
+          return (a.clientName || '').localeCompare(b.clientName || '');
+        case 'status':
+          return a.status.localeCompare(b.status);
+        case 'assets':
+          return assets.filter(x => String(x.siteId) === String(b.id)).length
+            - assets.filter(x => String(x.siteId) === String(a.id)).length;
+        case 'waybills':
+          return waybills.filter(w => String(w.siteId) === String(b.id) && w.status !== 'return_completed').length
+            - waybills.filter(w => String(w.siteId) === String(a.id) && w.status !== 'return_completed').length;
+        default: // 'name'
+          return a.name.localeCompare(b.name);
+      }
+    });
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+    <div className="space-y-4 animate-fade-in">
+      {/* Compact header */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <h1 className="text-lg sm:text-xl font-bold bg-gradient-primary bg-clip-text text-transparent shrink-0">
             Site Management
           </h1>
-          <p className="text-sm sm:text-base text-muted-foreground mt-2">
-            Manage project sites and locations
-          </p>
+          <span className="hidden sm:inline text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full shrink-0">
+            {filteredSites.length} of {sites.length}
+          </span>
         </div>
-        {hasPermission('manage_sites') && (
-          <Button onClick={() => {
-            if (!isAuthenticated) {
-              toast({
-                title: "Login Required",
-                description: "Please log in to add a site.",
-                variant: "destructive",
-              });
-              return;
-            }
-            handleAdd();
-          }}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Site
-          </Button>
-        )}
-      </div>
-
-      {/* Filter Controls */}
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">Filter:</span>
+        <div className="flex items-center gap-2 shrink-0">
           <Select value={siteFilter} onValueChange={(value) => setSiteFilter(value as 'all' | 'active' | 'inactive')}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Filter sites" />
+            <SelectTrigger className="h-8 w-[110px] text-xs">
+              <SelectValue placeholder="Filter" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Sites</SelectItem>
-              <SelectItem value="active">Active Sites</SelectItem>
-              <SelectItem value="inactive">Inactive Sites</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="inactive">Inactive</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-        <div className="text-sm text-muted-foreground">
-          Showing {filteredSites.length} of {sites.length} sites
+          <Select value={siteSortBy} onValueChange={(value) => setSiteSortBy(value as typeof siteSortBy)}>
+            <SelectTrigger className="h-8 w-[110px] text-xs">
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="name">Name A–Z</SelectItem>
+              <SelectItem value="client">Client A–Z</SelectItem>
+              <SelectItem value="status">Status</SelectItem>
+              <SelectItem value="assets">Most Assets</SelectItem>
+              <SelectItem value="waybills">Most Waybills</SelectItem>
+            </SelectContent>
+          </Select>
+          {hasPermission('manage_sites') && (
+            <Button
+              size="sm"
+              className="h-8 text-xs px-3"
+              onClick={() => {
+                if (!isAuthenticated) {
+                  toast({ title: "Login Required", description: "Please log in to add a site.", variant: "destructive" });
+                  return;
+                }
+                handleAdd();
+              }}
+            >
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Add Site
+            </Button>
+          )}
         </div>
       </div>
 
       {/* Render modal dialogs conditionally */}
       {showItemsModal && selectedSite && (
-        <Dialog open={showItemsModal} onOpenChange={setShowItemsModal}>
-          <DialogContent onClose={() => setShowItemsModal(false)} className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Package className="h-5 w-5" />
-                {selectedSite.name} - Materials and Waybills
-              </DialogTitle>
-            </DialogHeader>
-
-            <div className="space-y-6">
-              {/* Materials List */}
-              <Collapsible defaultOpen={true} className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Package className="h-5 w-5" />
-                    <h3 className="text-lg font-semibold">Materials at Site</h3>
-                  </div>
-                  <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="sm">
-                      <ChevronDown className="h-4 w-4" />
-                    </Button>
-                  </CollapsibleTrigger>
-                </div>
-
-                <CollapsibleContent className="space-y-2">
-                  {(() => {
-                    const materialsAtSite = getSiteInventory(selectedSite.id);
-                    return materialsAtSite.length === 0 ? (
-                      <p className="text-muted-foreground">No materials currently at this site.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {materialsAtSite.map((item) => (
-                          <div key={item.assetId} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                            <div className="flex items-center gap-3">
-                              <p className="font-medium">{item.itemName}</p>
-                              {item.itemType && (
-                                <span className="text-sm text-muted-foreground">• {item.itemType}</span>
-                              )}
-                            </div>
-                            <div className="text-right">
-                              <p className={`font-semibold ${item.quantity === 0 ? 'text-destructive' : 'text-foreground'}`}>
-                                {item.quantity} {item.unit}
-                              </p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                Updated: {new Date(item.lastUpdated).toLocaleDateString()}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()}
-                </CollapsibleContent>
-              </Collapsible>
-
-              {/* Machines Section */}
-              <MachinesSection
-                site={selectedSite}
-                assets={assets}
-                equipmentLogs={equipmentLogs}
-                employees={employees}
-                waybills={waybills}
-                companySettings={companySettings}
-                onAddEquipmentLog={onAddEquipmentLog}
-                onUpdateEquipmentLog={onUpdateEquipmentLog}
-              />
-
-              {/* Consumables Section */}
-              <ConsumablesSection
-                site={selectedSite}
-                assets={assets}
-                employees={employees}
-                waybills={waybills}
-                consumableLogs={consumableLogs}
-                onAddConsumableLog={onAddConsumableLog}
-                onUpdateConsumableLog={onUpdateConsumableLog}
-              />
-
-              {/* Waybills List */}
-              <Collapsible defaultOpen={true} className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
-                    <h3 className="text-lg font-semibold">Waybills for Site</h3>
-                  </div>
-                  <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="sm">
-                      <ChevronDown className="h-4 w-4" />
-                    </Button>
-                  </CollapsibleTrigger>
-                </div>
-
-                <CollapsibleContent className="space-y-2">
-                  {waybills.filter(waybill => String(waybill.siteId) === String(selectedSite.id)).length === 0 ? (
-                    <p className="text-muted-foreground">No waybills for this site.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {waybills.filter(waybill => String(waybill.siteId) === String(selectedSite.id)).map((waybill) => {
-                        let badgeVariant: "default" | "secondary" | "outline" = 'outline';
-                        if (waybill.status === 'outstanding') {
-                          badgeVariant = 'default';
-                        } else if (waybill.status === 'sent_to_site' || waybill.status === 'partial_returned') {
-                          badgeVariant = 'secondary';
-                        } else if (waybill.status === 'return_completed') {
-                          badgeVariant = 'default';
-                        }
-                        return (
-                          <div key={waybill.id} className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
-                            <div>
-                              <p className="font-medium">{waybill.id}</p>
-                              <p className="text-sm text-muted-foreground">
-                                {waybill.driverName} • {waybill.items.length} items • {waybill.status}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant={badgeVariant}>
-                                {waybill.status.replace('_', ' ')}
-                              </Badge>
-                              <Button
-                                onClick={() => handleViewWaybill(waybill)}
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </CollapsibleContent>
-              </Collapsible>
-
-              {/* Actions */}
-              <div className={`flex gap-3 pt-4 ${isMobile ? 'flex-col' : ''}`}>
-                <Button onClick={() => handleCreateReturnWaybill(selectedSite)} className="flex-1">
-                  <FileText className="h-4 w-4 mr-2" />
-                  Create Return Waybill
-                </Button>
-                <Button
-                  onClick={() => handleShowTransactions(selectedSite)}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  <Activity className="h-4 w-4 mr-2" />
-                  View Transactions
-                </Button>
-                <Button
-                  onClick={() => handleGenerateReport(selectedSite)}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  <FileText className="h-4 w-4 mr-2" />
-                  Generate Report
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <SiteItemsDialog
+          selectedSite={selectedSite}
+          assets={assets}
+          waybills={waybills}
+          equipmentLogs={equipmentLogs}
+          consumableLogs={consumableLogs}
+          employees={employees}
+          companySettings={companySettings}
+          getSiteInventory={getSiteInventory}
+          onClose={() => setShowItemsModal(false)}
+          onCreateReturnWaybill={() => handleCreateReturnWaybill(selectedSite)}
+          onShowTransactions={() => handleShowTransactions(selectedSite)}
+          onGenerateReport={() => handleGenerateReport(selectedSite)}
+          onViewWaybill={handleViewWaybill}
+          onAddEquipmentLog={onAddEquipmentLog}
+          onUpdateEquipmentLog={onUpdateEquipmentLog}
+          onAddConsumableLog={onAddConsumableLog}
+          onUpdateConsumableLog={onUpdateConsumableLog}
+          onViewAssetHistory={(asset) => onViewAssetHistory ? onViewAssetHistory(selectedSite, asset) : navigate(`/asset/${asset.id}/history`)}
+          onViewAssetDetails={(asset) => onViewAssetDetails?.(selectedSite, asset)}
+          onViewAssetAnalytics={(asset) => onViewAssetAnalytics?.(selectedSite, asset)}
+        />
       )}
 
       {/* Return Waybill Form */}
@@ -643,6 +889,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
               employees={employees}
               vehicles={vehicles}
               siteInventory={getSiteInventory(selectedSite.id)}
+              waybills={waybills}
               onCreateReturnWaybill={onCreateReturnWaybill}
               onCancel={() => setShowReturnWaybillForm(false)}
             />
@@ -650,276 +897,323 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
         </Dialog>
       )}
 
-      {/* Report Type Selection Dialog */}
-      {showReportTypeDialog && selectedSiteForReport && (
-        <Dialog open={showReportTypeDialog} onOpenChange={setShowReportTypeDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Generate Report for {selectedSiteForReport.name}</DialogTitle>
-              <DialogDescription>
-                Choose the type of report to generate.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="flex flex-col gap-3 pt-4">
-              <Button onClick={handleGenerateMaterialsReport} className="flex items-center gap-2">
-                <Package className="h-4 w-4" />
-                Materials on Site
-              </Button>
-              <Button onClick={handleGenerateTransactionsReport} variant="outline" className="flex items-center gap-2">
-                <Activity className="h-4 w-4" />
-                Site Transactions
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
 
-      {/* Report Preview Dialog */}
-      {showReportPreview && selectedSiteForReport && (
-        <Dialog open={showReportPreview} onOpenChange={setShowReportPreview}>
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{selectedSiteForReport.name} - Materials Preview</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Quantity</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {previewAssets.map((asset, index) => (
-                    <TableRow key={index}>
-                      <TableCell>{asset.name}</TableCell>
-                      <TableCell>{asset.quantity}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              <div className="flex justify-end">
-                <Button onClick={() => generateReport(previewAssets, `${selectedSiteForReport.name} Materials Report`)}>
-                  Download PDF
+      {
+        showReportTypeDialog && selectedSiteForReport && (
+          <Dialog open={showReportTypeDialog} onOpenChange={setShowReportTypeDialog}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Generate Report for {selectedSiteForReport.name}</DialogTitle>
+                <DialogDescription>
+                  Choose the type of report to generate.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-col gap-3 pt-4">
+                <Button onClick={handleGenerateMaterialsReport} className="flex items-center gap-2">
+                  <Package className="h-4 w-4" />
+                  Materials on Site
+                </Button>
+                <Button onClick={handleGenerateTransactionsReport} variant="outline" className="flex items-center gap-2">
+                  <Activity className="h-4 w-4" />
+                  Site Transactions
                 </Button>
               </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+            </DialogContent>
+          </Dialog>
+        )
+      }
+
+      {/* Report Preview Dialog */}
+      {
+        showReportPreview && selectedSiteForReport && (
+          <Dialog open={showReportPreview} onOpenChange={setShowReportPreview}>
+            <DialogContent className="w-[95vw] max-w-4xl h-[90vh] max-h-[90vh] p-0 gap-0 flex flex-col">
+              <DialogHeader className="px-3 py-3 sm:px-4 sm:py-4 md:px-6 md:py-4 border-b shrink-0">
+                <DialogTitle className="text-sm sm:text-base md:text-lg">{selectedSiteForReport.name} - Materials Preview</DialogTitle>
+              </DialogHeader>
+              <div className="flex-1 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4 md:px-6 md:py-4">
+                <div className="space-y-3 sm:space-y-4">
+                  <div className="overflow-x-auto -mx-3 sm:-mx-4 md:mx-0">
+                    <div className="inline-block min-w-full align-middle">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-xs sm:text-sm">Name</TableHead>
+                            <TableHead className="text-xs sm:text-sm text-right">Quantity</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {previewAssets.map((asset, index) => (
+                            <TableRow key={index}>
+                              <TableCell className="text-xs sm:text-sm">{asset.name}</TableCell>
+                              <TableCell className="text-xs sm:text-sm text-right font-medium">{asset.quantity}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="px-3 py-3 sm:px-4 sm:py-4 md:px-6 md:py-4 border-t shrink-0">
+                <div className="flex flex-col-reverse sm:flex-row justify-end gap-2">
+                  <Button variant="outline" onClick={() => setShowReportPreview(false)} className="w-full sm:w-auto">
+                    Cancel
+                  </Button>
+                  <Button onClick={() => generateReport(previewAssets, `${selectedSiteForReport.name} Materials Report`)} className="w-full sm:w-auto">
+                    <FileText className="h-4 w-4 mr-2" />
+                    Download PDF
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )
+      }
 
       {/* Transactions Modal */}
-      {showTransactionsModal && selectedSite && (
-        <Dialog open={showTransactionsModal} onOpenChange={setShowTransactionsModal}>
-          <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader className="flex justify-between items-center">
-              <div className="flex items-center gap-2">
-                <Activity className="h-5 w-5" />
-                <DialogTitle>{selectedSite.name} - Transaction History</DialogTitle>
-              </div>
-              <div className="flex items-center gap-2">
-                <Select value={transactionsView} onValueChange={(value) => setTransactionsView(value as 'table' | 'tree' | 'flow')}>
-                  <SelectTrigger className="w-[120px]">
-                    <SelectValue placeholder="View" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="table">Table View</SelectItem>
-                    <SelectItem value="tree">Tree View</SelectItem>
-                    <SelectItem value="flow">Flow View</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </DialogHeader>
-            <div className="space-y-4">
-              {transactionsView === 'tree' ? (
-                // Tree View - Group by referenceId (waybill) or date
-                <div className="space-y-4">
-                  {(() => {
-                    const siteTransactions = transactions
-                      .filter((t) => t.siteId === selectedSite.id)
-                      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-                    // Group by referenceId (waybill ID)
-                    const grouped = siteTransactions.reduce((acc, t) => {
-                      const key = t.referenceId || 'Unassigned';
-                      if (!acc[key]) acc[key] = [];
-                      acc[key].push(t);
-                      return acc;
-                    }, {} as Record<string, SiteTransaction[]>);
-
-                    return Object.entries(grouped).map(([ref, txns]) => (
-                      <div key={ref} className="border rounded-lg p-4">
-                        <h4 className="font-semibold mb-2 flex items-center gap-2">
-                          <FileText className="h-4 w-4" />
-                          {ref === 'Unassigned' ? 'Miscellaneous Transactions' : `Waybill/Ref: ${ref}`}
-                          <Badge variant="outline" className="ml-auto">
-                            {txns.length} items
-                          </Badge>
-                        </h4>
-                        <div className="space-y-2 ml-4">
-                          {txns.map((transaction) => (
-                            <div key={transaction.id} className="flex justify-between items-center p-2 bg-muted/50 rounded">
-                              <div className="flex flex-col">
-                                <span className="text-sm font-medium">{transaction.assetName}</span>
-                                <span className="text-xs text-muted-foreground">
-                                  {new Date(transaction.createdAt).toLocaleDateString()} • {transaction.type.toUpperCase()}
-                                </span>
-                              </div>
-                              <div className="text-right">
-                                <span className="font-semibold">{transaction.quantity}</span>
-                                <span className="text-xs text-muted-foreground block">{transaction.notes || 'No notes'}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ));
-                  })()}
-                  {transactions.filter((t) => t.siteId === selectedSite.id).length === 0 && (
-                    <p className="text-center text-muted-foreground py-8">No transactions for this site yet.</p>
-                  )}
+      {
+        showTransactionsModal && selectedSite && (
+          <Dialog open={showTransactionsModal} onOpenChange={setShowTransactionsModal}>
+            <DialogContent className="w-[95vw] max-w-6xl h-[90vh] max-h-[90vh] p-0 gap-0 flex flex-col">
+              <DialogHeader className="px-3 py-3 sm:px-4 sm:py-4 md:px-6 md:py-4 border-b shrink-0">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Activity className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
+                    <DialogTitle className="text-sm sm:text-base md:text-lg truncate">{selectedSite.name} - Transaction History</DialogTitle>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Select value={transactionsView} onValueChange={(value) => setTransactionsView(value as 'table' | 'tree' | 'flow')}>
+                      <SelectTrigger className="w-full sm:w-[110px] md:w-[120px] h-8 text-xs sm:text-sm">
+                        <SelectValue placeholder="View" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="table">Table View</SelectItem>
+                        <SelectItem value="tree">Tree View</SelectItem>
+                        <SelectItem value="flow">Flow View</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-              ) : transactionsView === 'flow' ? (
-                // Flow View - Group by inflows (in) and outflows (out)
-                <div className="space-y-6">
-                  {(() => {
-                    const siteTransactions = transactions
-                      .filter((t) => t.siteId === selectedSite.id)
-                      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-                    const inflows = siteTransactions.filter(t => t.type === 'in');
-                    const outflows = siteTransactions.filter(t => t.type === 'out');
-
-                    return (
-                      <>
-                        <div>
-                          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                            <Activity className="h-4 w-4 text-green-500" />
-                            Inflows (From Office/Other Sites)
-                          </h3>
-                          {inflows.length === 0 ? (
-                            <p className="text-muted-foreground">No inflows recorded.</p>
-                          ) : (
-                            <div className="space-y-2">
-                              {inflows.map((transaction) => (
-                                <div key={transaction.id} className="flex justify-between items-center p-3 border rounded-lg">
-                                  <div className="flex flex-col">
-                                    <span className="font-medium">{transaction.assetName}</span>
-                                    <span className="text-sm text-muted-foreground">
-                                      From: {transaction.referenceId || 'Office/Direct'} • {transaction.type.toUpperCase()}
-                                    </span>
-                                  </div>
-                                  <div className="text-right">
-                                    <span className="font-semibold text-green-600">+{transaction.quantity}</span>
-                                    <span className="text-xs text-muted-foreground block">
-                                      {new Date(transaction.createdAt).toLocaleString()}
-                                    </span>
-                                    {transaction.notes && <span className="text-xs block">{transaction.notes}</span>}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                            <Activity className="h-4 w-4 text-red-500" />
-                            Outflows (To Sites/Office)
-                          </h3>
-                          {outflows.length === 0 ? (
-                            <p className="text-muted-foreground">No outflows recorded.</p>
-                          ) : (
-                            <div className="space-y-2">
-                              {outflows.map((transaction) => (
-                                <div key={transaction.id} className="flex justify-between items-center p-3 border rounded-lg">
-                                  <div className="flex flex-col">
-                                    <span className="font-medium">{transaction.assetName}</span>
-                                    <span className="text-sm text-muted-foreground">
-                                      To: {transaction.referenceId || 'Site/Office'} • {transaction.type.toUpperCase()}
-                                    </span>
-                                  </div>
-                                  <div className="text-right">
-                                    <span className="font-semibold text-red-600">-{transaction.quantity}</span>
-                                    <span className="text-xs text-muted-foreground block">
-                                      {new Date(transaction.createdAt).toLocaleString()}
-                                    </span>
-                                    {transaction.notes && <span className="text-xs block">{transaction.notes}</span>}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    );
-                  })()}
-                  {transactions.filter((t) => t.siteId === selectedSite.id).length === 0 && (
-                    <p className="text-center text-muted-foreground py-8">No transactions for this site yet.</p>
-                  )}
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Asset</TableHead>
-                        <TableHead>Quantity</TableHead>
-                        <TableHead>Reference</TableHead>
-                        <TableHead>Notes</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {transactions
+              </DialogHeader>
+              <div className="flex-1 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4 md:px-6 md:py-4">
+                {transactionsView === 'tree' ? (
+                  // Tree View - Group by referenceId (waybill) or date
+                  <div className="space-y-4">
+                    {(() => {
+                      const siteTransactions = transactions
                         .filter((t) => t.siteId === selectedSite.id)
-                        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                        .map((transaction) => (
-                          <TableRow key={transaction.id}>
-                            <TableCell>{new Date(transaction.createdAt).toLocaleString()}</TableCell>
-                            <TableCell>
-                              <Badge
-                                variant={transaction.type === "in" ? "default" : "secondary"}
-                              >
-                                {transaction.type.toUpperCase()}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="font-medium">{transaction.assetName}</TableCell>
-                            <TableCell>{transaction.quantity}</TableCell>
-                            <TableCell>{transaction.referenceId}</TableCell>
-                            <TableCell className="text-sm">{transaction.notes}</TableCell>
-                          </TableRow>
-                        ))}
-                      {transactions.filter((t) => t.siteId === selectedSite.id).length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={6} className="text-center text-muted-foreground h-24">
-                            No transactions for this site yet.
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+                        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                      // Group by referenceId (waybill ID)
+                      const grouped = siteTransactions.reduce((acc, t) => {
+                        const key = t.referenceId || 'Unassigned';
+                        if (!acc[key]) acc[key] = [];
+                        acc[key].push(t);
+                        return acc;
+                      }, {} as Record<string, SiteTransaction[]>);
+
+                      return Object.entries(grouped).map(([ref, txns]) => (
+                        <div key={ref} className="border rounded-lg p-4">
+                          <h4 className="font-semibold mb-2 flex items-center gap-2">
+                            <FileText className="h-4 w-4" />
+                            {ref === 'Unassigned' ? 'Miscellaneous Transactions' : `Waybill/Ref: ${ref}`}
+                            <Badge variant="outline" className="ml-auto">
+                              {txns.length} items
+                            </Badge>
+                          </h4>
+                          <div className="space-y-2 ml-4">
+                            {txns.map((transaction) => (
+                              <div key={transaction.id} className="flex justify-between items-center p-2 bg-muted/50 rounded">
+                                <div className="flex flex-col">
+                                  <span className="text-sm font-medium">{transaction.assetName}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {new Date(transaction.createdAt).toLocaleDateString()} • {transaction.type.toUpperCase()}
+                                  </span>
+                                </div>
+                                <div className="text-right">
+                                  <span className="font-semibold">{transaction.quantity}</span>
+                                  <span className="text-xs text-muted-foreground block">{transaction.notes || 'No notes'}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ));
+                    })()}
+                    {transactions.filter((t) => t.siteId === selectedSite.id).length === 0 && (
+                      <p className="text-center text-muted-foreground py-8">No transactions for this site yet.</p>
+                    )}
+                  </div>
+                ) : transactionsView === 'flow' ? (
+                  // Flow View - Group by inflows (in) and outflows (out)
+                  <div className="space-y-6">
+                    {(() => {
+                      const siteTransactions = transactions
+                        .filter((t) => t.siteId === selectedSite.id)
+                        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+                      const inflows = siteTransactions.filter(t => t.type === 'in');
+                      const outflows = siteTransactions.filter(t => t.type === 'out');
+
+                      return (
+                        <>
+                          <div>
+                            <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                              <Activity className="h-4 w-4 text-green-500" />
+                              Inflows (From Office/Other Sites)
+                            </h3>
+                            {inflows.length === 0 ? (
+                              <p className="text-muted-foreground">No inflows recorded.</p>
+                            ) : (
+                              <div className="space-y-2">
+                                {inflows.map((transaction) => (
+                                  <div key={transaction.id} className="flex justify-between items-center p-3 border rounded-lg">
+                                    <div className="flex flex-col">
+                                      <span className="font-medium">{transaction.assetName}</span>
+                                      <span className="text-sm text-muted-foreground">
+                                        From: {transaction.referenceId || 'Office/Direct'} • {transaction.type.toUpperCase()}
+                                      </span>
+                                    </div>
+                                    <div className="text-right">
+                                      <span className="font-semibold text-green-600">+{transaction.quantity}</span>
+                                      <span className="text-xs text-muted-foreground block">
+                                        {new Date(transaction.createdAt).toLocaleString()}
+                                      </span>
+                                      {transaction.notes && <span className="text-xs block">{transaction.notes}</span>}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                              <Activity className="h-4 w-4 text-red-500" />
+                              Outflows (To Sites/Office)
+                            </h3>
+                            {outflows.length === 0 ? (
+                              <p className="text-muted-foreground">No outflows recorded.</p>
+                            ) : (
+                              <div className="space-y-2">
+                                {outflows.map((transaction) => (
+                                  <div key={transaction.id} className="flex justify-between items-center p-3 border rounded-lg">
+                                    <div className="flex flex-col">
+                                      <span className="font-medium">{transaction.assetName}</span>
+                                      <span className="text-sm text-muted-foreground">
+                                        To: {transaction.referenceId || 'Site/Office'} • {transaction.type.toUpperCase()}
+                                      </span>
+                                    </div>
+                                    <div className="text-right">
+                                      <span className="font-semibold text-red-600">-{transaction.quantity}</span>
+                                      <span className="text-xs text-muted-foreground block">
+                                        {new Date(transaction.createdAt).toLocaleString()}
+                                      </span>
+                                      {transaction.notes && <span className="text-xs block">{transaction.notes}</span>}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      );
+                    })()}
+                    {transactions.filter((t) => t.siteId === selectedSite.id).length === 0 && (
+                      <p className="text-center text-muted-foreground py-8">No transactions for this site yet.</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Asset</TableHead>
+                          <TableHead>Quantity</TableHead>
+                          <TableHead>Reference</TableHead>
+                          <TableHead>Notes</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {transactions
+                          .filter((t) => t.siteId === selectedSite.id)
+                          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                          .map((transaction) => (
+                            <TableRow key={transaction.id}>
+                              <TableCell>{new Date(transaction.createdAt).toLocaleString()}</TableCell>
+                              <TableCell>
+                                <Badge
+                                  variant={transaction.type === "in" ? "default" : "secondary"}
+                                >
+                                  {transaction.type.toUpperCase()}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="font-medium">{transaction.assetName}</TableCell>
+                              <TableCell>{transaction.quantity}</TableCell>
+                              <TableCell>{transaction.referenceId}</TableCell>
+                              <TableCell className="text-sm">{transaction.notes}</TableCell>
+                            </TableRow>
+                          ))}
+                        {transactions.filter((t) => t.siteId === selectedSite.id).length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={6} className="text-center text-muted-foreground h-24">
+                              No transactions for this site yet.
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+        )
+      }
+
+      <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {filteredSites.map((site) => {
           const siteAssets = assets.filter(asset => String(asset.siteId) === String(site.id));
           const siteWaybills = waybills.filter(waybill => String(waybill.siteId) === String(site.id));
+          const outstandingWaybills = siteWaybills.filter(w => w.status !== 'return_completed');
 
           return (
-            <Card key={site.id} className="border-0 shadow-soft">
-              <CardHeader className="pb-3 flex justify-between items-start">
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4" />
-                  <CardTitle className="text-lg">{site.name}</CardTitle>
+            <div
+              key={site.id}
+              className="group relative flex flex-col gap-2 rounded-xl border border-border/60 bg-card p-3.5 shadow-sm hover:shadow-md hover:border-border transition-all duration-200"
+            >
+              {/* Top row: name + status + menu */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className={cn(
+                    "h-7 w-7 rounded-lg flex items-center justify-center shrink-0",
+                    site.status === 'active' ? 'bg-primary/10' : 'bg-muted'
+                  )}>
+                    <MapPin className={cn("h-3.5 w-3.5", site.status === 'active' ? 'text-primary' : 'text-muted-foreground')} />
+                  </div>
+                  <button
+                    className="min-w-0 text-left"
+                    onClick={() => { setSiteForDetails(site); setShowDetailsSheet(true); }}
+                  >
+                    <p className="text-sm font-semibold text-foreground truncate leading-tight hover:text-primary transition-colors">{site.name}</p>
+                    {site.location && (
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">{site.location}</p>
+                    )}
+                    {site.clientName && (
+                      <p className="text-xs text-primary/70 truncate mt-0.5 flex items-center gap-1">
+                        <Building2 className="h-2.5 w-2.5 shrink-0" />
+                        {site.clientName}
+                      </p>
+                    )}
+                  </button>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant={site.status === "active" ? "default" : "secondary"}>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Badge
+                    variant={site.status === 'active' ? 'default' : 'secondary'}
+                    className="text-[10px] px-1.5 py-0 h-4"
+                  >
                     {site.status}
                   </Badge>
                   <MobileActionMenu
@@ -927,15 +1221,16 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
                     iconVariant="vertical"
                     items={[
                       {
+                        label: "View Details",
+                        icon: <Info className="h-4 w-4" />,
+                        onClick: () => { setSiteForDetails(site); setShowDetailsSheet(true); },
+                      },
+                      {
                         label: "Edit",
                         icon: <Edit className="h-4 w-4" />,
                         onClick: () => {
                           if (!isAuthenticated) {
-                            toast({
-                              title: "Login Required",
-                              description: "Please log in to edit site.",
-                              variant: "destructive",
-                            });
+                            toast({ title: "Login Required", description: "Please log in to edit site.", variant: "destructive" });
                             return;
                           }
                           handleEdit(site);
@@ -943,15 +1238,16 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
                         hidden: !hasPermission('manage_sites'),
                       },
                       {
+                        label: "View Items",
+                        icon: <Package className="h-4 w-4" />,
+                        onClick: () => handleShowItems(site),
+                      },
+                      {
                         label: "Delete",
                         icon: <Trash2 className="h-4 w-4" />,
                         onClick: () => {
                           if (!isAuthenticated) {
-                            toast({
-                              title: "Login Required",
-                              description: "Please log in to delete site.",
-                              variant: "destructive",
-                            });
+                            toast({ title: "Login Required", description: "Please log in to delete site.", variant: "destructive" });
                             return;
                           }
                           handleDelete(site);
@@ -959,60 +1255,98 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
                         variant: "destructive",
                         hidden: !hasPermission('manage_sites'),
                       },
-                      {
-                        label: "Show Items",
-                        icon: <FileText className="h-4 w-4" />,
-                        onClick: () => handleShowItems(site),
-                      },
                     ]}
                   />
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  <strong>Location:</strong> {site.location}
+              </div>
+
+              {/* Description (truncated to 2 lines) */}
+              {site.description && (
+                <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                  {site.description}
                 </p>
-                {site.description && (
-                  <p className="text-sm text-muted-foreground">
-                    <strong>Description:</strong> {site.description}
-                  </p>
-                )}
-                {site.contactPerson && (
-                  <p className="text-sm text-muted-foreground">
-                    <strong>Contact:</strong> {site.contactPerson}
-                  </p>
-                )}
-                {site.phone && (
-                  <p className="text-sm text-muted-foreground">
-                    <strong>Phone:</strong> {site.phone}
-                  </p>
-                )}
-              </CardContent>
-            </Card>
+              )}
+
+              {/* Stats row */}
+              <div className="flex items-center gap-3 pt-1 border-t border-border/40">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Package className="h-3 w-3" />
+                        <span>{siteAssets.length}</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom"><p>Assets at site</p></TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <FileText className="h-3 w-3" />
+                        <span>{outstandingWaybills.length}</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom"><p>Outstanding waybills</p></TooltipContent>
+                  </Tooltip>
+                  {site.contactPerson && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground truncate max-w-[90px]">
+                          <span className="truncate">{site.contactPerson}</span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        <p>{site.contactPerson}{site.phone ? ` · ${site.phone}` : ''}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                </TooltipProvider>
+
+                {/* Quick action button */}
+                <button
+                  onClick={() => handleShowItems(site)}
+                  className="ml-auto text-xs text-primary hover:underline underline-offset-2 transition-colors"
+                >
+                  View →
+                </button>
+              </div>
+            </div>
           );
         })}
       </div>
 
-      {filteredSites.length === 0 && (
-        <Card className="border-0 shadow-soft">
-          <CardContent className="text-center py-8">
-            <MapPin className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">
+      {
+        filteredSites.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-3">
+              <MapPin className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <p className="text-sm text-muted-foreground">
               {sites.length === 0
-                ? 'No sites added yet. Click "Add Site" to get started.'
+                ? 'No sites yet. Click "Add Site" to get started.'
                 : 'No sites match the current filter.'
               }
             </p>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        )
+      }
 
       <SiteForm
         site={editingSite}
         onSave={handleSave}
         onCancel={() => setShowForm(false)}
         open={showForm}
-        initialData={aiPrefillData?.formType === 'site' ? aiPrefillData : undefined}
+
+      />
+
+      <SiteDetailsSheet
+        site={siteForDetails}
+        open={showDetailsSheet}
+        onOpenChange={setShowDetailsSheet}
+        onEdit={() => {
+          setShowDetailsSheet(false);
+          if (siteForDetails) handleEdit(siteForDetails);
+        }}
       />
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
@@ -1082,14 +1416,17 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
       </AlertDialog>
 
       {/* Waybill View Modal */}
-      {showWaybillView && selectedWaybill && (
-        <WaybillDocument
-          waybill={selectedWaybill}
-          sites={sites}
-          companySettings={companySettings}
-          onClose={() => setShowWaybillView(false)}
-        />
-      )}
+      {
+        showWaybillView && selectedWaybill && (
+          <WaybillDocument
+            waybill={selectedWaybill}
+            sites={sites}
+            companySettings={companySettings}
+            onClose={() => setShowWaybillView(false)}
+          />
+        )
+      }
     </div>
+
   );
 };

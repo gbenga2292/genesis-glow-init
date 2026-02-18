@@ -17,9 +17,11 @@ import {
   X,
   ChevronRight,
   Monitor,
-  HardHat
+  HardHat,
+  ClipboardList
 } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTheme } from "next-themes";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -56,6 +58,7 @@ interface QuickNavItem {
 export const MobileBottomNav = ({ activeTab, onTabChange, onMenuClick, hide = false }: MobileBottomNavProps) => {
   const [moreOpen, setMoreOpen] = useState(false);
   const { theme, setTheme } = useTheme();
+  const navigate = useNavigate();
   const { currentUser, logout, hasPermission, isAuthenticated } = useAuth();
 
   // Primary nav items shown in bottom bar
@@ -68,6 +71,7 @@ export const MobileBottomNav = ({ activeTab, onTabChange, onMenuClick, hide = fa
 
   // Secondary items shown in "More" drawer
   const moreNavItems: QuickNavItem[] = [
+    { id: "requests", label: "Requests", icon: ClipboardList, group: 'operations' },
     { id: "returns", label: "Returns", icon: Undo2, group: 'operations' },
     { id: "machine-maintenance", label: "Machine Maintenance", icon: Activity, group: 'operations' },
     { id: "sites", label: "Sites", icon: MapPin, group: 'operations' },
@@ -78,6 +82,7 @@ export const MobileBottomNav = ({ activeTab, onTabChange, onMenuClick, hide = fa
 
   const getRequiredPermissions = (itemId: string) => {
     switch (itemId) {
+      case 'requests': return 'view_own_requests';
       case 'returns': return 'read_returns';
       case 'machine-maintenance': return 'access_maintenance';
       case 'sites': return 'read_sites';
@@ -191,7 +196,13 @@ export const MobileBottomNav = ({ activeTab, onTabChange, onMenuClick, hide = fa
             {/* User Profile Card */}
             {isAuthenticated && currentUser && (
               <>
-                <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-xl mb-4">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => { setMoreOpen(false); navigate('/profile'); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setMoreOpen(false); navigate('/profile'); } }}
+                  className="cursor-pointer flex items-center gap-3 p-3 bg-muted/50 rounded-xl mb-4"
+                >
                   <Avatar className="h-12 w-12 bg-primary text-primary-foreground">
                     <AvatarFallback className="bg-primary text-primary-foreground text-lg font-semibold">
                       {userInitials}
@@ -202,7 +213,7 @@ export const MobileBottomNav = ({ activeTab, onTabChange, onMenuClick, hide = fa
                     <p className="text-sm text-muted-foreground capitalize">{currentUser.role?.replace('_', ' ')}</p>
                   </div>
                   <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
+                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                       <Button variant="ghost" size="icon" className="shrink-0">
                         <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
                         <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
@@ -210,15 +221,15 @@ export const MobileBottomNav = ({ activeTab, onTabChange, onMenuClick, hide = fa
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setTheme("light")}>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setTheme("light"); }}>
                         <Sun className="h-4 w-4 mr-2" />
                         Light
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setTheme("dark")}>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setTheme("dark"); }}>
                         <Moon className="h-4 w-4 mr-2" />
                         Dark
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setTheme("system")}>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setTheme("system"); }}>
                         <Monitor className="h-4 w-4 mr-2" />
                         System
                       </DropdownMenuItem>

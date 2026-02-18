@@ -2,8 +2,21 @@ import * as XLSX from 'xlsx';
 import { Asset, CompanySettings } from '@/types/asset';
 import { Machine, MaintenanceLog } from '@/types/maintenance';
 import { generateUnifiedReport } from './unifiedReportGenerator';
+import { Capacitor } from '@capacitor/core';
+import { handleMobileExcelAction } from './mobilePdfUtils';
 
-export const exportAssetsToExcel = (assets: Asset[], fileName: string) => {
+const saveWorkbook = async (workbook: XLSX.WorkBook, fileName: string) => {
+    if (Capacitor.isNativePlatform()) {
+        // Convert workbook to ArrayBuffer for mobile
+        const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+        await handleMobileExcelAction(wbout, fileName);
+    } else {
+        // Web/Desktop download
+        XLSX.writeFile(workbook, `${fileName}.xlsx`);
+    }
+};
+
+export const exportAssetsToExcel = async (assets: Asset[], fileName: string) => {
     const worksheet = XLSX.utils.json_to_sheet(assets.map(asset => ({
         Name: asset.name,
         Category: asset.category,
@@ -21,10 +34,10 @@ export const exportAssetsToExcel = (assets: Asset[], fileName: string) => {
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Assets");
-    XLSX.writeFile(workbook, `${fileName}.xlsx`);
+    await saveWorkbook(workbook, fileName);
 };
 
-export const exportMaintenanceLogsToExcel = (logs: MaintenanceLog[], machines: Machine[], fileNamePrefix: string = "Maintenance_Logs") => {
+export const exportMaintenanceLogsToExcel = async (logs: MaintenanceLog[], machines: Machine[], fileNamePrefix: string = "Maintenance_Logs") => {
     const data = logs.map(log => {
         const machine = machines.find(m => m.id === log.machineId);
         return {
@@ -54,7 +67,7 @@ export const exportMaintenanceLogsToExcel = (logs: MaintenanceLog[], machines: M
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Maintenance Logs");
-    XLSX.writeFile(workbook, `${fileNamePrefix}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    await saveWorkbook(workbook, `${fileNamePrefix}_${new Date().toISOString().split('T')[0]}`);
 };
 
 export const exportMaintenanceLogsToPDF = async (logs: MaintenanceLog[], machines: Machine[], companySettings: CompanySettings) => {

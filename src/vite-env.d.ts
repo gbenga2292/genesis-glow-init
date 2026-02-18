@@ -2,7 +2,7 @@
 
 interface Window {
   electronAPI: {
-    db: {
+    db?: {
       login: (username: string, password: string) => Promise<{ success: boolean; user?: any; message?: string }>;
       createUser: (userData: { name: string; username: string; password: string; role: string; email?: string }) => Promise<{ success: boolean; user?: any; message?: string }>;
       updateUser: (userId: string, userData: { name: string; username: string; role: string; email?: string; password?: string }) => Promise<{ success: boolean; user?: any; message?: string }>;
@@ -72,14 +72,7 @@ interface Window {
       sendToSiteWithTransaction: (waybillId: string, sentToSiteDate?: string) => Promise<{ success: boolean; error?: string }>;
       deleteWaybillWithTransaction: (waybillId: string) => Promise<{ success: boolean; error?: string }>;
       updateWaybillWithTransaction: (waybillId: string, updatedData: any) => Promise<{ success: boolean; error?: string }>;
-      getSavedApiKeys: () => Promise<any[]>;
-      createSavedApiKey: (data: { key_name: string; provider: string; api_key: string; endpoint?: string; model?: string }) => Promise<any[]>;
-      updateSavedApiKey: (id: number, data: any) => Promise<any[]>;
-      setActiveApiKey: (id: number) => Promise<any[]>;
-      deleteSavedApiKey: (id: number) => Promise<any>;
-      getActiveApiKey: () => Promise<any>;
-      migrateSavedKeysToKeytar: () => Promise<{ migrated: number }>;
-      getApiKeyFromKeyRef: (keyRef: string) => Promise<string | null>;
+
       getDatabaseInfo: () => Promise<{ storageType: string; dbPath: string; masterDbPath: string; localDbPath: string; lockingEnabled: boolean }>;
       wipeLocalDatabase: () => Promise<{ success: boolean; message?: string; error?: string }>;
       createJsonBackup: (selectedSections: string[]) => Promise<{ success: boolean; data?: any; error?: string }>;
@@ -88,15 +81,16 @@ interface Window {
       restoreDatabaseBackup: (sourcePath: string, targetPath: string) => Promise<{ success: boolean; message?: string; error?: string }>;
       clearTable: (tableName: string) => Promise<{ success: boolean; error?: string }>;
     };
-    getSyncStatus: () => Promise<any>;
-    manualSync: () => Promise<any>;
     window: {
       minimize: () => Promise<void>;
       maximize: () => Promise<void>;
       close: () => Promise<void>;
       isMaximized: () => Promise<boolean>;
       toggleDevTools: () => Promise<void>;
+      updateTitleBarOverlay: (options: { color: string; symbolColor: string; height: number }) => Promise<void>;
     };
+    onDeepLink: (callback: (url: string) => void) => void;
+    showNotification: (options: { title: string; body: string }) => Promise<boolean>;
   };
   backupScheduler?: {
     getStatus: () => Promise<{

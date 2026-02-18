@@ -4,6 +4,8 @@ import * as XLSX from 'xlsx';
 import { Asset } from '@/types/asset';
 import { CompanySettings } from '@/types/asset';
 import { logger } from '@/lib/logger';
+import { Capacitor } from '@capacitor/core';
+import { handleMobileExcelAction } from './mobilePdfUtils';
 
 declare module 'jspdf' {
   interface jsPDF {
@@ -93,7 +95,7 @@ export const generatePDFReport = async (config: ReportConfig): Promise<void> => 
   });
 };
 
-export const exportAssetsToExcel = (assets: Asset[], filename: string) => {
+export const exportAssetsToExcel = async (assets: Asset[], filename: string) => {
   const ws_data = [
     ['Name', 'Description', 'Quantity', 'Unit', 'Category', 'Type', 'Location', 'Service', 'Status', 'Condition', 'Cost', 'Updated'],
     ...assets.map(asset => [
@@ -116,5 +118,10 @@ export const exportAssetsToExcel = (assets: Asset[], filename: string) => {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Assets');
 
-  XLSX.writeFile(wb, `${filename}.xlsx`);
+  if (Capacitor.isNativePlatform()) {
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    await handleMobileExcelAction(wbout, filename);
+  } else {
+    XLSX.writeFile(wb, `${filename}.xlsx`);
+  }
 };

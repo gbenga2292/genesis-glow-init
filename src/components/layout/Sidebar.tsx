@@ -186,23 +186,14 @@ export const Sidebar = ({
       >
         {/* Header */}
         <div className={cn(
-          "p-4 border-b border-border flex items-center",
-          isCollapsed && mode === 'desktop' ? "justify-center" : "justify-between"
+          "p-2 border-b border-border flex items-center",
+          isCollapsed && mode === 'desktop' ? "justify-center" : "justify-end"
         )}>
-          {(!isCollapsed || mode === 'mobile') && (
-            <div className="min-w-0 flex-1">
-              <h1 className="text-lg font-bold text-primary truncate">DCEL</h1>
-              <p className="text-xs text-muted-foreground">Operations</p>
-            </div>
-          )}
-          {isCollapsed && mode === 'desktop' && (
-            <span className="text-lg font-bold text-primary">D</span>
-          )}
           {mode === 'desktop' && (
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 shrink-0 ml-2"
+              className="h-8 w-8 shrink-0"
               onClick={() => setIsCollapsed(!isCollapsed)}
             >
               {isCollapsed ? (
@@ -231,14 +222,15 @@ export const Sidebar = ({
               isCollapsed && mode === 'desktop' ? "flex-col" : "flex-row"
             )}>
               {(!isCollapsed || mode === 'mobile') && (
-                <div className="flex-1 min-w-0 px-2 py-1.5 bg-muted/50 rounded-md">
+                <div onClick={() => navigate('/profile')} className="cursor-pointer flex-1 min-w-0 px-2 py-1.5 bg-muted/50 rounded-md">
                   <p className="text-xs font-medium truncate">{currentUser?.name}</p>
                   <p className="text-[10px] text-muted-foreground capitalize">{currentUser?.role}</p>
                 </div>
               )}
-              <Tooltip delayDuration={0}>
-                <TooltipTrigger asChild>
-                  <DropdownMenu>
+
+              <DropdownMenu>
+                <Tooltip delayDuration={0}>
+                  <TooltipTrigger asChild>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
                         <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
@@ -246,26 +238,27 @@ export const Sidebar = ({
                         <span className="sr-only">Toggle theme</span>
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setTheme("light")}>
-                        <Sun className="h-4 w-4 mr-2" />
-                        Light
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setTheme("dark")}>
-                        <Moon className="h-4 w-4 mr-2" />
-                        Dark
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setTheme("system")}>
-                        <Monitor className="h-4 w-4 mr-2" />
-                        System
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TooltipTrigger>
-                <TooltipContent side={isCollapsed && mode === 'desktop' ? "right" : "top"}>
-                  Toggle theme
-                </TooltipContent>
-              </Tooltip>
+                  </TooltipTrigger>
+                  <TooltipContent side={isCollapsed && mode === 'desktop' ? "right" : "top"}>
+                    Toggle theme
+                  </TooltipContent>
+                </Tooltip>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setTheme("light")}>
+                    <Sun className="h-4 w-4 mr-2" />
+                    Light
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setTheme("dark")}>
+                    <Moon className="h-4 w-4 mr-2" />
+                    Dark
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setTheme("system")}>
+                    <Monitor className="h-4 w-4 mr-2" />
+                    System
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
               <Tooltip delayDuration={0}>
                 <TooltipTrigger asChild>
                   <Button
@@ -287,9 +280,9 @@ export const Sidebar = ({
               "flex items-center gap-1.5",
               isCollapsed && mode === 'desktop' ? "flex-col" : "flex-row"
             )}>
-              <Tooltip delayDuration={0}>
-                <TooltipTrigger asChild>
-                  <DropdownMenu>
+              <DropdownMenu>
+                <Tooltip delayDuration={0}>
+                  <TooltipTrigger asChild>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
                         <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
@@ -297,26 +290,27 @@ export const Sidebar = ({
                         <span className="sr-only">Toggle theme</span>
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setTheme("light")}>
-                        <Sun className="h-4 w-4 mr-2" />
-                        Light
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setTheme("dark")}>
-                        <Moon className="h-4 w-4 mr-2" />
-                        Dark
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setTheme("system")}>
-                        <Monitor className="h-4 w-4 mr-2" />
-                        System
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TooltipTrigger>
-                <TooltipContent side={isCollapsed && mode === 'desktop' ? "right" : "top"}>
-                  Toggle theme
-                </TooltipContent>
-              </Tooltip>
+                  </TooltipTrigger>
+                  <TooltipContent side={isCollapsed && mode === 'desktop' ? "right" : "top"}>
+                    Toggle theme
+                  </TooltipContent>
+                </Tooltip>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setTheme("light")}>
+                    <Sun className="h-4 w-4 mr-2" />
+                    Light
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setTheme("dark")}>
+                    <Moon className="h-4 w-4 mr-2" />
+                    Dark
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setTheme("system")}>
+                    <Monitor className="h-4 w-4 mr-2" />
+                    System
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
               {(!isCollapsed || mode === 'mobile') ? (
                 <Button
                   variant="default"

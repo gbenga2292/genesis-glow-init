@@ -72,7 +72,7 @@ export const VehicleAnalyticsPage = ({ vehicles, waybills, onBack, initialVehicl
     }, [selectedVehicle, vehicleStats]);
 
     return (
-        <div className="h-full flex flex-col animate-fade-in p-4 md:p-0">
+        <div className="flex flex-col animate-fade-in p-4 md:p-0" style={{ minHeight: 0 }}>
             {/* Header */}
             <div className="flex items-center gap-2 md:gap-4 mb-4 md:mb-6">
                 <Button variant="ghost" size="icon" onClick={() => {
@@ -96,7 +96,7 @@ export const VehicleAnalyticsPage = ({ vehicles, waybills, onBack, initialVehicl
                 </div>
             </div>
 
-            <div className="flex flex-1 gap-2 md:gap-6 overflow-hidden border rounded-xl bg-background/50 backdrop-blur-sm shadow-sm">
+            <div className="flex flex-1 gap-2 md:gap-6 border rounded-xl bg-background/50 backdrop-blur-sm shadow-sm" style={{ minHeight: '400px', maxHeight: 'calc(100vh - 180px)', overflow: 'hidden' }}>
 
                 {/* List View (Left) */}
                 {(!isMobile || !selectedVehicle) && (

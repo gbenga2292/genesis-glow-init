@@ -562,7 +562,7 @@ export const AssetTable = ({
               {!isMobile && <TableHead>Category | Type</TableHead>}
               <SortableHeader field="location">Location</SortableHeader>
               <SortableHeader field="stockStatus">Stock Status</SortableHeader>
-              <TableHead className="w-16">Actions</TableHead>
+              <TableHead className="w-16 sticky right-0 bg-muted z-20 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.15)]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -583,7 +583,7 @@ export const AssetTable = ({
               </TableCell>}
 
               {!isMobile && <TableCell>
-                {asset.availableQuantity || 0}
+                {Math.max(0, (asset.quantity || 0) - (asset.reservedQuantity || 0) - (asset.damagedCount || 0) - (asset.missingCount || 0) - (asset.usedCount || 0))}
               </TableCell>}
 
               {!isMobile && <TableCell>
@@ -616,7 +616,7 @@ export const AssetTable = ({
 
               <TableCell>{getStockBadge(asset)}</TableCell>
 
-              <TableCell>
+              <TableCell className="sticky right-0 bg-card z-20 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]">
                 <MobileActionMenu title={`${asset.name} Actions`} items={[{
                   label: "Edit Form",
                   icon: <Edit className="h-4 w-4" />,
@@ -785,7 +785,7 @@ export const AssetTable = ({
 
     {/* Asset Description Dialog */}
     <Dialog open={!!selectedAssetForDescription} onOpenChange={open => !open && setSelectedAssetForDescription(null)}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{selectedAssetForDescription?.name} - Description</DialogTitle>
         </DialogHeader>

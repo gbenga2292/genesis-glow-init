@@ -4,7 +4,7 @@ import { Upload } from "lucide-react";
 import * as XLSX from "xlsx";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-
+import { useIsMobile } from "@/hooks/use-mobile";
 interface BulkImportAssetsProps {
   onImport: (assets: any[]) => void;
 }
@@ -14,6 +14,7 @@ export const BulkImportAssets = ({ onImport }: BulkImportAssetsProps) => {
   const [error, setError] = useState<string | null>(null);
   const { isAuthenticated } = useAuth();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -61,9 +62,16 @@ export const BulkImportAssets = ({ onImport }: BulkImportAssetsProps) => {
         onChange={handleFileChange}
         style={{ display: "none" }}
       />
-      <Button variant="outline" className="gap-2" onClick={handleClick} disabled={!isAuthenticated}>
+      <Button 
+        variant="outline" 
+        className="gap-2" 
+        onClick={handleClick} 
+        disabled={!isAuthenticated}
+        size={isMobile ? "icon" : "default"}
+        title="Bulk Import"
+      >
         <Upload className="h-4 w-4" />
-        Bulk Import
+        {!isMobile && "Bulk Import"}
       </Button>
       {error && <p className="text-destructive mt-2">{error}</p>}
       

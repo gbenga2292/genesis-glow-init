@@ -3,27 +3,32 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Asset, Site, Employee } from "@/types/asset";
 import { EquipmentLog, DowntimeEntry } from "@/types/equipment";
-import { AlertTriangle, CheckCircle, Clock, Wrench, Zap, Calendar as CalendarIcon, Plus, ChevronDown, ChevronUp, X, Filter } from "lucide-react";
-import { format, isToday } from "date-fns";
-import { createDefaultOperationalLog, applyDefaultTemplate, calculateDieselRefill, getDieselOverdueDays } from "@/utils/defaultLogTemplate";
+import { MaintenanceLog } from "@/types/maintenance";
+import { AlertTriangle, CheckCircle, Clock, Wrench, Zap, Plus, X, MapPin, Calendar as CalendarIcon, Layers } from "lucide-react";
+import { format } from "date-fns";
+import { createDefaultOperationalLog, calculateDieselRefill, getDieselOverdueDays } from "@/utils/defaultLogTemplate";
 import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 interface NotificationPanelProps {
   assets: Asset[];
   sites: Site[];
   equipmentLogs: EquipmentLog[];
+  maintenanceLogs: MaintenanceLog[];
   employees: Employee[];
   onQuickLogEquipment: (log: EquipmentLog) => void;
+  onBulkLogEquipment?: (logs: EquipmentLog[]) => Promise<void>;
 }
 
 interface PendingLogItem {
@@ -34,20 +39,45 @@ interface PendingLogItem {
   isOverdue: boolean;
 }
 
+interface MaintenanceDueItem {
+  asset: Asset;
+  nextServiceDue?: Date;
+  daysUntilDue: number;
+  isOverdue: boolean;
+  lastMaintenance?: MaintenanceLog;
+}
+
+type FilterPriority = "all" | "critical" | "warning" | "normal";
+type NotificationTab = "logs" | "maintenance";
+
 export const NotificationPanel = ({
   assets,
   sites,
   equipmentLogs,
+  maintenanceLogs,
   employees,
-  onQuickLogEquipment
+  onQuickLogEquipment,
+  onBulkLogEquipment
 }: NotificationPanelProps) => {
+  const { toast } = useToast();
   const { hasPermission } = useAuth();
+  const [notificationTab, setNotificationTab] = useState<NotificationTab>("logs");
   const [showQuickLogDialog, setShowQuickLogDialog] = useState(false);
+  const [showBulkLogDialog, setShowBulkLogDialog] = useState(false);
   const [selectedPendingItem, setSelectedPendingItem] = useState<PendingLogItem | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [filterPriority, setFilterPriority] = useState<"all" | "critical" | "warning" | "normal">("all");
+  const [filterPriority, setFilterPriority] = useState<FilterPriority>("all");
   const [dismissedItems, setDismissedItems] = useState<Set<string>>(new Set());
+  const [selectedBulkItems, setSelectedBulkItems] = useState<Set<string>>(new Set());
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkForm, setBulkForm] = useState({
+    active: true,
+    supervisorOnSite: "",
+    clientFeedback: "Site operational and progressing as planned",
+    issuesOnSite: "No issues on site",
+    maintenanceDetails: "Routine check completed - all systems operational"
+  });
+  const [bulkDieselValues, setBulkDieselValues] = useState<Record<string, string>>({});
   const [logForm, setLogForm] = useState<{
     active: boolean;
     downtimeEntries: DowntimeEntry[];
@@ -71,62 +101,6 @@ export const NotificationPanel = ({
     asset => asset.type === 'equipment' && asset.requiresLogging === true
   );
 
-  // Calculate pending logs
-  const getPendingLogs = (): PendingLogItem[] => {
-    const pending: PendingLogItem[] = [];
-
-    equipmentRequiringLogging.forEach(equipment => {
-      // Get all sites where this equipment is allocated
-      const equipmentSites = getEquipmentSites(equipment);
-
-      equipmentSites.forEach(site => {
-        // Get all logs for this equipment at this site, sorted by date
-        const siteLogs = equipmentLogs
-          .filter(log => log.equipmentId === equipment.id && log.siteId === site.id)
-          .sort((a, b) => a.date.getTime() - b.date.getTime());
-
-        if (siteLogs.length === 0) {
-          // No logs at all - equipment was never logged at this site
-          // Assume it was allocated recently and needs logging from today
-          pending.push({
-            equipment,
-            site,
-            lastLogDate: undefined,
-            missingDays: 1, // At least today
-            isOverdue: false
-          });
-        } else {
-          // Check for missing days from last log to today
-          const lastLog = siteLogs[siteLogs.length - 1];
-          const lastLogDate = new Date(lastLog.date);
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          lastLogDate.setHours(0, 0, 0, 0);
-
-          const daysDiff = Math.floor((today.getTime() - lastLogDate.getTime()) / (1000 * 60 * 60 * 24));
-
-          if (daysDiff > 0) {
-            // Missing logs for daysDiff days
-            pending.push({
-              equipment,
-              site,
-              lastLogDate: lastLog.date,
-              missingDays: daysDiff,
-              isOverdue: daysDiff > 1
-            });
-          }
-        }
-      });
-    });
-
-    // Sort by overdue status and missing days
-    return pending.sort((a, b) => {
-      if (a.isOverdue && !b.isOverdue) return -1;
-      if (!a.isOverdue && b.isOverdue) return 1;
-      return b.missingDays - a.missingDays;
-    });
-  };
-
   // Get sites where equipment is allocated
   const getEquipmentSites = (equipment: Asset): Site[] => {
     const equipmentSites: Site[] = [];
@@ -148,9 +122,139 @@ export const NotificationPanel = ({
     return equipmentSites;
   };
 
+  // Calculate pending logs
+  const getPendingLogs = (): PendingLogItem[] => {
+    const pending: PendingLogItem[] = [];
+
+    equipmentRequiringLogging.forEach(equipment => {
+      const equipmentSites = getEquipmentSites(equipment);
+
+      equipmentSites.forEach(site => {
+        const siteLogs = equipmentLogs
+          .filter(log => log.equipmentId === equipment.id && log.siteId === site.id)
+          .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+        if (siteLogs.length === 0) {
+          pending.push({
+            equipment,
+            site,
+            lastLogDate: undefined,
+            missingDays: 1,
+            isOverdue: false
+          });
+        } else {
+          const lastLog = siteLogs[siteLogs.length - 1];
+          const lastLogDate = new Date(lastLog.date);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          lastLogDate.setHours(0, 0, 0, 0);
+
+          const daysDiff = Math.floor((today.getTime() - lastLogDate.getTime()) / (1000 * 60 * 60 * 24));
+
+          if (daysDiff > 0) {
+            pending.push({
+              equipment,
+              site,
+              lastLogDate: lastLog.date,
+              missingDays: daysDiff,
+              isOverdue: daysDiff > 1
+            });
+          }
+        }
+      });
+    });
+
+    return pending.sort((a, b) => {
+      if (a.isOverdue && !b.isOverdue) return -1;
+      if (!a.isOverdue && b.isOverdue) return 1;
+      return b.missingDays - a.missingDays;
+    });
+  };
+
+  // Calculate maintenance due items
+  const getMaintenanceDueItems = (): MaintenanceDueItem[] => {
+    const dueItems: MaintenanceDueItem[] = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Get all equipment that have service intervals
+    const machinesWithService = assets.filter(
+      asset => asset.type === 'equipment' && asset.serviceInterval
+    );
+
+    machinesWithService.forEach(asset => {
+      // Find the latest maintenance log for this asset
+      const assetLogs = maintenanceLogs
+        .filter(log => log.machineId === asset.id)
+        .sort((a, b) => new Date(b.dateStarted).getTime() - new Date(a.dateStarted).getTime());
+
+      const lastMaintenance = assetLogs[0];
+      let nextServiceDue: Date | undefined;
+      let daysUntilDue = 0;
+
+      if (lastMaintenance?.nextServiceDue) {
+        // Use the explicitly set next service due date
+        nextServiceDue = new Date(lastMaintenance.nextServiceDue);
+      } else if (lastMaintenance && asset.serviceInterval) {
+        // Calculate based on last maintenance + service interval (serviceInterval is in months)
+        nextServiceDue = new Date(lastMaintenance.dateStarted);
+        nextServiceDue.setMonth(nextServiceDue.getMonth() + asset.serviceInterval);
+      } else if (asset.deploymentDate && asset.serviceInterval) {
+        // Calculate based on deployment date if no maintenance history
+        nextServiceDue = new Date(asset.deploymentDate);
+        nextServiceDue.setMonth(nextServiceDue.getMonth() + asset.serviceInterval);
+      }
+
+      if (nextServiceDue) {
+        nextServiceDue.setHours(0, 0, 0, 0);
+        daysUntilDue = Math.floor((nextServiceDue.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+        // Show if due within 30 days or overdue
+        if (daysUntilDue <= 30) {
+          dueItems.push({
+            asset,
+            nextServiceDue,
+            daysUntilDue,
+            isOverdue: daysUntilDue < 0,
+            lastMaintenance
+          });
+        }
+      }
+    });
+
+    // Sort: overdue first, then by days until due
+    return dueItems.sort((a, b) => {
+      if (a.isOverdue && !b.isOverdue) return -1;
+      if (!a.isOverdue && b.isOverdue) return 1;
+      return a.daysUntilDue - b.daysUntilDue;
+    });
+  };
+
   const pendingLogs = getPendingLogs();
-  const overdueCount = pendingLogs.filter(item => item.isOverdue).length;
-  const todayPendingCount = pendingLogs.length;
+  const maintenanceDueItems = getMaintenanceDueItems();
+
+  const getPriority = (item: PendingLogItem): FilterPriority => {
+    if (item.isOverdue) return "critical";
+    if (item.missingDays > 1) return "warning";
+    return "normal";
+  };
+
+  const getMaintenancePriority = (item: MaintenanceDueItem): FilterPriority => {
+    if (item.isOverdue) return "critical";
+    if (item.daysUntilDue <= 7) return "warning";
+    return "normal";
+  };
+
+  const filteredLogs = pendingLogs.filter(item => {
+    const itemId = `${item.equipment.id}-${item.site.id}`;
+    if (dismissedItems.has(itemId)) return false;
+    if (filterPriority === "all") return true;
+    return getPriority(item) === filterPriority;
+  });
+
+  const criticalCount = pendingLogs.filter(item => getPriority(item) === "critical").length;
+  const warningCount = pendingLogs.filter(item => getPriority(item) === "warning").length;
+  const normalCount = pendingLogs.filter(item => getPriority(item) === "normal").length;
 
   const getLoggedDatesForEquipment = (equipmentId: string) => {
     return equipmentLogs
@@ -161,16 +265,10 @@ export const NotificationPanel = ({
   const handleAutoFillDefaults = () => {
     if (!selectedPendingItem) return;
 
-    // Calculate diesel refill based on schedule (60L every 4 days)
     const dieselRefill = calculateDieselRefill(equipmentLogs, selectedPendingItem.equipment.id);
-
-    // Get default supervisor (first active employee)
     const defaultSupervisor = employees.find(emp => emp.status === 'active')?.name;
-
-    // Create default operational log with calculated diesel
     const defaultTemplate = createDefaultOperationalLog(defaultSupervisor, dieselRefill);
 
-    // Populate form with default template
     setLogForm({
       active: defaultTemplate.active,
       downtimeEntries: defaultTemplate.downtimeEntries,
@@ -193,14 +291,12 @@ export const NotificationPanel = ({
     if (date && selectedPendingItem) {
       setSelectedDate(date);
 
-      // Check for existing log
       const existingLog = equipmentLogs.find(log =>
         log.equipmentId === selectedPendingItem.equipment.id &&
         format(log.date, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
       );
 
       if (existingLog) {
-        // Populate form with existing data
         setLogForm({
           active: existingLog.active,
           downtimeEntries: existingLog.downtimeEntries.length > 0 ? existingLog.downtimeEntries : [{ id: Date.now().toString(), downtime: "", downtimeReason: "", downtimeAction: "", uptime: "" }],
@@ -211,7 +307,6 @@ export const NotificationPanel = ({
           issuesOnSite: existingLog.issuesOnSite || ""
         });
       } else {
-        // Reset form for new entry - default to active
         setLogForm({
           active: true,
           downtimeEntries: [{ id: Date.now().toString(), downtime: "", downtimeReason: "", downtimeAction: "", uptime: "" }],
@@ -250,228 +345,394 @@ export const NotificationPanel = ({
       updatedAt: new Date()
     };
 
-    if (existingLog) {
-      onQuickLogEquipment(logData); // This should be onUpdateEquipmentLog, but since it's not passed, using onQuickLogEquipment
-    } else {
-      onQuickLogEquipment(logData);
-    }
-
+    onQuickLogEquipment(logData);
     setShowQuickLogDialog(false);
     setSelectedPendingItem(null);
     setSelectedDate(undefined);
   };
-
-  // Group notifications by priority
-  const getPriority = (item: PendingLogItem): "critical" | "warning" | "normal" => {
-    if (item.isOverdue) return "critical";
-    if (item.missingDays > 1) return "warning";
-    return "normal";
-  };
-
-  // Filter and group pending logs
-  const filteredLogs = pendingLogs.filter(item => {
-    const itemId = `${item.equipment.id}-${item.site.id}`;
-    if (dismissedItems.has(itemId)) return false;
-    if (filterPriority === "all") return true;
-    return getPriority(item) === filterPriority;
-  });
-
-  const criticalLogs = filteredLogs.filter(item => getPriority(item) === "critical");
-  const warningLogs = filteredLogs.filter(item => getPriority(item) === "warning");
-  const normalLogs = filteredLogs.filter(item => getPriority(item) === "normal");
 
   const handleDismiss = (item: PendingLogItem) => {
     const itemId = `${item.equipment.id}-${item.site.id}`;
     setDismissedItems(prev => new Set(prev).add(itemId));
   };
 
-  if (todayPendingCount === 0 && dismissedItems.size === 0) {
+  const handleOpenBulkLog = () => {
+    // Pre-select all filtered items
+    const allIds = new Set(filteredLogs.map(item => `${item.equipment.id}-${item.site.id}`));
+    setSelectedBulkItems(allIds);
+    // Pre-fill diesel values based on calculations
+    const dieselVals: Record<string, string> = {};
+    filteredLogs.forEach(item => {
+      const diesel = calculateDieselRefill(equipmentLogs, item.equipment.id);
+      if (diesel) {
+        dieselVals[`${item.equipment.id}-${item.site.id}`] = diesel.toString();
+      }
+    });
+    setBulkDieselValues(dieselVals);
+    setShowBulkLogDialog(true);
+  };
+
+  const handleBulkSave = async () => {
+    if (selectedBulkItems.size === 0) {
+      toast({ title: "No items selected", description: "Please select at least one equipment to log.", variant: "destructive" });
+      return;
+    }
+
+    if (!onBulkLogEquipment) {
+      toast({ title: "Bulk log not available", description: "Bulk logging is not configured.", variant: "destructive" });
+      return;
+    }
+
+    setBulkSaving(true);
+    try {
+      const logs: EquipmentLog[] = [];
+      filteredLogs.forEach(item => {
+        const key = `${item.equipment.id}-${item.site.id}`;
+        if (selectedBulkItems.has(key)) {
+          const dieselVal = bulkDieselValues[key];
+          logs.push({
+            id: `${Date.now()}-${item.equipment.id}`,
+            equipmentId: item.equipment.id,
+            equipmentName: item.equipment.name,
+            siteId: item.site.id,
+            date: selectedDate || new Date(),
+            active: bulkForm.active,
+            downtimeEntries: [],
+            maintenanceDetails: bulkForm.maintenanceDetails || undefined,
+            dieselEntered: dieselVal ? parseFloat(dieselVal) : undefined,
+            supervisorOnSite: bulkForm.supervisorOnSite || undefined,
+            clientFeedback: bulkForm.clientFeedback || undefined,
+            issuesOnSite: bulkForm.issuesOnSite || undefined,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          });
+        }
+      });
+
+      await onBulkLogEquipment(logs);
+      toast({ title: "Bulk Logs Created", description: `Created ${logs.length} equipment logs.` });
+      setShowBulkLogDialog(false);
+      setSelectedBulkItems(new Set());
+    } catch (error) {
+      console.error(error);
+      toast({ title: "Error", description: "Failed to save bulk logs.", variant: "destructive" });
+    } finally {
+      setBulkSaving(false);
+    }
+  };
+
+  const toggleBulkItem = (itemKey: string) => {
+    setSelectedBulkItems(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(itemKey)) {
+        newSet.delete(itemKey);
+      } else {
+        newSet.add(itemKey);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllBulk = () => {
+    if (selectedBulkItems.size === filteredLogs.length) {
+      setSelectedBulkItems(new Set());
+    } else {
+      setSelectedBulkItems(new Set(filteredLogs.map(item => `${item.equipment.id}-${item.site.id}`)));
+    }
+  };
+
+  // All logged state
+  if (pendingLogs.length === 0 && maintenanceDueItems.length === 0 && dismissedItems.size === 0) {
     return (
       <Card className="border-0 shadow-soft bg-success/10">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-success">
-            <CheckCircle className="h-5 w-5" />
-            All Equipment Logged
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-success">
-            All equipment requiring daily logs have been logged for today.
-          </p>
+        <CardContent className="py-6">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-success/20 flex items-center justify-center">
+              <CheckCircle className="h-5 w-5 text-success" />
+            </div>
+            <div>
+              <p className="font-medium text-success">All Up to Date</p>
+              <p className="text-sm text-success/80">Equipment logs and maintenance are current</p>
+            </div>
+          </div>
         </CardContent>
       </Card>
     );
   }
 
-  const renderNotificationGroup = (items: PendingLogItem[], title: string, color: string, icon: any) => {
-    if (items.length === 0) return null;
-    const Icon = icon;
-
-    return (
-      <div className="space-y-2">
-        <div className="flex items-center gap-2 text-sm font-medium">
-          <Icon className={`h-4 w-4 ${color}`} />
-          <span>{title} ({items.length})</span>
-        </div>
-        <div className="space-y-2">
-          {items.map((item, index) => (
-            <Alert key={`${item.equipment.id}-${item.site.id}`} className={getPriority(item) === "critical" ? "border-destructive/20 bg-destructive/5" : getPriority(item) === "warning" ? "border-warning/20 bg-warning/5" : "border-border bg-muted/30"}>
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="font-medium">{item.equipment.name}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {item.site.name}
-                    {item.lastLogDate && (
-                      <span className="ml-2">
-                        • Last logged {format(item.lastLogDate, 'MMM dd')} ({item.missingDays} day{item.missingDays > 1 ? 's' : ''} missing)
-                      </span>
-                    )}
-                    {!item.lastLogDate && (
-                      <span className="ml-2">
-                        • Never logged at this site
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {item.isOverdue && (
-                    <Badge variant="destructive" className="text-xs">
-                      Overdue
-                    </Badge>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleDismiss(item)}
-                    className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleQuickLog(item)}
-                    className="gap-1"
-                    disabled={!hasPermission('write_assets')}
-                  >
-                    <Zap className="h-3 w-3" />
-                    Quick Log
-                  </Button>
-                </div>
-              </AlertDescription>
-            </Alert>
-          ))}
-        </div>
-      </div>
-    );
+  const getPriorityStyles = (priority: FilterPriority) => {
+    switch (priority) {
+      case "critical":
+        return {
+          border: "border-l-destructive",
+          bg: "bg-destructive/5",
+          badge: "bg-destructive text-destructive-foreground",
+          icon: "text-destructive"
+        };
+      case "warning":
+        return {
+          border: "border-l-warning",
+          bg: "bg-warning/5",
+          badge: "bg-warning text-warning-foreground",
+          icon: "text-warning"
+        };
+      default:
+        return {
+          border: "border-l-muted-foreground",
+          bg: "bg-muted/30",
+          badge: "bg-muted text-muted-foreground",
+          icon: "text-muted-foreground"
+        };
+    }
   };
 
   return (
     <>
-      <Collapsible open={!isCollapsed} onOpenChange={(open) => setIsCollapsed(!open)}>
-        <Card className="border-0 shadow-soft">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-warning" />
-                Pending Equipment Logs
-                {filteredLogs.length > 0 && (
-                  <Badge variant="secondary" className="ml-2">
-                    {filteredLogs.length}
+      <Card className="border-0 shadow-soft overflow-hidden">
+        {/* Mobile-optimized Header */}
+        <CardHeader className="pb-3 space-y-3">
+          {/* Main Notification Type Tabs */}
+          <Tabs value={notificationTab} onValueChange={(v) => setNotificationTab(v as NotificationTab)} className="w-full">
+            <TabsList className="w-full h-10 p-1 grid grid-cols-2">
+              <TabsTrigger value="logs" className="text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                <Wrench className="h-4 w-4 mr-2" />
+                Equipment Logs
+                {pendingLogs.length > 0 && (
+                  <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-[10px]">
+                    {pendingLogs.length}
                   </Badge>
                 )}
-              </CardTitle>
-              <div className="flex items-center gap-2">
-                {criticalLogs.length > 0 && (
-                  <Badge variant="destructive" className="gap-1">
-                    <Clock className="h-3 w-3" />
-                    {criticalLogs.length} Critical
+              </TabsTrigger>
+              <TabsTrigger value="maintenance" className="text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                <Wrench className="h-4 w-4 mr-2" />
+                Maintenance Due
+                {maintenanceDueItems.length > 0 && (
+                  <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-[10px]">
+                    {maintenanceDueItems.length}
                   </Badge>
                 )}
-                {warningLogs.length > 0 && (
-                  <Badge className="gap-1 bg-warning text-warning-foreground">
-                    {warningLogs.length} Warning
-                  </Badge>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="h-8 w-8 rounded-full bg-warning/20 flex items-center justify-center shrink-0">
+                {notificationTab === "logs" ? (
+                  <Wrench className="h-4 w-4 text-warning" />
+                ) : (
+                  <Wrench className="h-4 w-4 text-warning" />
                 )}
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                    {isCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-                  </Button>
-                </CollapsibleTrigger>
+              </div>
+              <div className="min-w-0">
+                <CardTitle className="text-base font-semibold truncate">
+                  {notificationTab === "logs" ? "Pending Equipment Logs" : "Maintenance Due"}
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  {notificationTab === "logs" ? "Equipment requiring daily logs" : "Machines requiring scheduled maintenance"}
+                </CardDescription>
               </div>
             </div>
-            <CardDescription>
-              Equipment requiring daily logs - grouped by priority
-            </CardDescription>
-          </CardHeader>
-          <CollapsibleContent>
-            <CardContent>
-              {/* Filter Buttons */}
-              <div className="flex flex-wrap gap-2 mb-4">
+            <div className="flex items-center gap-2">
+              {notificationTab === "logs" && filteredLogs.length > 1 && onBulkLogEquipment && (
                 <Button
-                  variant={filterPriority === "all" ? "default" : "outline"}
+                  variant="outline"
                   size="sm"
-                  onClick={() => setFilterPriority("all")}
-                  className="gap-1"
+                  onClick={handleOpenBulkLog}
+                  disabled={!hasPermission('write_assets')}
+                  className="h-7 text-xs gap-1.5"
                 >
-                  <Filter className="h-3 w-3" />
-                  All ({filteredLogs.length})
+                  <Layers className="h-3.5 w-3.5" />
+                  Bulk Log
                 </Button>
-                <Button
-                  variant={filterPriority === "critical" ? "destructive" : "outline"}
-                  size="sm"
-                  onClick={() => setFilterPriority("critical")}
-                >
-                  Critical ({criticalLogs.length})
-                </Button>
-                <Button
-                  variant={filterPriority === "warning" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setFilterPriority("warning")}
-                  className={filterPriority === "warning" ? "bg-warning text-warning-foreground" : ""}
-                >
-                  Warning ({warningLogs.length})
-                </Button>
-                <Button
-                  variant={filterPriority === "normal" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setFilterPriority("normal")}
-                >
-                  Normal ({normalLogs.length})
-                </Button>
-              </div>
+              )}
+            </div>
+          </div>
 
-              {/* Notification Groups */}
-              <div className="space-y-4">
-                {renderNotificationGroup(criticalLogs, "Critical - Immediate Action Required", "text-destructive", AlertTriangle)}
-                {renderNotificationGroup(warningLogs, "Warning - Action Needed Soon", "text-warning", Clock)}
-                {renderNotificationGroup(normalLogs, "Normal - Routine Logs", "text-muted-foreground", Wrench)}
+          {/* Priority Filter Tabs (only for equipment logs) */}
+          {notificationTab === "logs" && (
+            <Tabs value={filterPriority} onValueChange={(v) => setFilterPriority(v as FilterPriority)} className="w-full">
+              <TabsList className="w-full h-9 p-1 grid grid-cols-4">
+                <TabsTrigger value="all" className="text-xs px-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                  All ({pendingLogs.length})
+                </TabsTrigger>
+                <TabsTrigger value="critical" className="text-xs px-2 data-[state=active]:bg-destructive data-[state=active]:text-destructive-foreground">
+                  {criticalCount}
+                </TabsTrigger>
+                <TabsTrigger value="warning" className="text-xs px-2 data-[state=active]:bg-warning data-[state=active]:text-warning-foreground">
+                  {warningCount}
+                </TabsTrigger>
+                <TabsTrigger value="normal" className="text-xs px-2">
+                  {normalCount}
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          )}
+        </CardHeader>
 
-                {filteredLogs.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>No pending logs in this category</p>
+        <CardContent className="p-0">
+          {notificationTab === "logs" ? (
+            <>
+              {filteredLogs.length === 0 ? (
+                <div className="text-center py-8 px-4 text-muted-foreground">
+                  <CheckCircle className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                  <p className="text-sm">No pending logs in this category</p>
+                </div>
+              ) : (
+                <ScrollArea className="max-h-[400px]">
+                  <div className="divide-y divide-border">
+                    {filteredLogs.map((item) => {
+                      const priority = getPriority(item);
+                      const styles = getPriorityStyles(priority);
+
+                      return (
+                        <div
+                          key={`${item.equipment.id}-${item.site.id}`}
+                          className={cn(
+                            "p-3 border-l-4 transition-colors",
+                            styles.border,
+                            styles.bg
+                          )}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className={cn("mt-0.5 shrink-0", styles.icon)}>
+                              <Wrench className="h-4 w-4" />
+                            </div>
+                            <div className="flex-1 min-w-0 space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <p className="font-medium text-sm truncate">{item.equipment.name}</p>
+                                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+                                    <MapPin className="h-3 w-3 shrink-0" />
+                                    <span className="truncate">{item.site.name}</span>
+                                  </div>
+                                </div>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => handleDismiss(item)}
+                                  className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {item.isOverdue && (
+                                  <Badge variant="destructive" className="text-[10px] h-5 px-1.5">
+                                    <Clock className="h-3 w-3 mr-1" />
+                                    Overdue
+                                  </Badge>
+                                )}
+                                <span className="text-[11px] text-muted-foreground">
+                                  {item.lastLogDate ? (
+                                    <>Last: {format(item.lastLogDate, 'MMM dd')} • {item.missingDays}d missing</>
+                                  ) : (
+                                    "Never logged"
+                                  )}
+                                </span>
+                              </div>
+                              <Button
+                                size="sm"
+                                onClick={() => handleQuickLog(item)}
+                                disabled={!hasPermission('write_assets')}
+                                className="w-full h-9 mt-1 gap-1.5"
+                              >
+                                <Zap className="h-3.5 w-3.5" />
+                                Quick Log
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                )}
-              </div>
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
+                </ScrollArea>
+              )}
+            </>
+          ) : (
+            <>
+              {maintenanceDueItems.length === 0 ? (
+                <div className="text-center py-8 px-4 text-muted-foreground">
+                  <CheckCircle className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                  <p className="text-sm">No maintenance due at this time</p>
+                </div>
+              ) : (
+                <ScrollArea className="max-h-[400px]">
+                  <div className="divide-y divide-border">
+                    {maintenanceDueItems.map((item) => {
+                      const priority = getMaintenancePriority(item);
+                      const styles = getPriorityStyles(priority);
 
-      {/* Quick Log Form Dialog - Full screen on mobile */}
+                      return (
+                        <div
+                          key={item.asset.id}
+                          className={cn(
+                            "p-3 border-l-4 transition-colors",
+                            styles.border,
+                            styles.bg
+                          )}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className={cn("mt-0.5 shrink-0", styles.icon)}>
+                              <Wrench className="h-4 w-4" />
+                            </div>
+                            <div className="flex-1 min-w-0 space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <p className="font-medium text-sm truncate">{item.asset.name}</p>
+                                  <p className="text-xs text-muted-foreground mt-0.5">
+                                    {item.asset.category || 'Equipment'}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {item.isOverdue ? (
+                                  <Badge variant="destructive" className="text-[10px] h-5 px-1.5">
+                                    <AlertTriangle className="h-3 w-3 mr-1" />
+                                    {Math.abs(item.daysUntilDue)}d Overdue
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-[10px] h-5 px-1.5">
+                                    <Clock className="h-3 w-3 mr-1" />
+                                    Due in {item.daysUntilDue}d
+                                  </Badge>
+                                )}
+                                {item.nextServiceDue && (
+                                  <span className="text-[11px] text-muted-foreground">
+                                    Due: {format(item.nextServiceDue, 'MMM dd, yyyy')}
+                                  </span>
+                                )}
+                              </div>
+                              {item.lastMaintenance && (
+                                <p className="text-[11px] text-muted-foreground">
+                                  Last: {format(new Date(item.lastMaintenance.dateStarted), 'MMM dd')} — {item.lastMaintenance.maintenanceType}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Quick Log Dialog - Mobile Optimized */}
       <Dialog open={showQuickLogDialog} onOpenChange={setShowQuickLogDialog}>
-        <DialogContent className="sm:max-w-4xl">
-          <DialogHeader className="pb-2">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div>
-                <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
-                  <Zap className="h-4 w-4 sm:h-5 sm:w-5" />
-                  Quick Log Equipment
+        <DialogContent className="sm:max-w-4xl max-h-[95vh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="px-4 pt-4 pb-2 border-b shrink-0">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <DialogTitle className="text-base flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-primary" />
+                  Quick Log
                 </DialogTitle>
-                <DialogDescription className="text-xs sm:text-sm">
-                  {selectedDate && format(selectedDate, 'PPP')} - {selectedPendingItem?.equipment.name}
+                <DialogDescription className="text-xs truncate">
+                  {selectedPendingItem?.equipment.name} • {selectedDate && format(selectedDate, 'PPP')}
                 </DialogDescription>
               </div>
               <Button
@@ -479,254 +740,441 @@ export const NotificationPanel = ({
                 variant="outline"
                 size="sm"
                 onClick={handleAutoFillDefaults}
-                className="w-full sm:w-auto"
+                className="shrink-0 h-8 text-xs"
               >
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Auto-Fill Defaults
+                <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
+                Auto-Fill
               </Button>
             </div>
           </DialogHeader>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-            {/* Calendar on the Left */}
-            <div className="space-y-2">
-              <Label className="text-sm">Date</Label>
-              <div className="flex justify-center">
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={(date) => date && handleDateSelect(date)}
-                  modifiers={{
-                    logged: selectedPendingItem ? getLoggedDatesForEquipment(selectedPendingItem.equipment.id) : []
-                  }}
-                  modifiersStyles={{
-                    logged: {
-                      backgroundColor: 'hsl(var(--primary))',
-                      color: 'white',
-                      fontWeight: 'bold'
-                    }
-                  }}
-                  className="rounded-md border w-full max-w-[280px]"
-                />
-              </div>
-              <p className="text-xs text-muted-foreground text-center">
-                Blue dates have existing logs
-              </p>
-            </div>
-
-            {/* Form on the Right */}
-            <div className="space-y-3 sm:space-y-4">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="active"
-                  checked={logForm.active}
-                  onCheckedChange={(checked) => setLogForm({ ...logForm, active: checked as boolean })}
-                />
-                <Label htmlFor="active" className="text-sm">Active</Label>
+          <ScrollArea className="flex-1" style={{ maxHeight: 'calc(95vh - 80px)' }}>
+            <div className="p-4 space-y-4">
+              {/* Calendar Section - Collapsed on mobile */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium flex items-center gap-2">
+                  <CalendarIcon className="h-4 w-4" />
+                  Select Date
+                </Label>
+                <div className="flex justify-center bg-muted/30 rounded-lg p-3">
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={(date) => date && handleDateSelect(date)}
+                    modifiers={{
+                      logged: selectedPendingItem ? getLoggedDatesForEquipment(selectedPendingItem.equipment.id) : []
+                    }}
+                    modifiersStyles={{
+                      logged: {
+                        backgroundColor: 'hsl(var(--primary))',
+                        color: 'white',
+                        fontWeight: 'bold'
+                      }
+                    }}
+                    className="rounded-md border bg-card"
+                  />
+                </div>
+                <p className="text-[10px] text-muted-foreground text-center">
+                  Blue dates have existing logs
+                </p>
               </div>
 
-              {logForm.active && (
-                <div className="space-y-3 sm:space-y-4">
-                  <div className="space-y-3 sm:space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                      <Label className="text-sm">Downtime Entries</Label>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setLogForm({
-                          ...logForm,
-                          downtimeEntries: [...logForm.downtimeEntries, { id: Date.now().toString(), downtime: "", downtimeReason: "", downtimeAction: "", uptime: "" }]
-                        })}
-                        className="w-full sm:w-auto"
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Entry
-                      </Button>
+              {/* Form Section */}
+              <div className="space-y-4">
+                <div className="flex items-center space-x-3 p-3 bg-muted/30 rounded-lg">
+                  <Checkbox
+                    id="active"
+                    checked={logForm.active}
+                    onCheckedChange={(checked) => setLogForm({ ...logForm, active: checked as boolean })}
+                  />
+                  <Label htmlFor="active" className="text-sm font-medium cursor-pointer">
+                    Equipment Active Today
+                  </Label>
+                </div>
+
+                {logForm.active && (
+                  <div className="space-y-4">
+                    {/* Downtime Entries */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-medium">Downtime Entries</Label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setLogForm({
+                            ...logForm,
+                            downtimeEntries: [...logForm.downtimeEntries, { id: Date.now().toString(), downtime: "", downtimeReason: "", downtimeAction: "", uptime: "" }]
+                          })}
+                          className="h-8 text-xs"
+                        >
+                          <Plus className="h-3.5 w-3.5 mr-1" />
+                          Add
+                        </Button>
+                      </div>
+
+                      {logForm.downtimeEntries.map((entry, index) => (
+                        <Card key={entry.id} className="border shadow-none">
+                          <CardContent className="p-3 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-medium text-muted-foreground">Entry {index + 1}</span>
+                              {logForm.downtimeEntries.length > 1 && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setLogForm({
+                                    ...logForm,
+                                    downtimeEntries: logForm.downtimeEntries.filter((_, i) => i !== index)
+                                  })}
+                                  className="h-6 text-xs text-destructive hover:text-destructive"
+                                >
+                                  Remove
+                                </Button>
+                              )}
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <Label className="text-[10px] text-muted-foreground">Time Off</Label>
+                                <Input
+                                  value={entry.downtime}
+                                  onChange={(e) => {
+                                    const newEntries = [...logForm.downtimeEntries];
+                                    newEntries[index].downtime = e.target.value;
+                                    setLogForm({ ...logForm, downtimeEntries: newEntries });
+                                  }}
+                                  placeholder="14:30"
+                                  className="h-9 text-sm"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] text-muted-foreground">Time Back</Label>
+                                <Input
+                                  value={entry.uptime}
+                                  onChange={(e) => {
+                                    const newEntries = [...logForm.downtimeEntries];
+                                    newEntries[index].uptime = e.target.value;
+                                    setLogForm({ ...logForm, downtimeEntries: newEntries });
+                                  }}
+                                  placeholder="16:00"
+                                  className="h-9 text-sm"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <Label className="text-[10px] text-muted-foreground">Reason</Label>
+                              <Input
+                                value={entry.downtimeReason}
+                                onChange={(e) => {
+                                  const newEntries = [...logForm.downtimeEntries];
+                                  newEntries[index].downtimeReason = e.target.value;
+                                  setLogForm({ ...logForm, downtimeEntries: newEntries });
+                                }}
+                                placeholder="Reason for downtime"
+                                className="h-9 text-sm"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <Label className="text-[10px] text-muted-foreground">Action Taken</Label>
+                              <Textarea
+                                value={entry.downtimeAction}
+                                onChange={(e) => {
+                                  const newEntries = [...logForm.downtimeEntries];
+                                  newEntries[index].downtimeAction = e.target.value;
+                                  setLogForm({ ...logForm, downtimeEntries: newEntries });
+                                }}
+                                placeholder="Actions taken"
+                                rows={2}
+                                className="text-sm resize-none"
+                              />
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
                     </div>
 
-                    {logForm.downtimeEntries.map((entry, index) => (
-                      <div key={entry.id} className="border rounded-lg p-3 sm:p-4 space-y-3 sm:space-y-4">
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-medium text-sm">Entry {index + 1}</h4>
-                          {logForm.downtimeEntries.length > 1 && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setLogForm({
-                                ...logForm,
-                                downtimeEntries: logForm.downtimeEntries.filter((_, i) => i !== index)
-                              })}
-                            >
-                              Remove
-                            </Button>
+                    {/* Diesel & Supervisor */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Diesel (L)</Label>
+                        <Input
+                          type="number"
+                          value={logForm.dieselEntered}
+                          onChange={(e) => setLogForm({ ...logForm, dieselEntered: e.target.value })}
+                          placeholder="0.00"
+                          className="h-10"
+                        />
+                        {selectedPendingItem && (() => {
+                          const overdueDays = getDieselOverdueDays(equipmentLogs, selectedPendingItem.equipment.id);
+                          const refillAmount = calculateDieselRefill(equipmentLogs, selectedPendingItem.equipment.id);
+                          return overdueDays > 0 ? (
+                            <p className="text-[10px] text-warning">
+                              ⚠️ {refillAmount}L due ({overdueDays}d overdue)
+                            </p>
+                          ) : refillAmount ? (
+                            <p className="text-[10px] text-primary">
+                              💡 Suggested: {refillAmount}L
+                            </p>
+                          ) : null;
+                        })()}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Supervisor</Label>
+                        <Select
+                          value={logForm.supervisorOnSite}
+                          onValueChange={(value) => setLogForm({ ...logForm, supervisorOnSite: value })}
+                        >
+                          <SelectTrigger className="h-10">
+                            <SelectValue placeholder="Select" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {employees.map((employee) => (
+                              <SelectItem key={employee.id} value={employee.name}>
+                                {employee.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* Maintenance Details */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Maintenance Details</Label>
+                      <Textarea
+                        value={logForm.maintenanceDetails}
+                        onChange={(e) => setLogForm({ ...logForm, maintenanceDetails: e.target.value })}
+                        placeholder="Maintenance performed"
+                        rows={2}
+                        className="text-sm resize-none"
+                      />
+                    </div>
+
+                    {/* Client Feedback */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Client Feedback</Label>
+                      <Textarea
+                        value={logForm.clientFeedback}
+                        onChange={(e) => setLogForm({ ...logForm, clientFeedback: e.target.value })}
+                        placeholder="Client comments"
+                        rows={2}
+                        className="text-sm resize-none"
+                      />
+                    </div>
+
+                    {/* Issues */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Issues on Site</Label>
+                      <Textarea
+                        value={logForm.issuesOnSite}
+                        onChange={(e) => setLogForm({ ...logForm, issuesOnSite: e.target.value })}
+                        placeholder="Any issues encountered"
+                        rows={2}
+                        className="text-sm resize-none"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </ScrollArea>
+
+          {/* Sticky Footer */}
+          <div className="p-4 border-t bg-card shrink-0">
+            <div className="flex gap-3">
+              <Button
+                onClick={() => setShowQuickLogDialog(false)}
+                variant="outline"
+                className="flex-1 h-11"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveLog}
+                className="flex-1 h-11"
+              >
+                Save Log
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Log Dialog */}
+      <Dialog open={showBulkLogDialog} onOpenChange={setShowBulkLogDialog}>
+        <DialogContent className="sm:max-w-2xl max-h-[95vh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="px-4 pt-4 pb-2 border-b shrink-0">
+            <DialogTitle className="text-base flex items-center gap-2">
+              <Layers className="h-4 w-4 text-primary" />
+              Bulk Equipment Log
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Log multiple machines at once with shared parameters
+            </DialogDescription>
+          </DialogHeader>
+
+          <ScrollArea className="flex-1 overflow-y-auto">
+            <div className="p-4 space-y-4">
+              {/* Date Selection */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Log Date</Label>
+                <div className="flex justify-center bg-muted/30 rounded-lg p-2">
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={(date) => date && setSelectedDate(date)}
+                    className="rounded-md"
+                  />
+                </div>
+              </div>
+
+              {/* Equipment Selection */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">
+                    Select Equipment ({selectedBulkItems.size}/{filteredLogs.length})
+                  </Label>
+                  <Button variant="ghost" size="sm" onClick={selectAllBulk} className="h-7 text-xs">
+                    {selectedBulkItems.size === filteredLogs.length ? 'Deselect All' : 'Select All'}
+                  </Button>
+                </div>
+                <ScrollArea className="h-[200px] border rounded-md p-2">
+                  <div className="space-y-2">
+                    {filteredLogs.map(item => {
+                      const key = `${item.equipment.id}-${item.site.id}`;
+                      const isSelected = selectedBulkItems.has(key);
+                      return (
+                        <div
+                          key={key}
+                          className={cn(
+                            "flex flex-col gap-2 p-2 rounded-md border transition-colors",
+                            isSelected ? "bg-primary/5 border-primary/30" : "hover:bg-muted"
+                          )}
+                        >
+                          <div
+                            className="flex items-center gap-3 cursor-pointer"
+                            onClick={() => toggleBulkItem(key)}
+                          >
+                            <Checkbox checked={isSelected} onCheckedChange={() => toggleBulkItem(key)} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{item.equipment.name}</p>
+                              <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                                <MapPin className="h-3 w-3" /> {item.site.name}
+                              </p>
+                            </div>
+                            {item.isOverdue && (
+                              <Badge variant="destructive" className="text-[10px] h-5 shrink-0">
+                                Overdue
+                              </Badge>
+                            )}
+                          </div>
+                          {isSelected && (
+                            <div className="pl-7 pr-1 animate-in slide-in-from-top-1 duration-200">
+                              <div className="flex items-center gap-2">
+                                <Label className="text-xs w-20 shrink-0">Diesel (L):</Label>
+                                <Input
+                                  type="number"
+                                  className="h-8 bg-background"
+                                  placeholder="Litres"
+                                  value={bulkDieselValues[key] || ''}
+                                  onChange={(e) => setBulkDieselValues(prev => ({
+                                    ...prev,
+                                    [key]: e.target.value
+                                  }))}
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              </div>
+                            </div>
                           )}
                         </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                          <div className="space-y-1.5">
-                            <Label htmlFor={`downtime-${index}`} className="text-xs sm:text-sm">Downtime (Time Off)</Label>
-                            <Input
-                              id={`downtime-${index}`}
-                              value={entry.downtime}
-                              onChange={(e) => {
-                                const newEntries = [...logForm.downtimeEntries];
-                                newEntries[index].downtime = e.target.value;
-                                setLogForm({ ...logForm, downtimeEntries: newEntries });
-                              }}
-                              placeholder="e.g., 14:30"
-                              className="h-9"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label htmlFor={`uptime-${index}`} className="text-xs sm:text-sm">Uptime (Time Back On)</Label>
-                            <Input
-                              id={`uptime-${index}`}
-                              value={entry.uptime}
-                              onChange={(e) => {
-                                const newEntries = [...logForm.downtimeEntries];
-                                newEntries[index].uptime = e.target.value;
-                                setLogForm({ ...logForm, downtimeEntries: newEntries });
-                              }}
-                              placeholder="e.g., 16:00"
-                              className="h-9"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label htmlFor={`downtimeReason-${index}`} className="text-xs sm:text-sm">Downtime Reason</Label>
-                          <Input
-                            id={`downtimeReason-${index}`}
-                            value={entry.downtimeReason}
-                            onChange={(e) => {
-                              const newEntries = [...logForm.downtimeEntries];
-                              newEntries[index].downtimeReason = e.target.value;
-                              setLogForm({ ...logForm, downtimeEntries: newEntries });
-                            }}
-                            placeholder="Reason for downtime"
-                            className="h-9"
-                          />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label htmlFor={`downtimeAction-${index}`} className="text-xs sm:text-sm">Action Taken</Label>
-                          <Textarea
-                            id={`downtimeAction-${index}`}
-                            value={entry.downtimeAction}
-                            onChange={(e) => {
-                              const newEntries = [...logForm.downtimeEntries];
-                              newEntries[index].downtimeAction = e.target.value;
-                              setLogForm({ ...logForm, downtimeEntries: newEntries });
-                            }}
-                            placeholder="Actions taken to resolve"
-                            rows={2}
-                            className="text-sm"
-                          />
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="maintenanceDetails" className="text-xs sm:text-sm">Maintenance Details</Label>
-                    <Textarea
-                      id="maintenanceDetails"
-                      value={logForm.maintenanceDetails}
-                      onChange={(e) => setLogForm({ ...logForm, maintenanceDetails: e.target.value })}
-                      placeholder="Maintenance performed"
-                      rows={2}
-                      className="text-sm"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="dieselEntered" className="text-xs sm:text-sm">Diesel Entered (L)</Label>
-                      <Input
-                        id="dieselEntered"
-                        type="number"
-                        value={logForm.dieselEntered}
-                        onChange={(e) => setLogForm({ ...logForm, dieselEntered: e.target.value })}
-                        placeholder="0.00"
-                        className="h-9"
-                      />
-                      {selectedPendingItem && (() => {
-                        const overdueDays = getDieselOverdueDays(equipmentLogs, selectedPendingItem.equipment.id);
-                        const refillAmount = calculateDieselRefill(equipmentLogs, selectedPendingItem.equipment.id);
-                        return overdueDays > 0 ? (
-                          <p className="text-xs text-orange-600">
-                            ⚠️ Refill due: {refillAmount}L (overdue by {overdueDays} day{overdueDays > 1 ? 's' : ''})
-                          </p>
-                        ) : refillAmount ? (
-                          <p className="text-xs text-blue-600">
-                            💡 Suggested refill: {refillAmount}L
-                          </p>
-                        ) : null;
-                      })()}
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="supervisorOnSite" className="text-xs sm:text-sm">Supervisor on Site</Label>
-                      <Select
-                        value={logForm.supervisorOnSite}
-                        onValueChange={(value) => setLogForm({ ...logForm, supervisorOnSite: value })}
-                      >
-                        <SelectTrigger className="h-9">
-                          <SelectValue placeholder="Select supervisor" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {employees.map((employee) => (
-                            <SelectItem key={employee.id} value={employee.name}>
-                              {employee.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="clientFeedback" className="text-xs sm:text-sm">Client Feedback</Label>
-                    <Textarea
-                      id="clientFeedback"
-                      value={logForm.clientFeedback}
-                      onChange={(e) => setLogForm({ ...logForm, clientFeedback: e.target.value })}
-                      placeholder="Client feedback and comments"
-                      rows={2}
-                      className="text-sm"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="issuesOnSite" className="text-xs sm:text-sm">Issues on Site</Label>
-                    <Textarea
-                      id="issuesOnSite"
-                      value={logForm.issuesOnSite}
-                      onChange={(e) => setLogForm({ ...logForm, issuesOnSite: e.target.value })}
-                      placeholder="Any issues encountered"
-                      rows={2}
-                      className="text-sm"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div className="flex gap-2 sm:gap-3 pt-3 sm:pt-4 sticky bottom-0 bg-background pb-2">
-                <Button
-                  onClick={() => setShowQuickLogDialog(false)}
-                  variant="outline"
-                  className="flex-1 h-10"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleSaveLog}
-                  className="flex-1 h-10"
-                >
-                  Save Log
-                </Button>
+                </ScrollArea>
               </div>
+
+              {/* Shared Form Fields */}
+              <div className="space-y-4 border-t pt-4">
+                <div className="flex items-center gap-3">
+                  <Checkbox
+                    id="bulk-active"
+                    checked={bulkForm.active}
+                    onCheckedChange={(checked) => setBulkForm(prev => ({ ...prev, active: !!checked }))}
+                  />
+                  <Label htmlFor="bulk-active">Machines were operational today</Label>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs">Supervisor on Site</Label>
+                  <Select
+                    value={bulkForm.supervisorOnSite}
+                    onValueChange={(v) => setBulkForm(prev => ({ ...prev, supervisorOnSite: v }))}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Select supervisor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {employees.map(emp => (
+                        <SelectItem key={emp.id} value={emp.name}>{emp.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs">Maintenance Details</Label>
+                  <Textarea
+                    value={bulkForm.maintenanceDetails}
+                    onChange={(e) => setBulkForm(prev => ({ ...prev, maintenanceDetails: e.target.value }))}
+                    rows={2}
+                    className="text-sm resize-none"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs">Client Feedback</Label>
+                  <Textarea
+                    value={bulkForm.clientFeedback}
+                    onChange={(e) => setBulkForm(prev => ({ ...prev, clientFeedback: e.target.value }))}
+                    rows={2}
+                    className="text-sm resize-none"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs">Issues on Site</Label>
+                  <Textarea
+                    value={bulkForm.issuesOnSite}
+                    onChange={(e) => setBulkForm(prev => ({ ...prev, issuesOnSite: e.target.value }))}
+                    rows={2}
+                    className="text-sm resize-none"
+                  />
+                </div>
+              </div>
+            </div>
+          </ScrollArea>
+
+          {/* Sticky Footer */}
+          <div className="p-4 border-t bg-card shrink-0">
+            <div className="flex gap-3">
+              <Button
+                onClick={() => setShowBulkLogDialog(false)}
+                variant="outline"
+                className="flex-1 h-11"
+                disabled={bulkSaving}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleBulkSave}
+                className="flex-1 h-11"
+                disabled={bulkSaving || selectedBulkItems.size === 0}
+              >
+                {bulkSaving ? 'Saving...' : `Log ${selectedBulkItems.size} Items`}
+              </Button>
             </div>
           </div>
         </DialogContent>

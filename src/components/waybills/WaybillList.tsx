@@ -25,7 +25,7 @@ interface WaybillListProps {
   onInitiateReturn?: (waybill: Waybill) => void;
   onProcessReturn?: (returnData: any) => void;
   onDeleteWaybill?: (waybill: Waybill) => void;
-  onSentToSite?: (waybill: Waybill, sentToSiteDate: Date) => void;
+  onSentToSite?: (waybill: Waybill, sentToSiteDate: Date, signWithSignature?: boolean) => void;
   disableDelete?: boolean;
 }
 
@@ -65,7 +65,8 @@ export const WaybillList = ({ waybills, sites, onViewWaybill, onEditWaybill, onI
 
   const getSiteName = (siteId: string) => {
     const site = sites.find(s => String(s.id) === String(siteId));
-    return site ? site.name : 'Unknown Site';
+    if (!site) return 'Unknown Site';
+    return site.clientName ? `${site.name} (${site.clientName})` : site.name;
   };
 
   const getFrom = (waybill: Waybill) => {
@@ -333,9 +334,9 @@ export const WaybillList = ({ waybills, sites, onViewWaybill, onEditWaybill, onI
           waybill={selectedWaybill}
           open={sendToSiteDialogOpen}
           onOpenChange={setSendToSiteDialogOpen}
-          onSend={(waybill, sentToSiteDate) => {
+          onSend={(waybill, sentToSiteDate, signWithSignature) => {
             if (onSentToSite) {
-              onSentToSite(waybill, sentToSiteDate);
+              onSentToSite(waybill, sentToSiteDate, signWithSignature);
             }
             setSelectedWaybill(null);
           }}

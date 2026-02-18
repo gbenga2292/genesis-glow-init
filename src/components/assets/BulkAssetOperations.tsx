@@ -20,7 +20,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Asset } from "@/types/asset";
-import { Trash2, Edit, X, AlertTriangle } from "lucide-react";
+import { Trash2, Edit, X, AlertTriangle, Package, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { logActivity } from "@/utils/activityLogger";
 
@@ -51,6 +51,14 @@ export const BulkAssetOperations = ({
         location?: string;
         lowStockLevel?: number;
         criticalStockLevel?: number;
+        // Equipment-specific
+        powerSource?: 'fuel' | 'electricity' | 'hybrid' | 'manual';
+        requiresLogging?: boolean;
+        fuelCapacity?: number;
+        fuelConsumptionRate?: number;
+        electricityConsumption?: number;
+        // Consumable/reuseable-specific
+        unitOfMeasurement?: string;
     }>({});
 
     const handleBulkDelete = async () => {
@@ -294,7 +302,16 @@ export const BulkAssetOperations = ({
                             <Label>Type</Label>
                             <Select
                                 value={bulkEditData.type || ""}
-                                onValueChange={(value) => setBulkEditData({ ...bulkEditData, type: value as Asset['type'] })}
+                                onValueChange={(value) => setBulkEditData({
+                                    ...bulkEditData,
+                                    type: value as Asset['type'],
+                                    powerSource: undefined,
+                                    requiresLogging: undefined,
+                                    fuelCapacity: undefined,
+                                    fuelConsumptionRate: undefined,
+                                    electricityConsumption: undefined,
+                                    unitOfMeasurement: undefined,
+                                })}
                             >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Keep current type" />
@@ -307,6 +324,131 @@ export const BulkAssetOperations = ({
                                 </SelectContent>
                             </Select>
                         </div>
+
+                        {/* Equipment-specific fields */}
+                        {bulkEditData.type === 'equipment' && (
+                            <div className="space-y-4 p-4 bg-muted/30 rounded-lg border-2 border-primary/20">
+                                <div className="flex items-center gap-2">
+                                    <Package className="h-4 w-4 text-primary" />
+                                    <h3 className="text-sm font-semibold">Equipment Operational Details</h3>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label>Power Source</Label>
+                                        <Select
+                                            value={bulkEditData.powerSource || ""}
+                                            onValueChange={(value) => setBulkEditData({
+                                                ...bulkEditData,
+                                                powerSource: value as 'fuel' | 'electricity' | 'hybrid' | 'manual',
+                                                fuelCapacity: undefined,
+                                                fuelConsumptionRate: undefined,
+                                                electricityConsumption: undefined,
+                                            })}
+                                        >
+                                            <SelectTrigger><SelectValue placeholder="Keep current" /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="fuel">Fuel (Diesel/Petrol)</SelectItem>
+                                                <SelectItem value="electricity">Electricity</SelectItem>
+                                                <SelectItem value="hybrid">Hybrid (Fuel + Electric)</SelectItem>
+                                                <SelectItem value="manual">Manual</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Requires Daily Logging</Label>
+                                        <Select
+                                            value={bulkEditData.requiresLogging === undefined ? "" : bulkEditData.requiresLogging ? "yes" : "no"}
+                                            onValueChange={(value) => setBulkEditData({ ...bulkEditData, requiresLogging: value === 'yes' })}
+                                        >
+                                            <SelectTrigger><SelectValue placeholder="Keep current" /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="yes">Yes – Show in Machines section</SelectItem>
+                                                <SelectItem value="no">No – Hide from Machines section</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    {(bulkEditData.powerSource === 'fuel' || bulkEditData.powerSource === 'hybrid') && (
+                                        <>
+                                            <div className="space-y-2">
+                                                <Label>Fuel Tank Capacity (Litres)</Label>
+                                                <Input type="number" min="0" step="0.1" placeholder="e.g. 90"
+                                                    value={bulkEditData.fuelCapacity || ""}
+                                                    onChange={(e) => setBulkEditData({ ...bulkEditData, fuelCapacity: e.target.value ? parseFloat(e.target.value) : undefined })}
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label>Fuel Consumption (Litres/24hrs)</Label>
+                                                <Input type="number" min="0" step="0.1" placeholder="e.g. 18"
+                                                    value={bulkEditData.fuelConsumptionRate || ""}
+                                                    onChange={(e) => setBulkEditData({ ...bulkEditData, fuelConsumptionRate: e.target.value ? parseFloat(e.target.value) : undefined })}
+                                                />
+                                            </div>
+                                        </>
+                                    )}
+                                    {(bulkEditData.powerSource === 'electricity' || bulkEditData.powerSource === 'hybrid') && (
+                                        <div className="space-y-2">
+                                            <Label>Power Consumption (kWh/day)</Label>
+                                            <Input type="number" min="0" step="0.1" placeholder="e.g. 75"
+                                                value={bulkEditData.electricityConsumption || ""}
+                                                onChange={(e) => setBulkEditData({ ...bulkEditData, electricityConsumption: e.target.value ? parseFloat(e.target.value) : undefined })}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                                {bulkEditData.powerSource === 'fuel'
+                                    && (bulkEditData.fuelCapacity ?? 0) > 0
+                                    && (bulkEditData.fuelConsumptionRate ?? 0) > 0 && (
+                                        <div className="p-3 bg-primary/10 rounded-lg border border-primary/30">
+                                            <p className="text-sm font-medium text-primary">
+                                                ⚡ Operating Duration: ~{((bulkEditData.fuelCapacity! / bulkEditData.fuelConsumptionRate!) * 24).toFixed(1)} hours per full tank
+                                            </p>
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                                Refuel needed every {(bulkEditData.fuelCapacity! / bulkEditData.fuelConsumptionRate!).toFixed(1)} days (24/7 operation)
+                                            </p>
+                                        </div>
+                                    )}
+                            </div>
+                        )}
+
+                        {/* Consumable / Reuseable-specific fields */}
+                        {(bulkEditData.type === 'consumable' || bulkEditData.type === 'non-consumable') && (
+                            <div className="space-y-4 p-4 bg-muted/30 rounded-lg border-2 border-amber-500/20">
+                                <div className="flex items-center gap-2">
+                                    <Zap className="h-4 w-4 text-amber-500" />
+                                    <h3 className="text-sm font-semibold">Consumable Details</h3>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Unit of Measurement</Label>
+                                    <Select
+                                        value={bulkEditData.unitOfMeasurement || ""}
+                                        onValueChange={(value) => setBulkEditData({ ...bulkEditData, unitOfMeasurement: value })}
+                                    >
+                                        <SelectTrigger><SelectValue placeholder="Keep current unit" /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="pcs">pcs – Pieces</SelectItem>
+                                            <SelectItem value="set">set – Set</SelectItem>
+                                            <SelectItem value="pair">pair – Pair</SelectItem>
+                                            <SelectItem value="box">box – Box</SelectItem>
+                                            <SelectItem value="bag">bag – Bag</SelectItem>
+                                            <SelectItem value="roll">roll – Roll</SelectItem>
+                                            <SelectItem value="drum">drum – Drum</SelectItem>
+                                            <SelectItem value="can">can – Can</SelectItem>
+                                            <SelectItem value="bottle">bottle – Bottle</SelectItem>
+                                            <SelectItem value="pkt">pkt – Packet</SelectItem>
+                                            <SelectItem value="litre">litre – Litre</SelectItem>
+                                            <SelectItem value="gallon">gallon – Gallon</SelectItem>
+                                            <SelectItem value="kg">kg – Kilogram</SelectItem>
+                                            <SelectItem value="ton">ton – Ton</SelectItem>
+                                            <SelectItem value="meter">meter – Meter</SelectItem>
+                                            <SelectItem value="feet">feet – Feet</SelectItem>
+                                            <SelectItem value="sqm">sqm – Square Meter</SelectItem>
+                                            <SelectItem value="sqft">sqft – Square Feet</SelectItem>
+                                            <SelectItem value="unit">unit – Unit</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Location */}
                         <div className="space-y-2">
@@ -322,18 +464,14 @@ export const BulkAssetOperations = ({
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label>Low Stock Level</Label>
-                                <Input
-                                    type="number"
-                                    placeholder="Keep current"
+                                <Input type="number" placeholder="Keep current"
                                     value={bulkEditData.lowStockLevel || ""}
                                     onChange={(e) => setBulkEditData({ ...bulkEditData, lowStockLevel: parseInt(e.target.value) || undefined })}
                                 />
                             </div>
                             <div className="space-y-2">
                                 <Label>Critical Stock Level</Label>
-                                <Input
-                                    type="number"
-                                    placeholder="Keep current"
+                                <Input type="number" placeholder="Keep current"
                                     value={bulkEditData.criticalStockLevel || ""}
                                     onChange={(e) => setBulkEditData({ ...bulkEditData, criticalStockLevel: parseInt(e.target.value) || undefined })}
                                 />

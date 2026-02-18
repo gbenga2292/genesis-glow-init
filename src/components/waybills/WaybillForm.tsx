@@ -23,16 +23,7 @@ interface WaybillFormProps {
   vehicles: Vehicle[];
   onCreateWaybill: (waybill: Omit<Waybill, 'id' | 'createdAt' | 'updatedAt'>, sourceRequestId?: string) => void;
   onCancel: () => void;
-  initialData?: {
-    siteId?: string;
-    siteName?: string;
-    driverId?: string;
-    driver?: string;
-    vehicleId?: string;
-    vehicle?: string;
-    purpose?: string;
-    items?: Array<{ id: string; name: string; quantity?: number }>;
-  };
+
 }
 
 interface WaybillFormData {
@@ -45,26 +36,19 @@ interface WaybillFormData {
   items: WaybillItem[];
 }
 
-export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybill, onCancel, initialData }: WaybillFormProps) => {
+export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybill, onCancel }: WaybillFormProps) => {
   const { isAuthenticated } = useAuth();
   const { toast } = useToast();
   const [formData, setFormData] = useState<WaybillFormData>(() => {
     const activeEmployees = employees.filter(emp => emp.status === 'active');
+    const activeVehicles = vehicles.filter(v => v.status === 'active');
 
-    // Use AI-suggested data if available
-    const siteId = initialData?.siteId || (sites.length > 0 ? String(sites[0].id) : '');
-    const driverName = initialData?.driver || (activeEmployees.length > 0 ? activeEmployees[0].name : '');
-    const vehicleName = initialData?.vehicle || (vehicles.length > 0 ? vehicles[0].name : '');
-    const purpose = initialData?.purpose || 'For Operational Purpose';
+    const siteId = sites.length > 0 ? String(sites[0].id) : '';
+    const driverName = activeEmployees.length > 0 ? activeEmployees[0].name : '';
+    const vehicleName = activeVehicles.length > 0 ? activeVehicles[0].name : '';
+    const purpose = 'Operational Activities';
 
-    // Convert AI items to waybill items
-    const items: WaybillItem[] = initialData?.items?.map(aiItem => ({
-      assetId: aiItem.id,
-      assetName: aiItem.name,
-      quantity: aiItem.quantity || 1,
-      returnedQuantity: 0,
-      status: 'outstanding' as const
-    })) || [];
+    const items: WaybillItem[] = [];
 
     return {
       siteId,
@@ -156,7 +140,7 @@ export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybil
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.siteId || !formData.driverName || !formData.service || formData.items.length === 0) {
+    if (!formData.siteId || !formData.driverName || !formData.vehicle || !formData.service || formData.items.length === 0) {
       return;
     }
 
@@ -269,7 +253,7 @@ export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybil
                     id="purpose"
                     value={formData.purpose}
                     onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
-                    placeholder="Describe the purpose of this waybill"
+                    placeholder="Operational Activities"
                     className="border-0 bg-muted/50 focus:bg-background transition-all duration-300"
                     required
                   />
@@ -287,7 +271,7 @@ export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybil
                     <SelectContent>
                       {sites.map((site) => (
                         <SelectItem key={site.id} value={String(site.id)}>
-                          {site.name}
+                          {site.name}{site.clientName ? ` (${site.clientName})` : ''}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -336,18 +320,15 @@ export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybil
                       ))}
                     </SelectContent>
                   </Select>
-                  {employees.filter(emp => emp.role === 'driver').length === 0 && (
-                    <p className="text-sm text-muted-foreground">
-                      No drivers available. Please add drivers in Company Settings.
-                    </p>
-                  )}
+
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="vehicle">Vehicle</Label>
+                  <Label htmlFor="vehicle">Vehicle *</Label>
                   <Select
                     value={formData.vehicle}
                     onValueChange={(value) => setFormData({ ...formData, vehicle: value })}
+                    required
                   >
                     <SelectTrigger className="border-0 bg-muted/50 focus:bg-background transition-all duration-300">
                       <SelectValue placeholder="Select a vehicle" />
@@ -360,9 +341,9 @@ export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybil
                       ))}
                     </SelectContent>
                   </Select>
-                  {vehicles.length === 0 && (
+                  {vehicles.filter(v => v.status === 'active').length === 0 && (
                     <p className="text-sm text-muted-foreground">
-                      No vehicles available. Please add vehicles in Company Settings.
+                      No active vehicles available. Please add vehicles in Company Settings.
                     </p>
                   )}
                 </div>

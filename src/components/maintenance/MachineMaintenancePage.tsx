@@ -52,17 +52,19 @@ export const MachineMaintenancePage = ({
     const [filterStatus, setFilterStatus] = useState<'all' | 'ok' | 'due-soon' | 'overdue'>('all');
     const isMobile = useIsMobile();
 
+    const activeVehicles = useMemo(() => vehicles.filter(v => v.status === 'active'), [vehicles]);
+
     // Tab definitions for cleaner rendering
     const tabs = [
         { value: 'dashboard', label: 'Dashboard', icon: null },
         { value: 'machines', label: `Machines (${machines.length})`, icon: null },
-        { value: 'vehicles', label: `Vehicles (${vehicles.length})`, icon: <Truck className="h-4 w-4 mr-2" /> },
+        { value: 'vehicles', label: `Vehicles (${activeVehicles.length})`, icon: <Truck className="h-4 w-4 mr-2" /> },
         { value: 'entry', label: 'Log Maintenance', icon: <Wrench className="h-4 w-4 mr-2" /> }
     ];
 
     // Convert vehicles to machine format for unified handling
     const vehiclesAsMachines: Machine[] = useMemo(() => {
-        return vehicles.filter(v => v.status === 'active').map(vehicle => ({
+        return activeVehicles.map(vehicle => ({
             id: `vehicle-${vehicle.id}`,
             name: vehicle.name,
             model: vehicle.type || 'N/A',
@@ -78,7 +80,7 @@ export const MachineMaintenancePage = ({
             updatedAt: vehicle.updatedAt,
             isVehicle: true // Flag to identify vehicles
         } as Machine & { isVehicle?: boolean }));
-    }, [vehicles]);
+    }, [activeVehicles]);
 
     // Combine machines and vehicles based on active tab
     const allMachines = useMemo(() => {
@@ -219,12 +221,7 @@ export const MachineMaintenancePage = ({
                     <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">Machine Maintenance</h1>
                     <p className="text-sm sm:text-base text-muted-foreground">Track and manage equipment maintenance schedules</p>
                 </div>
-                {onAddMachine && (
-                    <Button onClick={onAddMachine}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Machine
-                    </Button>
-                )}
+
             </div>
 
             {/* Tabs */}

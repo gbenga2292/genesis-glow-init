@@ -9,6 +9,8 @@ import { QuickCheckout, CompanySettings } from "@/types/asset";
 import { FileText, Download, FileSpreadsheet } from "lucide-react";
 import { generateUnifiedReport } from "@/utils/unifiedReportGenerator";
 import * as XLSX from 'xlsx';
+import { Capacitor } from '@capacitor/core';
+import { handleMobileExcelAction } from '@/utils/mobilePdfUtils';
 
 interface QuickCheckoutReportProps {
   quickCheckouts: QuickCheckout[];
@@ -93,7 +95,7 @@ export const QuickCheckoutReport = ({ quickCheckouts, companySettings }: QuickCh
     setLoading(false);
   };
 
-  const generateExcelReport = (filteredCheckouts: QuickCheckout[], title: string) => {
+  const generateExcelReport = async (filteredCheckouts: QuickCheckout[], title: string) => {
     const ws_data = [
       ['Asset Name', 'Qty Checked Out', 'Qty Returned', 'Employee', 'Checkout Date', 'Return Date', 'Expected Days', 'Status', 'Notes'],
       ...filteredCheckouts.map(checkout => [
@@ -113,7 +115,14 @@ export const QuickCheckoutReport = ({ quickCheckouts, companySettings }: QuickCh
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Quick Checkouts');
 
-    XLSX.writeFile(wb, `${title.replace(/\s+/g, '_').toLowerCase()}.xlsx`);
+    const filename = `${title.replace(/\s+/g, '_').toLowerCase()}`;
+    
+    if (Capacitor.isNativePlatform()) {
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      await handleMobileExcelAction(wbout, filename);
+    } else {
+      XLSX.writeFile(wb, `${filename}.xlsx`);
+    }
   };
 
   const getFilter = (type: string) => {

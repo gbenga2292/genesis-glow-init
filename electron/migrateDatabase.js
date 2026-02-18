@@ -95,6 +95,14 @@ async function migrateDatabase(dbPath) {
       });
     }
 
+    const hasUsedCount = await db.schema.hasColumn('assets', 'used_count');
+    if (!hasUsedCount) {
+      console.log('Adding used_count column to assets table...');
+      await db.schema.alterTable('assets', (table) => {
+        table.integer('used_count').defaultTo(0);
+      });
+    }
+
     // Sites table migrations
     const hasClientName = await db.schema.hasColumn('sites', 'client_name');
     if (!hasClientName) {
@@ -118,6 +126,15 @@ async function migrateDatabase(dbPath) {
       console.log('Adding delisted_date column to employees table...');
       await db.schema.alterTable('employees', (table) => {
         table.date('delisted_date');
+      });
+    }
+
+    // Company settings table migrations - add ai_config column
+    const hasAiConfig = await db.schema.hasColumn('company_settings', 'ai_config');
+    if (!hasAiConfig) {
+      console.log('Adding ai_config column to company_settings table...');
+      await db.schema.alterTable('company_settings', (table) => {
+        table.text('ai_config');
       });
     }
 
@@ -190,6 +207,22 @@ async function migrateDatabase(dbPath) {
       });
     }
 
+    // Quick Checkouts table migrations
+    const hasQuickCheckoutsTable = await db.schema.hasTable('quick_checkouts');
+    if (hasQuickCheckoutsTable) {
+      const hasReturnedQuantity = await db.schema.hasColumn('quick_checkouts', 'returned_quantity');
+      if (!hasReturnedQuantity) {
+        console.log('Adding returned_quantity column to quick_checkouts table...');
+        await db.schema.alterTable('quick_checkouts', (table) => {
+          table.integer('returned_quantity').defaultTo(0);
+        });
+      }
+    } else {
+      // If table doesn't exist, it will be created by initializeDatabase if needed, 
+      // but migrateDatabase usually runs on existing DBs.
+      console.log('quick_checkouts table not found during migration.');
+    }
+
     // Activities table migrations - rename columns to match application code
     const hasActivityEntityId = await db.schema.hasColumn('activities', 'entityId');
     const hasActivityEntityIdOld = await db.schema.hasColumn('activities', 'entity_id');
@@ -240,6 +273,67 @@ async function migrateDatabase(dbPath) {
       });
     }
 
+    // --- MAINTENANCE MIGRATIONS ---
+
+    // 1. Add maintenance columns to assets table
+    const hasModel = await db.schema.hasColumn('assets', 'model');
+    if (!hasModel) {
+      console.log('Adding model column to assets table...');
+      await db.schema.alterTable('assets', (table) => {
+        table.string('model');
+      });
+    }
+
+    const hasSerialNumber = await db.schema.hasColumn('assets', 'serial_number');
+    if (!hasSerialNumber) {
+      console.log('Adding serial_number column to assets table...');
+      await db.schema.alterTable('assets', (table) => {
+        table.string('serial_number');
+      });
+    }
+
+    const hasServiceInterval = await db.schema.hasColumn('assets', 'service_interval');
+    if (!hasServiceInterval) {
+      console.log('Adding service_interval column to assets table...');
+      await db.schema.alterTable('assets', (table) => {
+        table.integer('service_interval').defaultTo(2); // Default to 2 months
+      });
+    }
+
+    const hasDeploymentDate = await db.schema.hasColumn('assets', 'deployment_date');
+    if (!hasDeploymentDate) {
+      console.log('Adding deployment_date column to assets table...');
+      await db.schema.alterTable('assets', (table) => {
+        table.date('deployment_date');
+      });
+    }
+
+    // 2. Create maintenance_logs table
+    const hasMaintenanceLogsTable = await db.schema.hasTable('maintenance_logs');
+    if (!hasMaintenanceLogsTable) {
+      console.log('Creating maintenance_logs table...');
+      await db.schema.createTable('maintenance_logs', (table) => {
+        table.string('id').primary();
+        table.integer('machine_id').unsigned().notNullable().references('id').inTable('assets').onDelete('CASCADE');
+        table.string('maintenance_type').notNullable(); // scheduled, unscheduled, emergency
+        table.string('reason').defaultTo('Routine');
+        table.dateTime('date_started').notNullable();
+        table.dateTime('date_completed');
+        table.boolean('machine_active_at_time').defaultTo(false);
+        table.decimal('downtime', 10, 2); // in hours
+        table.text('work_done').notNullable();
+        table.text('parts_replaced');
+        table.string('technician').notNullable();
+        table.decimal('cost', 10, 2);
+        table.string('location');
+        table.text('remarks');
+        table.boolean('service_reset').defaultTo(false);
+        table.date('next_service_due');
+        table.timestamps(true, true);
+      });
+      console.log('Created maintenance_logs table.');
+    }
+
     // Recalculate all asset available quantities to fix any corruption
     console.log('Recalculating asset available quantities...');
     const assets = await db('assets').select('*');
@@ -247,10 +341,11 @@ async function migrateDatabase(dbPath) {
       const reservedQty = asset.reserved_quantity || 0;
       const damagedCount = asset.damaged_count || 0;
       const missingCount = asset.missing_count || 0;
-      // Available = quantity - reserved - damaged - missing (NOT subtracting site quantities)
+      const usedCount = asset.used_count || 0;
+      // Available = quantity - reserved - damaged - missing - used (NOT subtracting site quantities)
       // Site quantities are already accounted for in reserved quantity
-      const correctAvailable = asset.quantity - reservedQty - damagedCount - missingCount;
-      
+      const correctAvailable = asset.quantity - reservedQty - damagedCount - missingCount - usedCount;
+
       if (asset.available_quantity !== correctAvailable) {
         console.log(`Fixing asset ${asset.id} (${asset.name}): available ${asset.available_quantity} -> ${correctAvailable}`);
         await db('assets')

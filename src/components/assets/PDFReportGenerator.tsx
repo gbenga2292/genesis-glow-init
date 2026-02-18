@@ -69,9 +69,9 @@ export const PDFReportGenerator = ({ open, onClose, assets, companySettings }: P
     }
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     const timestamp = new Date().toISOString().split('T')[0];
-    exportAssetsToExcel(assets, `assets-export-${timestamp}`);
+    await exportAssetsToExcel(assets, `assets-export-${timestamp}`);
   };
 
   return (

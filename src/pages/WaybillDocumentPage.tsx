@@ -8,6 +8,7 @@ import { Capacitor } from "@capacitor/core";
 import { handleMobilePdfAction } from "@/utils/mobilePdfUtils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useToast } from "@/hooks/use-toast";
 
 interface WaybillDocumentPageProps {
     waybill: Waybill;
@@ -21,48 +22,93 @@ export const WaybillDocumentPage = ({ waybill, sites, companySettings, onBack }:
     const isMobile = useIsMobile();
     const documentType = waybill.type === 'return' ? 'Return Waybill' : 'Waybill';
 
+    const { toast } = useToast(); // Ensure you import useToast if not already imported, or use existing hook
+
     const handlePrint = async () => {
-        const { pdf } = await generateProfessionalPDF({
-            waybill,
-            companySettings,
-            sites,
-            type: waybill.type
-        });
+        try {
+            const { pdf } = await generateProfessionalPDF({
+                waybill,
+                companySettings,
+                sites,
+                type: waybill.type,
+                signatureUrl: waybill.signatureUrl,
+                signatureName: waybill.signatureName
+            });
 
-        if (Capacitor.isNativePlatform()) {
-            await handleMobilePdfAction(pdf, `Waybill_${waybill.id}`, 'print');
-            return;
-        }
+            if (Capacitor.isNativePlatform()) {
+                await handleMobilePdfAction(pdf, `Waybill_${waybill.id}`, 'print');
+                return;
+            }
 
-        const blob = pdf.output('blob');
-        const url = URL.createObjectURL(blob);
-        const printWindow = window.open(url, '_blank');
-        if (printWindow) {
-            printWindow.onload = () => {
-                printWindow.print();
-                printWindow.onafterprint = () => {
-                    printWindow.close();
+            // For web and Electron, use iframe for better compatibility
+            const blob = pdf.output('blob');
+            const url = URL.createObjectURL(blob);
+
+            // Create hidden iframe for printing
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = url;
+            document.body.appendChild(iframe);
+
+            iframe.onload = () => {
+                try {
+                    iframe.contentWindow?.print();
+                    // Clean up after a delay
+                    setTimeout(() => {
+                        document.body.removeChild(iframe);
+                        URL.revokeObjectURL(url);
+                    }, 1000);
+                } catch (e) {
+                    console.error('Print error:', e);
+                    document.body.removeChild(iframe);
                     URL.revokeObjectURL(url);
-                };
+                    toast({
+                        title: "Print Failed",
+                        description: "Could not print the PDF. Try downloading instead.",
+                        variant: "destructive"
+                    });
+                }
             };
+        } catch (error) {
+            console.error("Print failed:", error);
+            toast({
+                title: "Print Failed",
+                description: "Could not generate or print the PDF.",
+                variant: "destructive"
+            });
         }
     };
 
     const handleDownloadPDF = async () => {
-        const { pdf } = await generateProfessionalPDF({
-            waybill,
-            companySettings,
-            sites,
-            type: waybill.type
-        });
-        const fileName = `${documentType.replace(' ', '_').toLowerCase()}_${waybill.id}.pdf`;
+        try {
+            const { pdf } = await generateProfessionalPDF({
+                waybill,
+                companySettings,
+                sites,
+                type: waybill.type,
+                signatureUrl: waybill.signatureUrl,
+                signatureName: waybill.signatureName
+            });
+            const fileName = `${documentType.replace(' ', '_').toLowerCase()}_${waybill.id}.pdf`;
 
-        if (Capacitor.isNativePlatform()) {
-            await handleMobilePdfAction(pdf, fileName, 'download');
-            return;
+            if (Capacitor.isNativePlatform()) {
+                await handleMobilePdfAction(pdf, fileName, 'download');
+                return;
+            }
+
+            pdf.save(fileName);
+            toast({
+                title: "Download Started",
+                description: `Downloading ${fileName}...`
+            });
+        } catch (error) {
+            console.error("Download failed:", error);
+            toast({
+                title: "Download Failed",
+                description: "Could not generate or download the PDF.",
+                variant: "destructive"
+            });
         }
-
-        pdf.save(fileName);
     };
 
     const getStatusBadge = (status: Waybill['status']) => {

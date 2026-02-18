@@ -7,6 +7,9 @@ import { Asset, CompanySettings } from "@/types/asset";
 import { FileText, Download, FileSpreadsheet } from "lucide-react";
 import { generateUnifiedReport } from "@/utils/unifiedReportGenerator";
 import * as XLSX from 'xlsx';
+import { Capacitor } from '@capacitor/core';
+import { handleMobileExcelAction } from '@/utils/mobilePdfUtils';
+import { useIsMobile } from "@/hooks/use-mobile";
 interface InventoryReportProps {
   assets: Asset[];
   companySettings?: CompanySettings;
@@ -106,7 +109,7 @@ export const InventoryReport = ({ assets, companySettings }: InventoryReportProp
     setLoading(false);
   };
 
-  const exportToExcel = (filteredAssets: Asset[], title: string) => {
+  const exportToExcel = async (filteredAssets: Asset[], title: string) => {
     // Export in the same format as the bulk import template
     const excelData = [
       ['Name', 'Description', 'Quantity', 'Unit of Measurement', 'Category', 'Type', 'Location', 'Service', 'Status', 'Condition', 'Cost'],
@@ -131,9 +134,14 @@ export const InventoryReport = ({ assets, companySettings }: InventoryReportProp
 
     // Generate filename with date
     const date = new Date().toISOString().split('T')[0];
-    const filename = `${title.replace(/\s+/g, '_')}_${date}.xlsx`;
+    const filename = `${title.replace(/\s+/g, '_')}_${date}`;
 
-    XLSX.writeFile(wb, filename);
+    if (Capacitor.isNativePlatform()) {
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      await handleMobileExcelAction(wbout, filename);
+    } else {
+      XLSX.writeFile(wb, `${filename}.xlsx`);
+    }
   };
 
   const getFilter = (type: string) => {
@@ -157,12 +165,20 @@ export const InventoryReport = ({ assets, companySettings }: InventoryReportProp
       default: return "Assets Report";
     }
   };
+  const isMobile = useIsMobile();
 
   return (
     <>
-      <Button variant="outline" className="gap-2" onClick={() => setIsDialogOpen(true)} disabled={loading}>
+      <Button 
+        variant="outline" 
+        className="gap-2" 
+        onClick={() => setIsDialogOpen(true)} 
+        disabled={loading}
+        size={isMobile ? "icon" : "default"}
+        title="Export Report"
+      >
         <FileText className="h-4 w-4" />
-        Export Report
+        {!isMobile && "Export Report"}
       </Button>
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>

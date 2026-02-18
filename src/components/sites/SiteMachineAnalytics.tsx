@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { logger } from "@/lib/logger";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -45,6 +46,7 @@ export const SiteMachineAnalytics = ({
   const isMobile = useIsMobile();
   const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>('monthly');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [showPreview, setShowPreview] = useState(false);
 
   // Filter logs for this site only
   const siteLogs = useMemo(() => {
@@ -244,7 +246,7 @@ export const SiteMachineAnalytics = ({
               <SelectItem value="yearly">Yearly</SelectItem>
             </SelectContent>
           </Select>
-          <Button onClick={generatePDFReport} variant="outline" size="sm" className="text-xs sm:text-sm">
+          <Button onClick={() => setShowPreview(true)} variant="outline" size="sm" className="text-xs sm:text-sm">
             <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
             {isMobile ? 'PDF' : 'Export PDF'}
           </Button>
@@ -315,7 +317,7 @@ export const SiteMachineAnalytics = ({
                 <div key={machine.equipmentId} className="p-3 border rounded-lg space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="font-medium text-sm truncate flex-1 mr-2">{machine.equipmentName}</span>
-                    <Badge 
+                    <Badge
                       variant={machine.efficiencyPercentage >= 80 ? "default" : machine.efficiencyPercentage >= 60 ? "secondary" : "destructive"}
                       className="text-xs shrink-0"
                     >
@@ -399,6 +401,83 @@ export const SiteMachineAnalytics = ({
           </div>
         </CardContent>
       </Card>
+
+      {/* PDF Preview Dialog */}
+      <Dialog open={showPreview} onOpenChange={setShowPreview}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Export Preview: Machine Analytics</DialogTitle>
+            <DialogDescription>
+              {site.name} | {getPeriodLabel()}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+              <div className="bg-muted/50 p-3 rounded-lg">
+                <span className="text-xs text-muted-foreground block">Total Fuel</span>
+                <span className="font-bold text-lg">{siteAnalytics.totalFuelConsumption.toFixed(1)} L</span>
+              </div>
+              <div className="bg-muted/50 p-3 rounded-lg">
+                <span className="text-xs text-muted-foreground block">Total Downtime</span>
+                <span className="font-bold text-lg">{siteAnalytics.totalDowntimeHours.toFixed(1)} hrs</span>
+              </div>
+              <div className="bg-muted/50 p-3 rounded-lg">
+                <span className="text-xs text-muted-foreground block">Efficiency</span>
+                <span className="font-bold text-lg">{siteAnalytics.averageEfficiency.toFixed(1)}%</span>
+              </div>
+              <div className="bg-muted/50 p-3 rounded-lg">
+                <span className="text-xs text-muted-foreground block">Machines</span>
+                <span className="font-bold text-lg">{siteAnalytics.totalMachines}</span>
+              </div>
+            </div>
+
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Machine</TableHead>
+                    <TableHead>Fuel Used (L)</TableHead>
+                    <TableHead>Downtime (hrs)</TableHead>
+                    <TableHead>Active Days</TableHead>
+                    <TableHead>Efficiency</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {machineAnalytics.map((machine) => (
+                    <TableRow key={machine.equipmentId}>
+                      <TableCell className="font-medium">{machine.equipmentName}</TableCell>
+                      <TableCell>{machine.totalFuelConsumption.toFixed(2)}</TableCell>
+                      <TableCell>{machine.totalDowntimeHours.toFixed(2)}</TableCell>
+                      <TableCell>{machine.activeDays}</TableCell>
+                      <TableCell>
+                        <Badge variant={machine.efficiencyPercentage >= 80 ? "default" : machine.efficiencyPercentage >= 60 ? "secondary" : "destructive"}>
+                          {machine.efficiencyPercentage.toFixed(0)}%
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {machineAnalytics.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
+                        No data available for this period
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPreview(false)}>Cancel</Button>
+            <Button onClick={() => { generatePDFReport(); setShowPreview(false); }}>
+              <Download className="mr-2 h-4 w-4" />
+              Download PDF
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

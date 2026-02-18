@@ -18,6 +18,7 @@ interface ReturnWaybillFormProps {
   employees: Employee[];
   vehicles: Vehicle[];
   siteInventory: SiteInventoryItem[];
+  waybills: Waybill[]; // List of all waybills to check for duplicates
   initialWaybill?: Waybill;
   isEditMode?: boolean;
   onCreateReturnWaybill: (waybillData: {
@@ -29,6 +30,9 @@ interface ReturnWaybillFormProps {
     purpose: string;
     service: string;
     expectedReturnDate?: Date;
+    signatureUrl?: string | null;
+    signatureName?: string;
+    signatureRole?: string;
   }) => void;
   onUpdateReturnWaybill?: (waybillData: {
     id?: string;
@@ -51,6 +55,7 @@ export const ReturnWaybillForm = ({
   employees,
   vehicles,
   siteInventory,
+  waybills = [], // Default to empty array if not provided
   initialWaybill,
   isEditMode = false,
   onCreateReturnWaybill,
@@ -60,15 +65,64 @@ export const ReturnWaybillForm = ({
   if (!site) return null;
 
   const [selectedItems, setSelectedItems] = useState<{ assetId: string; quantity: number }[]>([]);
-  const [driverName, setDriverName] = useState(() => employees.length > 0 ? employees[0].name : "");
-  const [vehicle, setVehicle] = useState(() => vehicles.length > 0 ? vehicles[0].name : "");
+  const [driverName, setDriverName] = useState(() => {
+    const activeEmployees = employees.filter(e => e.status === 'active');
+    return activeEmployees.length > 0 ? activeEmployees[0].name : "";
+  });
+  const [vehicle, setVehicle] = useState(() => {
+    const activeVehicles = vehicles.filter(v => v.status === 'active');
+    return activeVehicles.length > 0 ? activeVehicles[0].name : "";
+  });
   const [purpose, setPurpose] = useState("Material Return");
   const [service, setService] = useState("dewatering");
+  const [addSignature, setAddSignature] = useState(false);
 
   const [expectedReturnDate, setExpectedReturnDate] = useState("");
   const [returnToSiteId, setReturnToSiteId] = useState<string | "office">("office");
   const { toast } = useToast();
-  const { currentUser } = useAuth();
+  const { currentUser, refreshCurrentUser } = useAuth();
+  const [hasSignature, setHasSignature] = useState(false);
+
+  // Refresh user data when component mounts to get latest signature
+  useEffect(() => {
+    refreshCurrentUser();
+  }, []);
+
+  // Check for signature from multiple sources
+  useEffect(() => {
+    const checkSignature = async () => {
+      // Check AuthContext first
+      if (currentUser?.signatureUrl) {
+        setHasSignature(true);
+        return;
+      }
+
+      // Check localStorage
+      const localSignature = localStorage.getItem(`signature_${currentUser?.id}`);
+      if (localSignature) {
+        setHasSignature(true);
+        return;
+      }
+
+      // Check database
+      if (currentUser?.id) {
+        try {
+          const { dataService } = await import('@/services/dataService');
+          const result = await (dataService.auth as any).getSignature?.(currentUser.id);
+          if (result?.success && result.url) {
+            setHasSignature(true);
+            return;
+          }
+        } catch (e) {
+          console.warn('Failed to check signature from database', e);
+        }
+      }
+
+      setHasSignature(false);
+    };
+
+    checkSignature();
+  }, [currentUser?.id, currentUser?.signatureUrl]);
 
   // Pre-fill form if editing
   useEffect(() => {
@@ -112,7 +166,7 @@ export const ReturnWaybillForm = ({
     ));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (selectedItems.length === 0) {
@@ -136,10 +190,25 @@ export const ReturnWaybillForm = ({
     // Validate quantities
     for (const item of selectedItems) {
       const material = materialsAtSite.find(m => m.assetId === item.assetId);
-      if (!material || item.quantity > material.quantity) {
+
+      // Calculate quantity already in pending return waybills for this site
+      const quantityInPendingReturns = waybills
+        .filter(wb =>
+          wb.siteId === site.id &&
+          wb.type === 'return' &&
+          wb.status === 'outstanding' &&
+          wb.id !== initialWaybill?.id // Exclude current waybill if editing
+        )
+        .flatMap(wb => wb.items)
+        .filter(i => i.assetId === item.assetId)
+        .reduce((sum, i) => sum + i.quantity, 0);
+
+      const availableQuantity = Math.max(0, (material?.quantity || 0) - quantityInPendingReturns);
+
+      if (!material || item.quantity > availableQuantity) {
         toast({
           title: "Invalid Quantity",
-          description: `Quantity for ${material?.itemName || 'unknown asset'} exceeds available stock.`,
+          description: `Cannot return ${item.quantity} of ${material?.itemName || 'unknown asset'}. Only ${availableQuantity} available (${quantityInPendingReturns} in pending returns).`,
           variant: "destructive",
         });
         return;
@@ -157,6 +226,38 @@ export const ReturnWaybillForm = ({
       };
     });
 
+    // Capture signature data at creation time (frozen signature)
+    let signatureData = {};
+    if (addSignature && currentUser) {
+      // Get the current user's signature if it exists
+      let userSignature = currentUser.signatureUrl || null;
+
+      // Fallback 1: Check localStorage
+      if (!userSignature && currentUser.id) {
+        userSignature = localStorage.getItem(`signature_${currentUser.id}`);
+      }
+
+      // Fallback 2: Check database directly (async)
+      if (!userSignature && currentUser.id) {
+        try {
+          const { dataService } = await import('@/services/dataService');
+          // Start the fetch but don't block immediately if possible, but here we need it for the PDF
+          const result = await (dataService.auth as any).getSignature?.(currentUser.id);
+          if (result?.success && result.url) {
+            userSignature = result.url;
+          }
+        } catch (e) {
+          console.warn('Failed to fetch signature fallback during creation', e);
+        }
+      }
+
+      signatureData = {
+        signatureUrl: userSignature,
+        signatureName: currentUser.name,
+        signatureRole: currentUser.role
+      };
+    }
+
     const waybillData = {
       ...(isEditMode && initialWaybill ? { id: initialWaybill.id } : {}),
       siteId: site.id,
@@ -166,7 +267,8 @@ export const ReturnWaybillForm = ({
       vehicle,
       purpose,
       service,
-      expectedReturnDate: expectedReturnDate ? new Date(expectedReturnDate) : undefined
+      expectedReturnDate: expectedReturnDate ? new Date(expectedReturnDate) : undefined,
+      ...signatureData // Include signature data if checkbox was checked
     };
 
     if (isEditMode && onUpdateReturnWaybill) {
@@ -178,7 +280,7 @@ export const ReturnWaybillForm = ({
 
   const formContent = (
     <>
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-6 px-1">
         {/* Driver and Vehicle */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
@@ -204,14 +306,14 @@ export const ReturnWaybillForm = ({
                 <SelectValue placeholder="Select vehicle" />
               </SelectTrigger>
               <SelectContent>
-                {vehicles && vehicles.length > 0 ? (
-                  vehicles.map((vehicleOption) => (
+                {vehicles && vehicles.filter(v => v.status === 'active').length > 0 ? (
+                  vehicles.filter(v => v.status === 'active').map((vehicleOption) => (
                     <SelectItem key={vehicleOption.id} value={vehicleOption.name}>
                       {vehicleOption.name}
                     </SelectItem>
                   ))
                 ) : (
-                  <SelectItem value="no-vehicles" disabled>No vehicles available</SelectItem>
+                  <SelectItem value="no-vehicles" disabled>No active vehicles available</SelectItem>
                 )}
               </SelectContent>
             </Select>
@@ -264,16 +366,33 @@ export const ReturnWaybillForm = ({
               <p className="text-muted-foreground">No materials available at this site</p>
             </div>
           ) : (
-            <div className="space-y-3 max-h-96 overflow-y-auto">
+            <div className="space-y-3">
+
               {materialsAtSite.map((material) => {
                 const isSelected = selectedItems.some(item => item.assetId === material.assetId);
                 const selectedQuantity = selectedItems.find(item => item.assetId === material.assetId)?.quantity || 0;
 
+                // Calculate quantity already in pending return waybills for this site
+                const quantityInPendingReturns = waybills
+                  .filter(wb =>
+                    wb.siteId === site.id &&
+                    wb.type === 'return' &&
+                    wb.status === 'outstanding' &&
+                    wb.id !== initialWaybill?.id // Exclude current waybill if editing
+                  )
+                  .flatMap(wb => wb.items)
+                  .filter(item => item.assetId === material.assetId)
+                  .reduce((sum, item) => sum + item.quantity, 0);
+
+                const availableQuantity = Math.max(0, material.quantity - quantityInPendingReturns);
+                const isFullyPending = availableQuantity === 0 && material.quantity > 0;
+
                 return (
-                  <div key={material.assetId} className={`flex items-center space-x-4 p-4 border rounded-lg ${isSelected ? 'bg-primary/10' : 'bg-muted/30'}`}>
+                  <div key={material.assetId} className={`flex items-center space-x-4 p-4 border rounded-lg ${isSelected ? 'bg-primary/10' : 'bg-muted/30'} ${isFullyPending ? 'opacity-75' : ''}`}>
                     <Checkbox
                       checked={isSelected}
                       onCheckedChange={(checked) => handleAssetToggle(material.assetId, checked as boolean)}
+                      disabled={isFullyPending}
                     />
 
                     <div className="flex-1">
@@ -281,19 +400,30 @@ export const ReturnWaybillForm = ({
                         <div>
                           <h4 className="font-medium">{material.itemName}</h4>
                           <p className="text-sm text-muted-foreground">
-                            Available: {material.quantity} {material.unit}
+                            At Site: {material.quantity} {material.unit}
+                            {quantityInPendingReturns > 0 && (
+                              <span className="text-amber-500 ml-2 font-medium">
+                                ({quantityInPendingReturns} pending return)
+                              </span>
+                            )}
                           </p>
+                          {isFullyPending && (
+                            <p className="text-xs text-destructive mt-1">
+                              All items are already in a pending return waybill.
+                            </p>
+                          )}
                         </div>
                         {isSelected && (
                           <div className="w-24">
                             <Input
                               type="number"
                               min="1"
-                              max={material.quantity}
+                              max={availableQuantity}
                               value={selectedQuantity}
-                              onChange={(e) => handleQuantityChange(material.assetId, parseInt(e.target.value) || 0)}
+                              onChange={(e) => handleQuantityChange(material.assetId, Math.min(parseInt(e.target.value) || 0, availableQuantity))}
                               className="text-center"
                             />
+                            <p className="text-xs text-center text-muted-foreground mt-1">Max: {availableQuantity}</p>
                           </div>
                         )}
                       </div>
@@ -321,6 +451,30 @@ export const ReturnWaybillForm = ({
               </SelectContent>
             </Select>
           </div>
+
+          {/* Signature Checkbox */}
+          {currentUser?.role !== 'staff' && (
+            <div className="flex flex-col gap-1 pt-2">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="addSignature"
+                  checked={addSignature}
+                  onCheckedChange={(checked) => setAddSignature(checked as boolean)}
+                />
+                <Label
+                  htmlFor="addSignature"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                >
+                  Add my signature to return waybill PDF
+                </Label>
+              </div>
+              {addSignature && !hasSignature && (
+                <p className="text-xs text-destructive ml-6">
+                  Warning: No signature found in your profile. Please add one in settings.
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Summary */}

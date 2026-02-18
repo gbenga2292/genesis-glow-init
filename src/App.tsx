@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { toast } from "sonner";
@@ -18,12 +18,20 @@ import { UpdateNotificationBanner } from "./components/layout/UpdateNotification
 import ProtectedRoute from "./components/ProtectedRoute";
 import RestockHistoryPage from "./pages/RestockHistoryPage";
 import AssetDescriptionPage from "./pages/AssetDescriptionPage";
+import PerformanceTestPage from "./pages/PerformanceTestPage";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
+import SignUp from "./pages/SignUp";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
+import ProfilePage from "./pages/ProfilePage";
 import { logger } from "./lib/logger";
-import { aiConfig } from "./config/aiConfig";
-import { SplashScreen } from '@capacitor/splash-screen';
+import { Capacitor } from '@capacitor/core';
+import { SplashScreenController } from "./components/SplashScreenController";
+import { PinLockScreen } from "./components/PinLockScreen";
+import { PinLockGuard } from "./components/PinLockGuard";
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -34,18 +42,19 @@ const queryClient = new QueryClient({
   },
 });
 
-
 const App = () => {
   useEffect(() => {
-    // Hide splash screen when app is ready (for Capacitor mobile)
-    SplashScreen.hide().catch(() => {
-      // Ignore errors on web platform
-    });
+    const platform = Capacitor.getPlatform();
+    const isNative = platform === 'android' || platform === 'ios';
+    const isElectron = !!(window as any).electronAPI;
 
+    logger.info(`App initialized on ${platform}`);
+
+    // Show database connection info on Electron
     const showDatabaseInfo = async () => {
-      if (window.electronAPI && window.electronAPI.db && window.electronAPI.db.getDatabaseInfo) {
+      if (isElectron && (window as any).electronAPI?.db?.getDatabaseInfo) {
         try {
-          const dbInfo = await window.electronAPI.db.getDatabaseInfo();
+          const dbInfo = await (window as any).electronAPI.db.getDatabaseInfo();
           let storageTypeLabel = '';
 
           switch (dbInfo.storageType) {
@@ -64,14 +73,8 @@ const App = () => {
 
           toast.success(`Database Connected`, {
             description: storageTypeLabel,
-            duration: 6000,
+            duration: 4000,
             position: "bottom-center",
-            style: {
-              background: 'transparent',
-              border: 'none',
-              boxShadow: 'none',
-              color: 'inherit',
-            },
           });
 
           logger.info('Database initialized');
@@ -81,49 +84,14 @@ const App = () => {
       }
     };
 
-    // Validate AI configuration: prefer remote API-key value stored in company settings if present
-    const validateLLMConfig = async () => {
-      try {
-        // Try reading persisted company settings (may include ai.remote)
-        if ((window as any).electronAPI?.db?.getCompanySettings) {
-          const cs = await (window as any).electronAPI.db.getCompanySettings();
-          const remote = cs?.ai?.remote;
-          const r = remote?.enabled;
-          if (remote && !!r && r !== 'false' && r !== '0') {
-            // configure main process with remote config and test status
-            try {
-              await (window as any).llm?.configure({ remote }).catch(() => { });
-              const status = await (window as any).llm?.status();
-              if (!status?.available && !(status && status.remoteConfigured)) {
-                toast.info('AI Assistant Not Available', { description: 'Remote AI is configured but not reachable. Check your API key and endpoint.', duration: 8000 });
-              }
-              return;
-            } catch (err) {
-              logger.warn('Failed to configure remote AI from settings', err);
-            }
-          }
-        }
-
-        // Remote-only mode: if no remote config found, AI is simply not enabled (not an error)
-        logger.info('No remote AI configured. Users can configure in Settings > AI Assistant');
-      } catch (err) {
-        logger.warn('Failed to validate AI configuration', err);
-      }
-    };
-
     showDatabaseInfo();
-    validateLLMConfig();
 
     // Listen for scheduled backup requests from Main process
     if ((window as any).electronAPI?.backupScheduler?.onAutoBackupTrigger) {
       (window as any).electronAPI.backupScheduler.onAutoBackupTrigger(async () => {
         logger.info('Received scheduled backup request');
         try {
-          // Dynamically import to ensure we have fresh instance if needed, 
-          // though standard import at top is fine too. Using top-level import is cleaner.
-          // Using the global dataService imported at top would be better but I'll use lazy import to be safe
           const { dataService } = await import("./services/dataService");
-
           const backupData = await dataService.system.createBackup();
 
           if ((window as any).electronAPI.backupScheduler?.save) {
@@ -139,6 +107,59 @@ const App = () => {
       });
     }
 
+    // Deep Link Handling (Electron & Capacitor)
+    const handleDeepLink = async (url: string) => {
+      logger.info(`Deep link received: ${url}`);
+      // Expected format: dcel-inventory://<path>#access_token=...&refresh_token=...&type=recovery
+      // OR: dcel-inventory://reset-password#access_token=... (if we used that as redirect)
+
+      try {
+        const urlObj = new URL(url);
+        const hash = urlObj.hash; // #access_token=...
+        const params = new URLSearchParams(hash.substring(1)); // remove #
+
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        const type = params.get('type');
+
+        if (accessToken && type === 'recovery') {
+          // It's a password reset!
+          const { supabase } = await import("@/integrations/supabase/client");
+
+          const { error } = await (supabase as any).auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken || ''
+          });
+
+          if (error) {
+            logger.error("Failed to restore session from deep link", error);
+            toast.error("Failed to verify reset link");
+          } else {
+            toast.success("Session Verified", { description: "You can now reset your password." });
+            window.location.hash = '#/reset-password';
+          }
+        }
+      } catch (e) {
+        logger.error("Error processing deep link", e);
+      }
+    };
+
+    // Electron Listener
+    if (isElectron && (window as any).electronAPI?.onDeepLink) {
+      (window as any).electronAPI.onDeepLink((url: string) => {
+        handleDeepLink(url);
+      });
+    }
+
+    // Capacitor Listener
+    if (isNative) {
+      // Dynamic import to avoid SSR/Electron issues if package not present/mocked
+      import('@capacitor/app').then(({ App }) => {
+        App.addListener('appUrlOpen', (data: any) => {
+          handleDeepLink(data.url);
+        });
+      });
+    }
   }, []);
 
   return (
@@ -151,7 +172,29 @@ const App = () => {
           buster: 'v1',
         }}
       >
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          themes={[
+            'light',
+            'dark',
+            'high-contrast',
+            'sepia',
+            'ocean',
+            'forest',
+            'purple',
+            'sunset',
+            'monochrome',
+            'amoled',
+            'cyberpunk',
+            'coffee',
+            'matrix',
+            'sky',
+            'tokyo-night',
+            'dune'
+          ]}
+        >
           <AuthProvider>
             <AssetsProvider>
               <WaybillsProvider>
@@ -161,28 +204,44 @@ const App = () => {
                   <UpdateNotificationBanner />
                   <NetworkStatus />
                   <AppDataProvider>
-                    <HashRouter>
-                      <Routes>
-                        <Route path="/login" element={<Login />} />
-                        <Route path="/" element={
-                          <ProtectedRoute>
-                            <Index />
-                          </ProtectedRoute>
-                        } />
-                        <Route path="/asset/:id/history" element={
-                          <ProtectedRoute>
-                            <RestockHistoryPage />
-                          </ProtectedRoute>
-                        } />
-                        <Route path="/asset/:id/description" element={
-                          <ProtectedRoute>
-                            <AssetDescriptionPage />
-                          </ProtectedRoute>
-                        } />
-                        {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                        <Route path="*" element={<NotFound />} />
-                      </Routes>
-                    </HashRouter>
+                    <SplashScreenController />
+
+                    <PinLockGuard>
+                      <HashRouter>
+                        <Routes>
+                          <Route path="/login" element={<Login />} />
+                          <Route path="/signup" element={<SignUp />} />
+                          <Route path="/forgot-password" element={<ForgotPassword />} />
+                          <Route path="/reset-password" element={<ResetPassword />} />
+                          <Route path="/" element={
+                            <ProtectedRoute>
+                              <Index />
+                            </ProtectedRoute>
+                          } />
+                          <Route path="/asset/:id/history" element={
+                            <ProtectedRoute>
+                              <RestockHistoryPage />
+                            </ProtectedRoute>
+                          } />
+                          <Route path="/asset/:id/description" element={
+                            <ProtectedRoute>
+                              <AssetDescriptionPage />
+                            </ProtectedRoute>
+                          } />
+                          <Route path="/performance-test" element={
+                            <ProtectedRoute>
+                              <PerformanceTestPage />
+                            </ProtectedRoute>
+                          } />
+                          <Route path="/profile" element={
+                            <ProtectedRoute>
+                              <ProfilePage />
+                            </ProtectedRoute>
+                          } />
+                          <Route path="*" element={<NotFound />} />
+                        </Routes>
+                      </HashRouter>
+                    </PinLockGuard>
                   </AppDataProvider>
                 </TooltipProvider>
               </WaybillsProvider>

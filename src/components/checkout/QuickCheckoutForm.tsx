@@ -23,6 +23,7 @@ interface QuickCheckoutFormProps {
   onPartialReturn?: (checkoutId: string, quantity: number, condition: 'good' | 'damaged' | 'missing' | 'used', notes?: string) => void;
   onDeleteCheckout?: (checkoutId: string) => void;
   onNavigateToAnalytics?: () => void;
+  onNavigateToActivity?: () => void;
 }
 
 export const QuickCheckoutForm = ({
@@ -33,7 +34,8 @@ export const QuickCheckoutForm = ({
   onReturnItem,
   onPartialReturn,
   onDeleteCheckout,
-  onNavigateToAnalytics
+  onNavigateToAnalytics,
+  onNavigateToActivity
 }: QuickCheckoutFormProps) => {
   const [formData, setFormData] = useState({
     assetId: '',
@@ -50,7 +52,7 @@ export const QuickCheckoutForm = ({
     notes: ''
   });
 
-  const [activityFilter, setActivityFilter] = useState<'all' | 'outstanding' | 'return_completed' | 'used' | 'lost' | 'damaged'>('all');
+  
 
   const { isAuthenticated, currentUser, hasPermission } = useAuth();
   const { toast } = useToast();
@@ -371,99 +373,17 @@ export const QuickCheckoutForm = ({
         </Card>
       </div>
 
-      {/* Recent Activity */}
+      {/* Recent Activity Navigation */}
       <Card className="border-0 shadow-soft">
-        <CardHeader>
-          <div className="flex flex-col gap-3">
-            <CardTitle>Recent Checkout Activity</CardTitle>
-            <div className="flex gap-1.5 flex-wrap">
-              <Badge
-                variant={activityFilter === 'all' ? 'default' : 'outline'}
-                className="cursor-pointer text-xs h-7"
-                onClick={() => setActivityFilter('all')}
-              >
-                All
-              </Badge>
-              <Badge
-                variant={activityFilter === 'outstanding' ? 'default' : 'outline'}
-                className="cursor-pointer text-xs h-7"
-                onClick={() => setActivityFilter('outstanding')}
-              >
-                Outstanding
-              </Badge>
-              <Badge
-                variant={activityFilter === 'return_completed' ? 'default' : 'outline'}
-                className="cursor-pointer bg-gradient-success text-xs h-7"
-                onClick={() => setActivityFilter('return_completed')}
-              >
-                Returned
-              </Badge>
-              <Badge
-                variant={activityFilter === 'used' ? 'default' : 'outline'}
-                className="cursor-pointer text-xs h-7"
-                onClick={() => setActivityFilter('used')}
-              >
-                Used
-              </Badge>
-              <Badge
-                variant={activityFilter === 'lost' ? 'default' : 'outline'}
-                className="cursor-pointer text-xs h-7"
-                onClick={() => setActivityFilter('lost')}
-              >
-                Lost
-              </Badge>
-              <Badge
-                variant={activityFilter === 'damaged' ? 'default' : 'outline'}
-                className="cursor-pointer text-xs h-7"
-                onClick={() => setActivityFilter('damaged')}
-              >
-                Damaged
-              </Badge>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {(() => {
-            const filteredActivity = activityFilter === 'all'
-              ? quickCheckouts
-              : quickCheckouts.filter(c => c.status === activityFilter);
-
-            return filteredActivity.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
-                  <ShoppingCart className="h-6 w-6 text-muted-foreground" />
-                </div>
-                <p className="text-sm text-muted-foreground">No checkout history for this filter</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {filteredActivity.slice(0, 10).map((checkout, index) => {
-                  const asset = assets.find(a => a.id === checkout.assetId);
-                  const displayAssetName = checkout.assetName || asset?.name || 'Unknown Asset';
-                  const displayEmployeeName = checkout.employee ||
-                    (checkout.employeeId ? employees.find(e => e.id === checkout.employeeId)?.name : null) ||
-                    'Unknown Employee';
-
-                  return (
-                    <div key={`${checkout.id}-${index}`} className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm truncate">{displayAssetName}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {displayEmployeeName} • {checkout.quantity} units
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 sm:flex-shrink-0">
-                        {getStatusBadge(checkout.status)}
-                        <p className="text-xs text-muted-foreground whitespace-nowrap">
-                          {checkout.checkoutDate.toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })()}
+        <CardContent className="py-4 sm:py-6">
+          <Button
+            variant="outline"
+            className="w-full gap-2 h-11"
+            onClick={onNavigateToActivity}
+          >
+            <FileText className="h-4 w-4" />
+            View Recent Checkout Activity
+          </Button>
         </CardContent>
       </Card>
 

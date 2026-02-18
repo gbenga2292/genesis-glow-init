@@ -1,0 +1,71 @@
+# Ignore Electron-specific files and folders
+electron/
+electron-builder.json
+release/
+
+# Ignore development and build artifacts
+node_modules/
+*.db
+*.log
+database*.db
+replay_*.log
+
+# Ignore documentation
+*.md
+docs/
+.agent/
+
+# Ignore test files
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+test_*.js
+check_*.js
+check_*.cjs
+
+# Ignore IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ignore backup files
+*-backup*
+*.bak
+
+# Ignore temp files
+temp.txt
+*.tmp
+
+# Ignore Windows specific
+*.exe
+*.dll
+Thumbs.db
+
+# Ignore Mac specific
+.DS_Store
+*.dmg
+
+# Ignore Linux specific
+*.AppImage
+
+# Ignore Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Ignore GitHub workflows
+.github/
+
+# Ignore Supabase local
+supabase/
+
+# Ignore resources for Electron
+resources/
+
+# Ignore tools
+tools/
+
+# Ignore Android build output (handled by Android's .gitignore)
+android/app/build/
