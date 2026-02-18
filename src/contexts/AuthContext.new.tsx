@@ -116,7 +116,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Fetch user profile from database
     const fetchUserProfile = async (authUser: SupabaseUser): Promise<User | null> => {
         try {
-            const { data: profile, error } = await supabase
+            const { data: profile, error } = await (supabase as any)
                 .from('profiles')
                 .select('*')
                 .eq('id', authUser.id)
@@ -334,7 +334,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         const checkAccountStatus = async () => {
             try {
-                const { data: profile, error } = await supabase
+                const { data: profile, error } = await (supabase as any)
                     .from('profiles')
                     .select('is_active')
                     .eq('id', currentUser.id)
@@ -429,7 +429,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Get all users (admin only - enforced by RLS)
     const getUsers = async (): Promise<User[]> => {
         try {
-            const { data: profiles, error } = await supabase
+            const { data: profiles, error } = await (supabase as any)
                 .from('profiles')
                 .select('*')
                 .order('created_at', { ascending: false });
@@ -493,7 +493,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             // Profile will be created automatically by trigger
             // Just need to update with additional fields
-            const { error: profileError } = await supabase
+            const { error: profileError } = await (supabase as any)
                 .from('profiles')
                 .update({
                     username: userData.username,
@@ -540,7 +540,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (userData.status !== undefined) profileUpdate.is_active = userData.status === 'active';
             if (userData.preferences !== undefined) profileUpdate.preferences = userData.preferences;
 
-            const { error: profileError } = await supabase
+            const { error: profileError } = await (supabase as any)
                 .from('profiles')
                 .update(profileUpdate)
                 .eq('id', userId);
@@ -654,7 +654,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const updateLastActive = async (userId: string): Promise<void> => {
         try {
-            await supabase
+            await (supabase as any)
                 .from('profiles')
                 .update({ last_active_at: new Date().toISOString() })
                 .eq('id', userId);

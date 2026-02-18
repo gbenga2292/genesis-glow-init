@@ -12,25 +12,7 @@ export const AIAssistantChat: React.FC = () => {
   const { messages, isProcessing, sendMessage, clearMessages, executeAction } = useAIAssistant();
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [isAIEnabled, setIsAIEnabled] = useState(true);
-
-  // Check if AI is enabled in company settings
-  useEffect(() => {
-    const checkAIStatus = async () => {
-      try {
-        if (window.electronAPI && window.electronAPI.db && window.electronAPI.db.getCompanySettings) {
-          const settings = await window.electronAPI.db.getCompanySettings();
-          const remoteConfig = (settings as any)?.ai?.remote;
-          const r = remoteConfig?.enabled;
-          const enabled = !!r && r !== 'false' && r !== '0';
-          setIsAIEnabled(enabled);
-        }
-      } catch (error) {
-        console.error('Failed to check AI status:', error);
-      }
-    };
-    checkAIStatus();
-  }, []);
+  const isAIEnabled = true;
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
