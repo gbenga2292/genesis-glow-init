@@ -76,9 +76,9 @@ export const ResponsiveFormContainer = ({
       <DialogContent
         className={cn(
           maxWidth,
-          "h-[90vh] flex flex-col p-0 gap-0 overflow-hidden",
+          "h-[90vh] flex flex-col p-0 gap-0",
           "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
-          "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
+          "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data[state=closed]:zoom-out-95",
           "duration-200",
           className
         )}
@@ -104,8 +104,8 @@ export const ResponsiveFormContainer = ({
           </div>
         </DialogHeader>
 
-        {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto px-6 py-4">
+        {/* Scrollable content — explicit overflow-y-auto with min-h-0 to allow shrinking inside flex */}
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
           {children}
         </div>
       </DialogContent>

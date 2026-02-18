@@ -1,5 +1,5 @@
 import { logger } from "@/lib/logger";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Asset, Waybill, WaybillItem, Site, Employee, Vehicle } from "@/types/asset";
-import { FileText, Plus, Minus, X } from "lucide-react";
+import { FileText, Plus, X, GripVertical } from "lucide-react";
 import WaybillBulkInput from './WaybillBulkInput';
 import { logActivity } from "@/utils/activityLogger";
 import { useAuth } from "@/contexts/AuthContext";
@@ -63,6 +63,30 @@ export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybil
 
   const [bulkMode, setBulkMode] = useState(false);
   const [sourceRequestId, setSourceRequestId] = useState<string | undefined>(undefined);
+  const dragIndex = useRef<number | null>(null);
+  const dragOverIndex = useRef<number | null>(null);
+
+  const handleDragStart = (index: number) => {
+    dragIndex.current = index;
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    dragOverIndex.current = index;
+  };
+
+  const handleDrop = () => {
+    if (dragIndex.current === null || dragOverIndex.current === null) return;
+    if (dragIndex.current === dragOverIndex.current) return;
+    setFormData(prev => {
+      const items = [...prev.items];
+      const [dragged] = items.splice(dragIndex.current!, 1);
+      items.splice(dragOverIndex.current!, 0, dragged);
+      return { ...prev, items };
+    });
+    dragIndex.current = null;
+    dragOverIndex.current = null;
+  };
 
   const availableAssets = assets.filter(asset => {
     if (asset.siteId) return false; // Only office assets
@@ -417,9 +441,21 @@ export const WaybillForm = ({ assets, sites, employees, vehicles, onCreateWaybil
               ) : (
                 <div className="space-y-3">
                   {formData.items.map((item, index) => (
-                    <Card key={index} className="border shadow-sm hover:shadow-md transition-shadow">
+                    <Card
+                      key={index}
+                      draggable
+                      onDragStart={() => handleDragStart(index)}
+                      onDragOver={(e) => handleDragOver(e, index)}
+                      onDrop={handleDrop}
+                      className="border shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing active:opacity-60 active:scale-[0.98]"
+                    >
                       <CardContent className="p-3 sm:p-4">
                         <div className="flex flex-col sm:flex-row gap-3">
+                          {/* Drag Handle */}
+                          <div className="flex sm:flex-col items-center justify-start pt-1 text-muted-foreground/50 hover:text-muted-foreground cursor-grab">
+                            <GripVertical className="h-5 w-5" />
+                            <span className="text-[10px] text-muted-foreground/40 sm:hidden ml-1">drag</span>
+                          </div>
                           <div className="flex-1 space-y-3">
                             {/* Asset Selection */}
                             <div className="space-y-1.5">
