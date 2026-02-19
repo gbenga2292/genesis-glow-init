@@ -3,10 +3,10 @@ import { logger } from "@/lib/logger";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Asset, QuickCheckout, Site } from "@/types/asset";
+import { Asset, QuickCheckout, Site, Waybill } from "@/types/asset";
 import { EquipmentLog } from "@/types/equipment";
 import { MaintenanceLog } from "@/types/maintenance";
-import { BarChart, TrendingUp, Clock, AlertTriangle, Package, Wrench, Zap, MapPin, User, Building, CheckCircle2, ArrowLeft } from "lucide-react";
+import { BarChart, TrendingUp, Clock, AlertTriangle, Package, Wrench, Zap, MapPin, User, Building, CheckCircle2, ArrowLeft, FileText } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppData } from "@/contexts/AppDataContext";
 import { dataService } from "@/services/dataService";
@@ -17,9 +17,11 @@ interface AssetAnalyticsPageProps {
   quickCheckouts?: QuickCheckout[];
   sites?: Site[];
   maintenanceLogs?: MaintenanceLog[];
+  waybills?: Waybill[];
 }
 
-export const AssetAnalyticsPage = ({ asset, onBack, quickCheckouts = [], sites = [], maintenanceLogs = [] }: AssetAnalyticsPageProps) => {
+export const AssetAnalyticsPage = ({ asset, onBack, quickCheckouts = [], sites = [], maintenanceLogs = [], waybills = [] }: AssetAnalyticsPageProps) => {
+
   const { companySettings } = useAppData();
   const [analytics, setAnalytics] = useState<any>(null);
   const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLog[]>([]);
@@ -400,66 +402,123 @@ export const AssetAnalyticsPage = ({ asset, onBack, quickCheckouts = [], sites =
             </TabsContent>
 
             <TabsContent value="allocation" className="mt-6">
-              <div className="space-y-6">
-                {/* Inventory Status */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <Card>
-                    <CardContent className="p-4">
-                      <div className="text-2xl font-bold text-green-600">{analytics.availableQuantity}</div>
-                      <p className="text-xs text-muted-foreground">Available</p>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="p-4">
-                      <div className="text-2xl font-bold text-blue-600">{analytics.reservedQuantity}</div>
-                      <p className="text-xs text-muted-foreground">Reserved</p>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="p-4">
-                      <div className="text-2xl font-bold text-orange-600">{analytics.damagedCount}</div>
-                      <p className="text-xs text-muted-foreground">Damaged</p>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="p-4">
-                      <div className="text-2xl font-bold text-red-600">{analytics.missingCount}</div>
-                      <p className="text-xs text-muted-foreground">Missing</p>
-                    </CardContent>
-                  </Card>
-                </div>
+              {(() => {
+                // Get active waybills that contain this asset
+                const activeStatuses = ['outstanding', 'partial_returned', 'open', 'sent_to_site'];
+                const activeWaybillsForAsset = waybills.filter(wb =>
+                  activeStatuses.includes(wb.status) && wb.type === 'waybill' &&
+                  wb.items.some(it => String(it.assetId) === String(asset.id))
+                );
 
-                {/* Site Allocations */}
-                <div className="border-t pt-4">
-                  <h3 className="text-md font-semibold mb-3 flex items-center gap-2">
-                    <Building className="h-4 w-4" />
-                    Site Allocations
-                  </h3>
-                  {asset.siteQuantities && Object.keys(asset.siteQuantities).length > 0 ? (
-                    <div className="grid gap-3">
-                      {Object.entries(asset.siteQuantities).map(([siteId, qty]) => {
-                        if ((qty as number) <= 0) return null;
-                        return (
-                          <div key={siteId} className="flex items-center justify-between p-3 border rounded-lg bg-card text-card-foreground shadow-sm">
-                            <div className="flex items-center gap-3">
-                              <div className="h-8 w-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-700 font-bold">
-                                <MapPin className="h-4 w-4" />
-                              </div>
-                              <div>
-                                <div className="font-medium">{getSiteName(siteId)}</div>
-                                <div className="text-xs text-muted-foreground">Permanent/Long-term Allocation</div>
-                              </div>
-                            </div>
-                            <Badge variant="secondary" className="text-lg px-3">{qty as number}</Badge>
-                          </div>
-                        );
-                      })}
+                return (
+                  <div className="space-y-6">
+                    {/* Inventory Status */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <Card>
+                        <CardContent className="p-4">
+                          <div className="text-2xl font-bold text-green-600">{analytics.availableQuantity}</div>
+                          <p className="text-xs text-muted-foreground">Available</p>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="p-4">
+                          <div className="text-2xl font-bold text-blue-600">{analytics.reservedQuantity}</div>
+                          <p className="text-xs text-muted-foreground">Reserved (Waybills)</p>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="p-4">
+                          <div className="text-2xl font-bold text-orange-600">{analytics.damagedCount}</div>
+                          <p className="text-xs text-muted-foreground">Damaged</p>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="p-4">
+                          <div className="text-2xl font-bold text-destructive">{analytics.missingCount}</div>
+                          <p className="text-xs text-muted-foreground">Missing</p>
+                        </CardContent>
+                      </Card>
                     </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground italic">No site allocations recorded.</p>
-                  )}
-                </div>
-              </div>
+
+                    {/* Active Waybill Reservations */}
+                    <div className="border-t pt-4">
+                      <h3 className="text-md font-semibold mb-3 flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-primary" />
+                        Active Waybill Reservations
+                        {activeWaybillsForAsset.length > 0 && (
+                          <Badge variant="outline" className="ml-1">{activeWaybillsForAsset.length}</Badge>
+                        )}
+                      </h3>
+                      {activeWaybillsForAsset.length > 0 ? (
+                        <div className="grid gap-3">
+                          {activeWaybillsForAsset.map(wb => {
+                            const item = wb.items.find(it => String(it.assetId) === String(asset.id));
+                            if (!item) return null;
+                            const unreturned = Math.max(0, item.quantity - (item.returnedQuantity || 0));
+                            return (
+                              <div key={wb.id} className="flex items-center justify-between p-3 border rounded-lg bg-card text-card-foreground shadow-sm">
+                                <div className="flex items-center gap-3">
+                                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+                                    <FileText className="h-4 w-4" />
+                                  </div>
+                                  <div>
+                                    <div className="font-medium">Waybill {wb.id}</div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {getSiteName(String(wb.siteId))} · {wb.driverName} · {new Date(wb.issueDate).toLocaleDateString()}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant={wb.status === 'outstanding' ? 'default' : 'secondary'} className="capitalize text-xs">
+                                    {wb.status.replace('_', ' ')}
+                                  </Badge>
+                                  <Badge variant="outline" className="text-base px-3 font-semibold">
+                                    {unreturned}
+                                    {item.returnedQuantity > 0 && (
+                                      <span className="text-muted-foreground text-xs ml-1">/{item.quantity}</span>
+                                    )}
+                                  </Badge>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic">No active waybill reservations for this item.</p>
+                      )}
+                    </div>
+
+                    {/* Site Allocations (permanent) */}
+                    {asset.siteQuantities && Object.values(asset.siteQuantities).some(q => (q as number) > 0) && (
+                      <div className="border-t pt-4">
+                        <h3 className="text-md font-semibold mb-3 flex items-center gap-2">
+                          <Building className="h-4 w-4" />
+                          Site Inventory
+                        </h3>
+                        <div className="grid gap-3">
+                          {Object.entries(asset.siteQuantities).map(([siteId, qty]) => {
+                            if ((qty as number) <= 0) return null;
+                            return (
+                              <div key={siteId} className="flex items-center justify-between p-3 border rounded-lg bg-card text-card-foreground shadow-sm">
+                                <div className="flex items-center gap-3">
+                                  <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center text-secondary-foreground font-bold">
+                                    <MapPin className="h-4 w-4" />
+                                  </div>
+                                  <div>
+                                    <div className="font-medium">{getSiteName(siteId)}</div>
+                                    <div className="text-xs text-muted-foreground">On-site quantity</div>
+                                  </div>
+                                </div>
+                                <Badge variant="secondary" className="text-lg px-3">{qty as number}</Badge>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </TabsContent>
 
             <TabsContent value="usage" className="mt-6">
