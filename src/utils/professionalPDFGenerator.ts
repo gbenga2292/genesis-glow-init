@@ -49,9 +49,9 @@ export const generateProfessionalPDF = async ({ waybill, companySettings, sites,
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
 
-  // Set Times New Roman font
-  // ... (rest of the code is unchanged until the end)
-
+  // Margin: 0.5 inch = 12.7 mm on all sides
+  const MARGIN = 12.7;
+  const contentWidth = pageWidth - MARGIN * 2;
 
   pdf.setFont('times', 'normal');
 
@@ -71,12 +71,12 @@ export const generateProfessionalPDF = async ({ waybill, companySettings, sites,
 
   // Function to render header (logo, title, waybill no/date/driver/vehicle left-aligned)
   const renderHeader = async () => {
-    let headerY = 5;
+    let headerY = MARGIN;
 
-    // Company Logo or placeholder circle (top-left)
+    // Company Logo or placeholder circle (top-left, flush with left margin)
     const maxW = 85;
     const maxH = 30;
-    const logoY = headerY; // No offset for minimal top space
+    const logoY = headerY;
 
     if (effectiveCompanySettings.logo) {
       try {
@@ -97,28 +97,28 @@ export const generateProfessionalPDF = async ({ waybill, companySettings, sites,
         else if (effectiveCompanySettings.logo.startsWith('data:image/jpeg')) format = 'JPEG';
         else if (effectiveCompanySettings.logo.startsWith('data:image/jpg')) format = 'JPEG';
 
-        pdf.addImage(effectiveCompanySettings.logo, format as any, 20, logoY, finalW, finalH);
+        // Logo placed flush at left margin (MARGIN, not 20)
+        pdf.addImage(effectiveCompanySettings.logo, format as any, MARGIN, logoY, finalW, finalH);
       } catch (error) {
         logger.warn('Could not load company logo', { context: 'ProfessionalPDFGenerator' });
         // Fallback circle
         pdf.setFillColor(200, 200, 200);
-        pdf.circle(37.5, logoY + 15, 15, 'F');
+        pdf.circle(MARGIN + 15, logoY + 15, 15, 'F');
         pdf.setFontSize(9);
         pdf.setFont('times', 'bold');
-        pdf.text('DCEL', 30, logoY + 20);
+        pdf.text('DCEL', MARGIN + 10, logoY + 20);
       }
     } else {
       // Simple circle placeholder
       pdf.setFillColor(200, 200, 200);
-      pdf.circle(37.5, logoY + 15, 15, 'F');
+      pdf.circle(MARGIN + 15, logoY + 15, 15, 'F');
       pdf.setFontSize(9);
       pdf.setFont('times', 'bold');
-      pdf.text('DCEL', 30, logoY + 20);
+      pdf.text('DCEL', MARGIN + 10, logoY + 20);
     }
 
-
     // Title below, centered
-    headerY += 45; // Space after logo/company row (adjusted for smaller logo)
+    headerY += 45; // Space after logo/company row
     pdf.setFontSize(24);
     pdf.setFont('times', 'bold');
     const title = type === 'return' ? 'RETURNS' : 'WAYBILL';
@@ -130,11 +130,11 @@ export const generateProfessionalPDF = async ({ waybill, companySettings, sites,
     pdf.setFontSize(12);
     pdf.setFont('times', 'bold');
 
-    // Waybill No (left-aligned, bold)
-    pdf.text(`Waybill No: ${waybill.id}`, 20, headerY);
+    // Waybill No (left-aligned at margin, bold)
+    pdf.text(`Waybill No: ${waybill.id}`, MARGIN, headerY);
     headerY += 8;
 
-    // Date (left-aligned, bold) - use sent to site date if available, otherwise issue date
+    // Date (left-aligned at margin, bold)
     const getOrdinal = (n: number) => {
       const s = ["th", "st", "nd", "rd"];
       const v = n % 100;
@@ -150,22 +150,21 @@ export const generateProfessionalPDF = async ({ waybill, companySettings, sites,
     const day = effectiveDate.getDate();
     const monthYear = effectiveDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
     const dateText = `${getOrdinal(day)} ${monthYear}`;
-    const dateLabel = sentDate ? 'Sent to Site Date' : 'Issue Date';
-    pdf.text(`${dateLabel}: ${dateText}`, 20, headerY);
+    pdf.text(`Date: ${dateText}`, MARGIN, headerY);
     headerY += 8;
 
-    // Driver Name (left-aligned, bold)
-    pdf.text(`Driver Name: ${waybill.driverName}`, 20, headerY);
+    // Driver Name (left-aligned at margin, bold)
+    pdf.text(`Driver Name: ${waybill.driverName}`, MARGIN, headerY);
     headerY += 8;
 
-    // Vehicle (left-aligned, bold)
+    // Vehicle (left-aligned at margin, bold)
     if (waybill.vehicle) {
       const vehicleObj = vehicles?.find(v => v.name === waybill.vehicle);
       const regNum = vehicleObj?.registration_number;
       const vehicleText = regNum
         ? `Vehicle: ${waybill.vehicle} (${regNum})`
         : `Vehicle: ${waybill.vehicle}`;
-      pdf.text(vehicleText, 20, headerY);
+      pdf.text(vehicleText, MARGIN, headerY);
       headerY += 8;
     }
 
@@ -176,21 +175,21 @@ export const generateProfessionalPDF = async ({ waybill, companySettings, sites,
 
   // Function to render footer (on every page bottom)
   const renderFooter = () => {
-    const footerY = pageHeight - 30;
+    const footerY = pageHeight - MARGIN - 18; // 0.5" bottom margin
 
-    // Signed (left-aligned)
+    // Signed (left-aligned at margin)
     pdf.setFontSize(12);
     pdf.setFont('times', 'bold');
-    pdf.text('Signed', 20, footerY);
+    pdf.text('Signed', MARGIN, footerY);
 
     // Underline (left-aligned, 100mm wide)
     pdf.setDrawColor(0, 0, 0);
-    pdf.line(20, footerY + 2, 120, footerY + 2);
+    pdf.line(MARGIN, footerY + 2, MARGIN + 100, footerY + 2);
 
-    // Company name below (left-aligned, together as footer)
+    // Company name below (left-aligned at margin)
     pdf.setFontSize(12);
     pdf.setFont('times', 'italic');
-    pdf.text(defaultCompanySettings.companyName, 20, footerY + 8);
+    pdf.text(defaultCompanySettings.companyName, MARGIN, footerY + 8);
   };
 
   let yPos = await renderHeader();
@@ -202,46 +201,60 @@ export const generateProfessionalPDF = async ({ waybill, companySettings, sites,
     ? `Materials Returns for ${capitalizedService} from ${toLocation} to ${fromLocation}`
     : `Materials Waybill for ${capitalizedService} from ${fromLocation} to ${toLocation}`;
 
-  const splitFirstSubtitle = pdf.splitTextToSize(firstPageSubtitle, pageWidth - 40);
+  // Set font BEFORE splitTextToSize so measurement matches the rendered 14pt bold size
   pdf.setFontSize(14);
   pdf.setFont('times', 'bold');
-  const maxSubtitleWidth = Math.max(...splitFirstSubtitle.map(line => pdf.getTextWidth(line)));
-  const subtitleX = (pageWidth - maxSubtitleWidth) / 2;
-  pdf.text(splitFirstSubtitle, subtitleX, yPos);
+  const splitFirstSubtitle = pdf.splitTextToSize(firstPageSubtitle, contentWidth);
+  // Use align:'center' so each wrapped line is individually centered on the page
+  pdf.text(splitFirstSubtitle, pageWidth / 2, yPos, { align: 'center' });
   pdf.setFontSize(12);
   pdf.setFont('times', 'normal');
-  yPos += splitFirstSubtitle.length * 6 + 10;
+  yPos += splitFirstSubtitle.length * 7 + 10;
 
   // Render footer on first page
   renderFooter();
 
-  // Items List (normal font)
+  // Items List — flow-fill 2-column layout (fills left column first, then right)
+  pdf.setFontSize(12);
   pdf.setFont('times', 'normal');
   if (waybill.items.length === 0) {
-    // For no items, add "No items listed" after subtitle, before footer (but footer fixed, so place above footer space)
-    const noItemsY = pageHeight - 50;
-    pdf.text('No items listed', 20, noItemsY);
+    pdf.text('No items listed', MARGIN, yPos);
   } else {
-    let currentY = yPos;
+    const colWidth = contentWidth / 2 - 5;       // width of each column
+    const colRightX = MARGIN + contentWidth / 2 + 5; // x start of right column
+    const footerTop = pageHeight - MARGIN - 30;  // where footer begins — stop before this
 
-    pdf.setFontSize(12);
-    pdf.setFont('times', 'normal');
+    let currentX = MARGIN;   // start in left column
+    let currentY = yPos;
+    let inRightCol = false;
 
     for (const [index, item] of waybill.items.entries()) {
-      if (currentY > pageHeight - 80) {
-        pdf.addPage();
-        const newHeaderY = await renderHeader();
-        currentY = newHeaderY + 10;
+      const lines = pdf.splitTextToSize(
+        `${index + 1}. ${item.assetName} (${item.quantity})`,
+        colWidth
+      );
+      const lineH = lines.length * 7;
 
-        // Re-render footer on new page
-        renderFooter();
+      // Check if item fits in the current column
+      if (currentY + lineH > footerTop) {
+        if (!inRightCol) {
+          // Left column full — switch to right column, reset Y
+          inRightCol = true;
+          currentX = colRightX;
+          currentY = yPos;
+        } else {
+          // Both columns full — add new page and restart from left column
+          pdf.addPage();
+          const newHeaderY = await renderHeader();
+          renderFooter();
+          currentX = MARGIN;
+          currentY = newHeaderY + 10;
+          inRightCol = false;
+        }
       }
-      const safeStatus = item.status || 'outstanding';
-      const itemText = type === 'return'
-        ? `${index + 1}. ${item.assetName} (${item.quantity})`
-        : `${index + 1}. ${item.assetName} (${item.quantity})`;
-      pdf.text(itemText, 20, currentY);
-      currentY += 8;
+
+      pdf.text(lines, currentX, currentY);
+      currentY += lineH;
     }
 
     // Render footer on the last page
@@ -257,9 +270,9 @@ export const generateProfessionalPDF = async ({ waybill, companySettings, sites,
       const sigHeight = (img.height / img.width) * sigWidth;
 
       // Layout: [Signed label] [Signature Image] [Name text]
-      // Signed label is at x=20, y=pageHeight-30
-      const signedLabelX = 20;
-      const signedLabelY = pageHeight - 30;
+      // Signed label is at x=MARGIN, y=pageHeight - MARGIN - 18
+      const signedLabelX = MARGIN;
+      const signedLabelY = pageHeight - MARGIN - 18;
 
       // Place signature image right after "Signed" label
       const sigX = signedLabelX + 25; // Start after "Signed" text
