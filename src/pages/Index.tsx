@@ -2077,6 +2077,7 @@ const Index = () => {
             quickCheckouts={quickCheckouts}
             sites={sites}
             maintenanceLogs={maintenanceLogs}
+            waybills={waybills}
             onBack={() => {
               setSelectedAssetForAnalytics(null);
               if (analyticsReturnTo) {
