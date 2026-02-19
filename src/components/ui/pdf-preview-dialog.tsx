@@ -1,12 +1,13 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Printer, Download, ArrowLeft, FileText, Share2 } from "lucide-react";
+import { Printer, Download, ArrowLeft, Share2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Capacitor } from "@capacitor/core";
 import { Filesystem, Directory } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
 import { useToast } from "@/hooks/use-toast";
+import { PdfJsViewer } from "@/components/ui/PdfJsViewer";
 
 interface PDFPreviewDialogProps {
     open: boolean;
@@ -33,12 +34,12 @@ export const PDFPreviewDialog = ({
     const { toast } = useToast();
 
     useEffect(() => {
-        if (pdfBlob && !isNative) {
+        if (pdfBlob) {
             const url = URL.createObjectURL(pdfBlob);
             setPdfUrl(url);
             return () => { URL.revokeObjectURL(url); };
         }
-    }, [pdfBlob, isNative]);
+    }, [pdfBlob]);
 
     const blobToBase64 = (blob: Blob): Promise<string> => {
         return new Promise((resolve, reject) => {
@@ -110,41 +111,40 @@ export const PDFPreviewDialog = ({
         }
     };
 
-    // Native mobile view — no iframe, direct action buttons
+    // Native mobile (Android/iOS) view — canvas-based PDF.js preview
     if (isNative) {
         return (
             <Dialog open={open} onOpenChange={onOpenChange}>
                 <DialogContent className="!fixed !inset-0 !z-50 !w-screen !h-screen !max-w-none !p-0 !m-0 !gap-0 !rounded-none !border-none !flex !flex-col !bg-background !translate-x-0 !translate-y-0 !left-0 !top-0 shadow-none outline-none ring-0">
-                    <div className="flex items-center justify-between px-4 py-3 border-b bg-background sticky top-0 z-10">
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-3 py-2 border-b bg-background shrink-0">
                         <div className="flex items-center gap-2">
                             <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="h-8 w-8">
                                 <ArrowLeft className="h-4 w-4" />
                             </Button>
-                            <h2 className="text-sm font-semibold truncate">{title}</h2>
+                            <h2 className="text-sm font-semibold truncate max-w-[55vw]">{title}</h2>
+                        </div>
+                        <div className="flex gap-2">
+                            <Button onClick={handleDownload} size="sm" className="gap-1.5 bg-gradient-primary h-8 text-xs">
+                                <Share2 className="h-3.5 w-3.5" />
+                                Share
+                            </Button>
+                            <Button onClick={handlePrint} variant="outline" size="sm" className="gap-1.5 h-8 text-xs">
+                                <Printer className="h-3.5 w-3.5" />
+                                Print
+                            </Button>
                         </div>
                     </div>
 
-                    <div className="flex-1 flex flex-col items-center justify-center gap-6 p-6">
-                        <div className="h-24 w-24 rounded-full bg-primary/10 flex items-center justify-center">
-                            <FileText className="h-12 w-12 text-primary" />
-                        </div>
-                        <div className="text-center space-y-2">
-                            <h3 className="text-lg font-semibold">{title}</h3>
-                            <p className="text-sm text-muted-foreground max-w-xs">
-                                PDF preview is not supported on this device. Use the buttons below to download, print, or share the document.
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col gap-3 p-4 border-t bg-background sticky bottom-0">
-                        <Button onClick={handleDownload} className="w-full gap-2 bg-gradient-primary">
-                            <Share2 className="h-4 w-4" />
-                            Download / Share PDF
-                        </Button>
-                        <Button onClick={handlePrint} variant="outline" className="w-full gap-2">
-                            <Printer className="h-4 w-4" />
-                            Print
-                        </Button>
+                    {/* PDF canvas viewer — scrollable */}
+                    <div className="flex-1 min-h-0 overflow-hidden">
+                        {pdfBlob ? (
+                            <PdfJsViewer pdfBlob={pdfBlob} className="h-full" />
+                        ) : (
+                            <div className="flex items-center justify-center h-full">
+                                <p className="text-muted-foreground text-sm">Loading preview…</p>
+                            </div>
+                        )}
                     </div>
                 </DialogContent>
             </Dialog>
@@ -191,11 +191,15 @@ export const PDFPreviewDialog = ({
     }
 
     // Desktop dialog view
+    const isElectron = !!(window as any).electronAPI;
+    const menuBarOffset = isElectron ? 40 : 0;
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent
                 showCloseLeft
-                className="!fixed !inset-0 !z-50 !w-screen !h-screen !max-w-none !p-0 !m-0 !gap-0 !rounded-none !border-none !flex !flex-col !bg-background !translate-x-0 !translate-y-0 !left-0 !top-0 shadow-none outline-none ring-0"
+                style={isElectron ? { top: `${menuBarOffset}px`, height: `calc(100vh - ${menuBarOffset}px)` } : {}}
+                className="!fixed !inset-x-0 !bottom-0 !z-50 !w-screen !max-w-none !p-0 !m-0 !gap-0 !rounded-none !border-none !flex !flex-col !bg-background !translate-x-0 !translate-y-0 !left-0 shadow-none outline-none ring-0"
             >
                 <DialogHeader className="px-6 pt-6 pb-4 border-b">
                     <div className="flex items-center justify-between">
