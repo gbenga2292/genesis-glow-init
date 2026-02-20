@@ -6,10 +6,17 @@ import { Asset, Site, Waybill, CompanySettings, Employee } from "@/types/asset";
 import { EquipmentLog } from "@/types/equipment";
 import { ConsumableUsageLog } from "@/types/consumable";
 import { SiteInventoryItem } from "@/types/inventory";
-import { MapPin, FileText, Package, Activity, Eye, ArrowLeft } from "lucide-react";
+import { MapPin, FileText, Package, Activity, Eye, ArrowLeft, MoreVertical } from "lucide-react";
 import { MachinesSection } from "./MachinesSection";
 import { ConsumablesSection } from "./ConsumablesSection";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface SiteInventoryPageProps {
     site: Site;
@@ -48,91 +55,161 @@ export const SiteInventoryPage: React.FC<SiteInventoryPageProps> = ({
     onViewAssetDetails, onViewAssetHistory, onViewAssetAnalytics,
 }) => {
     const [activeTab, setActiveTab] = useState<TabId>('materials');
+    const isMobile = useIsMobile();
     const materialsAtSite = getSiteInventory(site.id);
     const siteWaybills = waybills.filter(w => String(w.siteId) === String(site.id));
 
-    const tabs: { id: TabId; label: string; count: number | null }[] = [
-        { id: 'materials', label: 'Materials', count: materialsAtSite.length },
-        { id: 'machines', label: 'Machines', count: null },
-        { id: 'consumables', label: 'Consumables', count: null },
-        { id: 'waybills', label: 'Waybills', count: siteWaybills.length },
+    const tabs: { id: TabId; label: string; shortLabel: string; count: number | null }[] = [
+        { id: 'materials', label: 'Materials', shortLabel: 'Materials', count: materialsAtSite.length },
+        { id: 'machines', label: 'Machines', shortLabel: 'Machines', count: null },
+        { id: 'consumables', label: 'Consumables', shortLabel: 'Consumables', count: null },
+        { id: 'waybills', label: 'Waybills', shortLabel: 'Waybills', count: siteWaybills.length },
     ];
 
     return (
         <div className="flex flex-col h-full animate-fade-in">
 
-            {/* ── Compact sticky header ── */}
-            <div className="flex items-center justify-between gap-3 pb-3 mb-0 border-b border-border/60">
-                <div className="flex items-center gap-3 min-w-0">
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0" onClick={onBack}>
-                        <ArrowLeft className="h-4 w-4" />
-                    </Button>
-                    <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                        <MapPin className="h-4 w-4 text-primary" />
+            {/* ── Mobile Header ── */}
+            {isMobile ? (
+                <div className="pb-3 mb-0 border-b border-border/60 space-y-2.5">
+                    {/* Row 1: Back + Site Info */}
+                    <div className="flex items-center gap-2.5 min-w-0">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 shrink-0"
+                            onClick={onBack}
+                        >
+                            <ArrowLeft className="h-4 w-4" />
+                        </Button>
+                        <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                            <MapPin className="h-4 w-4 text-primary" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <h1 className="text-sm font-semibold text-foreground truncate leading-tight">
+                                {site.name}
+                            </h1>
+                            {site.location && (
+                                <p className="text-[11px] text-muted-foreground truncate">{site.location}</p>
+                            )}
+                        </div>
+                        <Badge
+                            variant={site.status === 'active' ? 'default' : 'secondary'}
+                            className="text-[10px] h-4 px-1.5 shrink-0"
+                        >
+                            {site.status}
+                        </Badge>
                     </div>
-                    <div className="min-w-0">
-                        <h1 className="text-base font-semibold text-foreground truncate leading-tight">
-                            {site.name}
-                        </h1>
-                        {site.location && (
-                            <p className="text-xs text-muted-foreground truncate">{site.location}</p>
-                        )}
+
+                    {/* Row 2: Action Buttons */}
+                    <div className="flex items-center gap-2">
+                        <Button
+                            size="sm"
+                            className="flex-1 h-9 text-xs"
+                            onClick={onCreateReturnWaybill}
+                        >
+                            <FileText className="h-3.5 w-3.5 mr-1.5" />
+                            Return Waybill
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 h-9 text-xs"
+                            onClick={onShowTransactions}
+                        >
+                            <Activity className="h-3.5 w-3.5 mr-1.5" />
+                            Transactions
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-9 w-9 p-0 shrink-0"
+                            onClick={onGenerateReport}
+                        >
+                            <FileText className="h-3.5 w-3.5" />
+                        </Button>
                     </div>
-                    <Badge
-                        variant={site.status === 'active' ? 'default' : 'secondary'}
-                        className="text-[10px] h-4 px-1.5 shrink-0"
-                    >
-                        {site.status}
-                    </Badge>
                 </div>
+            ) : (
+                /* ── Desktop Header ── */
+                <div className="flex items-center justify-between gap-3 pb-3 mb-0 border-b border-border/60">
+                    <div className="flex items-center gap-3 min-w-0">
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0" onClick={onBack}>
+                            <ArrowLeft className="h-4 w-4" />
+                        </Button>
+                        <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                            <MapPin className="h-4 w-4 text-primary" />
+                        </div>
+                        <div className="min-w-0">
+                            <h1 className="text-base font-semibold text-foreground truncate leading-tight">
+                                {site.name}
+                            </h1>
+                            {site.location && (
+                                <p className="text-xs text-muted-foreground truncate">{site.location}</p>
+                            )}
+                        </div>
+                        <Badge
+                            variant={site.status === 'active' ? 'default' : 'secondary'}
+                            className="text-[10px] h-4 px-1.5 shrink-0"
+                        >
+                            {site.status}
+                        </Badge>
+                    </div>
 
-                {/* Quick actions */}
-                <div className="flex items-center gap-1.5 shrink-0">
-                    <TooltipProvider>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button size="sm" className="h-8 text-xs px-3" onClick={onCreateReturnWaybill}>
-                                    <FileText className="h-3.5 w-3.5 mr-1.5" />
-                                    Return Waybill
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent><p>Create Return Waybill</p></TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button size="sm" variant="outline" className="h-8 text-xs px-3" onClick={onShowTransactions}>
-                                    <Activity className="h-3.5 w-3.5 mr-1.5" />
-                                    Transactions
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent><p>View Transactions</p></TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button size="sm" variant="outline" className="h-8 w-8 p-0" onClick={onGenerateReport}>
-                                    <FileText className="h-3.5 w-3.5" />
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent><p>Generate Report</p></TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
+                    {/* Desktop quick actions */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button size="sm" className="h-8 text-xs px-3" onClick={onCreateReturnWaybill}>
+                                        <FileText className="h-3.5 w-3.5 mr-1.5" />
+                                        Return Waybill
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent><p>Create Return Waybill</p></TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button size="sm" variant="outline" className="h-8 text-xs px-3" onClick={onShowTransactions}>
+                                        <Activity className="h-3.5 w-3.5 mr-1.5" />
+                                        Transactions
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent><p>View Transactions</p></TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button size="sm" variant="outline" className="h-8 w-8 p-0" onClick={onGenerateReport}>
+                                        <FileText className="h-3.5 w-3.5" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent><p>Generate Report</p></TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    </div>
                 </div>
-            </div>
+            )}
 
-            {/* ── Tab strip ── */}
-            <div className="flex border-b border-border/60 gap-0 -mx-0 mb-4">
+            {/* ── Tab strip — scrollable on mobile ── */}
+            <div className={cn(
+                "flex border-b border-border/60 mb-4",
+                isMobile ? "overflow-x-auto scrollbar-hide -mx-0" : "gap-0 -mx-0"
+            )}>
                 {tabs.map(tab => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
                         className={cn(
-                            "flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors",
+                            "flex items-center gap-1.5 border-b-2 transition-colors whitespace-nowrap",
+                            isMobile
+                                ? "px-3 py-2.5 text-[11px] font-semibold flex-1 justify-center min-w-[70px]"
+                                : "px-4 py-2.5 text-xs font-medium",
                             activeTab === tab.id
                                 ? "border-primary text-primary"
                                 : "border-transparent text-muted-foreground hover:text-foreground"
                         )}
                     >
-                        {tab.label}
+                        {isMobile ? tab.shortLabel : tab.label}
                         {tab.count !== null && (
                             <span className={cn(
                                 "rounded-full px-1.5 text-[10px] font-semibold",
