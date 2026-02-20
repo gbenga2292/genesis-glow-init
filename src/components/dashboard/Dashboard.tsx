@@ -547,21 +547,22 @@ export const Dashboard = ({
             const status = getLatestStatus(equipment.id);
             const siteName = getSiteName(equipment);
             const site = getSiteForEquipment(equipment);
-            return <div key={equipment.id || index} className="flex-shrink-0 w-[160px] snap-start bg-muted/30 rounded-lg p-3 space-y-2">
+            const isAssigned = siteName !== 'Not assigned';
+            return <div key={equipment.id || index} className={`flex-shrink-0 w-[160px] snap-start rounded-lg p-3 space-y-2 ${isAssigned ? 'bg-success/15 border border-success/30 dark:bg-success/10 dark:border-success/20' : 'bg-muted/30'}`}>
               <div className="flex items-start justify-between gap-1">
-                <span className="font-medium text-sm truncate flex-1">{equipment.name}</span>
-                <Badge variant={status.active ? "default" : "secondary"} className="text-[10px] px-1.5 py-0 h-5">
+                <span className={`text-sm truncate flex-1 ${isAssigned ? 'text-success-foreground font-semibold dark:text-success' : 'font-medium'}`}>{equipment.name}</span>
+                <Badge variant={status.active ? "default" : "secondary"} className={`text-[10px] px-1.5 py-0 h-5 ${status.active && isAssigned ? 'bg-success hover:bg-success/90 text-primary-foreground' : ''}`}>
                   {status.active ? "On" : "Off"}
                 </Badge>
               </div>
-              <div className="text-xs text-muted-foreground truncate flex items-center gap-1">
+              <div className={`text-xs truncate flex items-center gap-1 ${isAssigned ? 'text-success-foreground/80 dark:text-success/80' : 'text-muted-foreground'}`}>
                 <MapPin className="h-3 w-3" />
-                {siteName}
+                <span className={`${isAssigned ? 'text-success-foreground dark:text-success' : ''}`}>{siteName}</span>
               </div>
-              {status.date && <div className="text-[10px] text-muted-foreground">
+              {status.date && <div className={`text-[10px] ${isAssigned ? 'text-success-foreground/70 dark:text-success/70' : 'text-muted-foreground'}`}>
                 {format(new Date(status.date), 'MMM dd')}
               </div>}
-              <Button variant="ghost" size="sm" className="w-full h-7 text-xs gap-1 bg-background/50" onClick={() => {
+              <Button variant={isAssigned ? "default" : "ghost"} size="sm" className={`w-full h-7 text-xs gap-1 ${isAssigned ? 'bg-success hover:bg-success/90 text-primary-foreground shadow-sm' : 'bg-background/50'}`} onClick={() => {
                 if (site) {
                   setSelectedEquipment(equipment);
                   setSelectedSite(site);
@@ -581,11 +582,12 @@ export const Dashboard = ({
             const status = getLatestStatus(equipment.id);
             const siteName = getSiteName(equipment);
             const site = getSiteForEquipment(equipment);
-            return <Card key={equipment.id || index} className="border-0 shadow-soft hover:shadow-medium transition-all duration-300">
+            const isAssigned = siteName !== 'Not assigned';
+            return <Card key={equipment.id || index} className={`border-0 shadow-soft hover:shadow-medium transition-all duration-300 ${isAssigned ? 'bg-success/15 border-success/30 dark:bg-success/10 dark:border-success/20' : ''}`}>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center justify-between">
-                  <span className="truncate">{equipment.name}</span>
-                  <Badge variant={status.active ? "default" : "secondary"} className="text-xs ml-2">
+                  <span className={`truncate ${isAssigned ? 'text-foreground font-semibold' : ''}`}>{equipment.name}</span>
+                  <Badge variant={status.active ? "default" : "secondary"} className={`text-xs ml-2 ${status.active && isAssigned ? 'bg-success hover:bg-success/90 text-white' : ''}`}>
                     {status.active ? "Active" : "Inactive"}
                   </Badge>
                 </CardTitle>
@@ -594,7 +596,7 @@ export const Dashboard = ({
                 <div className="text-sm space-y-1">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Site:</span>
-                    <span className="font-medium truncate ml-2">{siteName}</span>
+                    <span className={`font-medium truncate ml-2 ${isAssigned ? 'text-foreground' : ''}`}>{siteName}</span>
                   </div>
                   {status.date && <div className="flex justify-between">
                     <span className="text-muted-foreground">Last Log:</span>
@@ -603,7 +605,7 @@ export const Dashboard = ({
                     </span>
                   </div>}
                 </div>
-                <Button variant="outline" size="sm" className="w-full gap-2" onClick={() => {
+                <Button variant={isAssigned ? "default" : "outline"} size="sm" className={`w-full gap-2 ${isAssigned ? 'bg-success hover:bg-success/90 text-white shadow-sm' : ''}`} onClick={() => {
                   if (site) {
                     setSelectedEquipment(equipment);
                     setSelectedSite(site);

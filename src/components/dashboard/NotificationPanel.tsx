@@ -579,7 +579,7 @@ export const NotificationPanel = ({
                   <p className="text-sm">No pending logs in this category</p>
                 </div>
               ) : (
-                <ScrollArea className="max-h-[400px]">
+                <div className="max-h-[400px] overflow-y-auto pr-1">
                   <div className="divide-y divide-border">
                     {filteredLogs.map((item) => {
                       const priority = getPriority(item);
@@ -646,7 +646,7 @@ export const NotificationPanel = ({
                       );
                     })}
                   </div>
-                </ScrollArea>
+                </div>
               )}
             </>
           ) : (
@@ -657,7 +657,7 @@ export const NotificationPanel = ({
                   <p className="text-sm">No maintenance due at this time</p>
                 </div>
               ) : (
-                <ScrollArea className="max-h-[400px]">
+                <div className="max-h-[400px] overflow-y-auto pr-1">
                   <div className="divide-y divide-border">
                     {maintenanceDueItems.map((item) => {
                       const priority = getMaintenancePriority(item);
@@ -714,7 +714,7 @@ export const NotificationPanel = ({
                       );
                     })}
                   </div>
-                </ScrollArea>
+                </div>
               )}
             </>
           )}

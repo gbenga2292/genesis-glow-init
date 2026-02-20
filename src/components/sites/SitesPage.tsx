@@ -1297,7 +1297,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
                     <TooltipTrigger asChild>
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Package className="h-3 w-3" />
-                        <span>{siteAssets.length}</span>
+                        <span>{getSiteInventory(site.id).filter(item => item.quantity > 0).length}</span>
                       </div>
                     </TooltipTrigger>
                     <TooltipContent side="bottom"><p>Assets at site</p></TooltipContent>
