@@ -800,19 +800,41 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
 
   return (
     <div className="space-y-4 animate-fade-in">
-      {/* Compact header */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <h1 className="text-lg sm:text-xl font-bold bg-gradient-primary bg-clip-text text-transparent shrink-0">
-            Site Management
-          </h1>
-          <span className="hidden sm:inline text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full shrink-0">
-            {filteredSites.length} of {sites.length}
-          </span>
+      {/* Header — stacks on mobile */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        {/* Title row */}
+        <div className="flex items-center justify-between gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <h1 className="text-lg sm:text-xl font-bold bg-gradient-primary bg-clip-text text-transparent shrink-0">
+              Site Management
+            </h1>
+            <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full shrink-0">
+              {filteredSites.length} of {sites.length}
+            </span>
+          </div>
+          {/* Add Site button — visible in title row on mobile */}
+          {hasPermission('manage_sites') && (
+            <Button
+              size="sm"
+              className="h-9 text-xs px-3 sm:hidden shrink-0"
+              onClick={() => {
+                if (!isAuthenticated) {
+                  toast({ title: "Login Required", description: "Please log in to add a site.", variant: "destructive" });
+                  return;
+                }
+                handleAdd();
+              }}
+            >
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Add Site
+            </Button>
+          )}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+
+        {/* Controls row */}
+        <div className="flex items-center gap-2">
           <Select value={siteFilter} onValueChange={(value) => setSiteFilter(value as 'all' | 'active' | 'inactive')}>
-            <SelectTrigger className="h-8 w-[110px] text-xs">
+            <SelectTrigger className="h-9 flex-1 sm:flex-none sm:w-[110px] text-xs">
               <SelectValue placeholder="Filter" />
             </SelectTrigger>
             <SelectContent>
@@ -822,7 +844,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
             </SelectContent>
           </Select>
           <Select value={siteSortBy} onValueChange={(value) => setSiteSortBy(value as typeof siteSortBy)}>
-            <SelectTrigger className="h-8 w-[110px] text-xs">
+            <SelectTrigger className="h-9 flex-1 sm:flex-none sm:w-[120px] text-xs">
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
             <SelectContent>
@@ -833,10 +855,11 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
               <SelectItem value="waybills">Most Waybills</SelectItem>
             </SelectContent>
           </Select>
+          {/* Add Site button — desktop only */}
           {hasPermission('manage_sites') && (
             <Button
               size="sm"
-              className="h-8 text-xs px-3"
+              className="hidden sm:flex h-9 text-xs px-3 shrink-0"
               onClick={() => {
                 if (!isAuthenticated) {
                   toast({ title: "Login Required", description: "Please log in to add a site.", variant: "destructive" });
@@ -1060,7 +1083,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
                         <>
                           <div>
                             <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                              <Activity className="h-4 w-4 text-green-500" />
+                              <Activity className="h-4 w-4 text-primary" />
                               Inflows (From Office/Other Sites)
                             </h3>
                             {inflows.length === 0 ? (
@@ -1076,7 +1099,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
                                       </span>
                                     </div>
                                     <div className="text-right">
-                                      <span className="font-semibold text-green-600">+{transaction.quantity}</span>
+                                      <span className="font-semibold text-primary">+{transaction.quantity}</span>
                                       <span className="text-xs text-muted-foreground block">
                                         {new Date(transaction.createdAt).toLocaleString()}
                                       </span>
@@ -1089,7 +1112,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
                           </div>
                           <div>
                             <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                              <Activity className="h-4 w-4 text-red-500" />
+                              <Activity className="h-4 w-4 text-destructive" />
                               Outflows (To Sites/Office)
                             </h3>
                             {outflows.length === 0 ? (
@@ -1105,7 +1128,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
                                       </span>
                                     </div>
                                     <div className="text-right">
-                                      <span className="font-semibold text-red-600">-{transaction.quantity}</span>
+                                      <span className="font-semibold text-destructive">-{transaction.quantity}</span>
                                       <span className="text-xs text-muted-foreground block">
                                         {new Date(transaction.createdAt).toLocaleString()}
                                       </span>
@@ -1360,26 +1383,26 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
           {deleteOptions && (
             <div className="space-y-3 py-4">
               {deleteOptions.hasAssets && (
-                <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <Package className="h-4 w-4 text-yellow-600" />
+                <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg dark:bg-amber-950/30 dark:border-amber-800">
+                  <Package className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                   <div>
-                    <p className="text-sm font-medium text-yellow-800">
+                    <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
                       {deleteOptions.assetCount} asset{deleteOptions.assetCount !== 1 ? 's' : ''} will be removed from this site
                     </p>
-                    <p className="text-xs text-yellow-600">
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
                       Assets will be set to quantity 0 and removed from site assignment.
                     </p>
                   </div>
                 </div>
               )}
               {deleteOptions.hasOutstandingWaybills && (
-                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <FileText className="h-4 w-4 text-red-600" />
+                <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/30 rounded-lg">
+                  <FileText className="h-4 w-4 text-destructive" />
                   <div>
-                    <p className="text-sm font-medium text-red-800">
+                    <p className="text-sm font-medium text-destructive">
                       {deleteOptions.outstandingWaybillCount} outstanding waybill{deleteOptions.outstandingWaybillCount !== 1 ? 's' : ''} found
                     </p>
-                    <p className="text-xs text-red-600">
+                    <p className="text-xs text-destructive/80">
                       Outstanding waybills must be completed before deleting the site.
                     </p>
                   </div>
