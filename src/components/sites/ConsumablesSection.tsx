@@ -19,6 +19,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { logActivity } from "@/utils/activityLogger";
 import { BulkLogDialog } from "./BulkLogDialog";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface ConsumablesSectionProps {
   site: Site;
@@ -52,6 +53,7 @@ export const ConsumablesSection = ({
   const {
     toast
   } = useToast();
+  const isMobile = useIsMobile();
   const [isOpen, setIsOpen] = useState(false);
   const [showBulkLogDialog, setShowBulkLogDialog] = useState(false);
 
@@ -115,11 +117,20 @@ export const ConsumablesSection = ({
   return (
     <>
       <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Package2 className="h-5 w-5" />
-            <h3 className="text-lg font-semibold">Consumables Tracking</h3>
-
+        <div className={isMobile ? "space-y-3" : "flex items-center justify-between"}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Package2 className="h-5 w-5" />
+              <h3 className="text-lg font-semibold">Consumables</h3>
+              {isMobile && (
+                <Badge variant="secondary" className="text-xs">{siteConsumables.length}</Badge>
+              )}
+            </div>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className={isMobile ? "" : "hidden"}>
+                <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+              </Button>
+            </CollapsibleTrigger>
           </div>
           <div className="flex items-center gap-2">
             {siteConsumables.length > 1 && (
@@ -128,25 +139,28 @@ export const ConsumablesSection = ({
                 size="sm"
                 onClick={() => setShowBulkLogDialog(true)}
                 disabled={!hasPermission('write_assets')}
+                className={isMobile ? "flex-1 h-9" : ""}
               >
                 <Layers className="h-4 w-4 mr-2" />
                 Bulk Log
               </Button>
             )}
-            <Button variant="outline" size="sm" onClick={onViewAnalytics} className="gap-2" disabled={!onViewAnalytics}>
+            <Button variant="outline" size="sm" onClick={onViewAnalytics} className={`gap-2 ${isMobile ? "flex-1 h-9" : ""}`} disabled={!onViewAnalytics}>
               <LineChart className="h-4 w-4" />
               Site Analytics
             </Button>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm">
-                <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-              </Button>
-            </CollapsibleTrigger>
+            {!isMobile && (
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm">
+                  <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                </Button>
+              </CollapsibleTrigger>
+            )}
           </div>
         </div>
 
         <CollapsibleContent className="space-y-4">
-          {siteConsumables.length === 0 ? <p className="text-muted-foreground">No materials at this site.</p> : <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {siteConsumables.length === 0 ? <p className="text-muted-foreground">No materials at this site.</p> : <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {siteConsumables.map(consumable => {
               const currentQty = consumable.siteQuantities?.[site.id] ?? 0;
               const totalUsed = getTotalUsed(consumable.id);
