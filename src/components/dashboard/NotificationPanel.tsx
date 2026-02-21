@@ -14,12 +14,13 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Asset, Site, Employee } from "@/types/asset";
 import { EquipmentLog, DowntimeEntry } from "@/types/equipment";
 import { MaintenanceLog } from "@/types/maintenance";
-import { AlertTriangle, CheckCircle, Clock, Wrench, Zap, Plus, X, MapPin, Calendar as CalendarIcon, Layers } from "lucide-react";
+import { AlertTriangle, CheckCircle, Clock, Wrench, Zap, Plus, X, MapPin, Calendar as CalendarIcon, Layers, ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
 import { createDefaultOperationalLog, calculateDieselRefill, getDieselOverdueDays } from "@/utils/defaultLogTemplate";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface NotificationPanelProps {
   assets: Asset[];
@@ -61,6 +62,7 @@ export const NotificationPanel = ({
 }: NotificationPanelProps) => {
   const { toast } = useToast();
   const { hasPermission } = useAuth();
+  const isMobile = useIsMobile();
   const [notificationTab, setNotificationTab] = useState<NotificationTab>("logs");
   const [showQuickLogDialog, setShowQuickLogDialog] = useState(false);
   const [showBulkLogDialog, setShowBulkLogDialog] = useState(false);
@@ -721,36 +723,33 @@ export const NotificationPanel = ({
         </CardContent>
       </Card>
 
-      {/* Quick Log Dialog - Mobile Optimized */}
-      <Dialog open={showQuickLogDialog} onOpenChange={setShowQuickLogDialog}>
-        <DialogContent className="sm:max-w-4xl max-h-[95vh] overflow-hidden flex flex-col p-0">
-          <DialogHeader className="px-4 pt-4 pb-2 border-b shrink-0">
-            <div className="flex items-center justify-between gap-2">
-              <div className="min-w-0">
-                <DialogTitle className="text-base flex items-center gap-2">
+      {/* Quick Log Dialog - Mobile Full-Screen */}
+      {showQuickLogDialog && isMobile ? (
+        <div className="fixed inset-0 z-50 bg-background animate-in slide-in-from-bottom duration-300">
+          <div className="flex flex-col h-full">
+            {/* Header */}
+            <div className="flex items-center gap-3 p-4 border-b bg-background/95 backdrop-blur sticky top-0 z-10">
+              <Button variant="ghost" size="icon" onClick={() => setShowQuickLogDialog(false)} className="shrink-0">
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
                   <Zap className="h-4 w-4 text-primary" />
-                  Quick Log
-                </DialogTitle>
-                <DialogDescription className="text-xs truncate">
+                  <h1 className="text-lg font-semibold truncate">Quick Log</h1>
+                </div>
+                <p className="text-xs text-muted-foreground truncate">
                   {selectedPendingItem?.equipment.name} • {selectedDate && format(selectedDate, 'PPP')}
-                </DialogDescription>
+                </p>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleAutoFillDefaults}
-                className="shrink-0 h-8 text-xs"
-              >
+              <Button type="button" variant="outline" size="sm" onClick={handleAutoFillDefaults} className="shrink-0 h-8 text-xs">
                 <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
                 Auto-Fill
               </Button>
             </div>
-          </DialogHeader>
 
-          <ScrollArea className="flex-1" style={{ maxHeight: 'calc(95vh - 80px)' }}>
-            <div className="p-4 space-y-4">
-              {/* Calendar Section - Collapsed on mobile */}
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto p-4 pb-6 space-y-4">
+              {/* Calendar */}
               <div className="space-y-2">
                 <Label className="text-sm font-medium flex items-center gap-2">
                   <CalendarIcon className="h-4 w-4" />
@@ -774,22 +773,18 @@ export const NotificationPanel = ({
                     className="rounded-md border bg-card"
                   />
                 </div>
-                <p className="text-[10px] text-muted-foreground text-center">
-                  Blue dates have existing logs
-                </p>
+                <p className="text-[10px] text-muted-foreground text-center">Blue dates have existing logs</p>
               </div>
 
-              {/* Form Section */}
+              {/* Form */}
               <div className="space-y-4">
                 <div className="flex items-center space-x-3 p-3 bg-muted/30 rounded-lg">
                   <Checkbox
-                    id="active"
+                    id="active-mobile"
                     checked={logForm.active}
                     onCheckedChange={(checked) => setLogForm({ ...logForm, active: checked as boolean })}
                   />
-                  <Label htmlFor="active" className="text-sm font-medium cursor-pointer">
-                    Equipment Active Today
-                  </Label>
+                  <Label htmlFor="active-mobile" className="text-sm font-medium cursor-pointer">Equipment Active Today</Label>
                 </div>
 
                 {logForm.active && (
@@ -833,7 +828,6 @@ export const NotificationPanel = ({
                                 </Button>
                               )}
                             </div>
-
                             <div className="grid grid-cols-2 gap-2">
                               <div className="space-y-1">
                                 <Label className="text-[10px] text-muted-foreground">Time Off</Label>
@@ -862,7 +856,6 @@ export const NotificationPanel = ({
                                 />
                               </div>
                             </div>
-
                             <div className="space-y-1">
                               <Label className="text-[10px] text-muted-foreground">Reason</Label>
                               <Input
@@ -876,7 +869,6 @@ export const NotificationPanel = ({
                                 className="h-9 text-sm"
                               />
                             </div>
-
                             <div className="space-y-1">
                               <Label className="text-[10px] text-muted-foreground">Action Taken</Label>
                               <Textarea
@@ -897,7 +889,7 @@ export const NotificationPanel = ({
                     </div>
 
                     {/* Diesel & Supervisor */}
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-3">
                       <div className="space-y-1.5">
                         <Label className="text-xs">Diesel (L)</Label>
                         <Input
@@ -911,13 +903,9 @@ export const NotificationPanel = ({
                           const overdueDays = getDieselOverdueDays(equipmentLogs, selectedPendingItem.equipment.id);
                           const refillAmount = calculateDieselRefill(equipmentLogs, selectedPendingItem.equipment.id);
                           return overdueDays > 0 ? (
-                            <p className="text-[10px] text-warning">
-                              ⚠️ {refillAmount}L due ({overdueDays}d overdue)
-                            </p>
+                            <p className="text-[10px] text-warning">⚠️ {refillAmount}L due ({overdueDays}d overdue)</p>
                           ) : refillAmount ? (
-                            <p className="text-[10px] text-primary">
-                              💡 Suggested: {refillAmount}L
-                            </p>
+                            <p className="text-[10px] text-primary">💡 Suggested: {refillAmount}L</p>
                           ) : null;
                         })()}
                       </div>
@@ -932,253 +920,463 @@ export const NotificationPanel = ({
                           </SelectTrigger>
                           <SelectContent>
                             {employees.map((employee) => (
-                              <SelectItem key={employee.id} value={employee.name}>
-                                {employee.name}
-                              </SelectItem>
+                              <SelectItem key={employee.id} value={employee.name}>{employee.name}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </div>
                     </div>
 
-                    {/* Maintenance Details */}
                     <div className="space-y-1.5">
                       <Label className="text-xs">Maintenance Details</Label>
-                      <Textarea
-                        value={logForm.maintenanceDetails}
-                        onChange={(e) => setLogForm({ ...logForm, maintenanceDetails: e.target.value })}
-                        placeholder="Maintenance performed"
-                        rows={2}
-                        className="text-sm resize-none"
-                      />
+                      <Textarea value={logForm.maintenanceDetails} onChange={(e) => setLogForm({ ...logForm, maintenanceDetails: e.target.value })} placeholder="Maintenance performed" rows={2} className="text-sm resize-none" />
                     </div>
-
-                    {/* Client Feedback */}
                     <div className="space-y-1.5">
                       <Label className="text-xs">Client Feedback</Label>
-                      <Textarea
-                        value={logForm.clientFeedback}
-                        onChange={(e) => setLogForm({ ...logForm, clientFeedback: e.target.value })}
-                        placeholder="Client comments"
-                        rows={2}
-                        className="text-sm resize-none"
-                      />
+                      <Textarea value={logForm.clientFeedback} onChange={(e) => setLogForm({ ...logForm, clientFeedback: e.target.value })} placeholder="Client comments" rows={2} className="text-sm resize-none" />
                     </div>
-
-                    {/* Issues */}
                     <div className="space-y-1.5">
                       <Label className="text-xs">Issues on Site</Label>
-                      <Textarea
-                        value={logForm.issuesOnSite}
-                        onChange={(e) => setLogForm({ ...logForm, issuesOnSite: e.target.value })}
-                        placeholder="Any issues encountered"
-                        rows={2}
-                        className="text-sm resize-none"
-                      />
+                      <Textarea value={logForm.issuesOnSite} onChange={(e) => setLogForm({ ...logForm, issuesOnSite: e.target.value })} placeholder="Any issues encountered" rows={2} className="text-sm resize-none" />
                     </div>
                   </div>
                 )}
               </div>
             </div>
-          </ScrollArea>
 
-          {/* Sticky Footer */}
-          <div className="p-4 border-t bg-card shrink-0">
-            <div className="flex gap-3">
-              <Button
-                onClick={() => setShowQuickLogDialog(false)}
-                variant="outline"
-                className="flex-1 h-11"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSaveLog}
-                className="flex-1 h-11"
-              >
-                Save Log
-              </Button>
+            {/* Sticky Footer */}
+            <div className="p-4 border-t bg-card shrink-0 safe-area-bottom">
+              <div className="flex gap-3">
+                <Button onClick={() => setShowQuickLogDialog(false)} variant="outline" className="flex-1 h-11">Cancel</Button>
+                <Button onClick={handleSaveLog} className="flex-1 h-11">Save Log</Button>
+              </div>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      ) : (
+        <Dialog open={showQuickLogDialog} onOpenChange={setShowQuickLogDialog}>
+          <DialogContent className="sm:max-w-4xl max-h-[95vh] overflow-hidden flex flex-col p-0">
+            <DialogHeader className="px-4 pt-4 pb-2 border-b shrink-0">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <DialogTitle className="text-base flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-primary" />
+                    Quick Log
+                  </DialogTitle>
+                  <DialogDescription className="text-xs truncate">
+                    {selectedPendingItem?.equipment.name} • {selectedDate && format(selectedDate, 'PPP')}
+                  </DialogDescription>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={handleAutoFillDefaults} className="shrink-0 h-8 text-xs">
+                  <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
+                  Auto-Fill
+                </Button>
+              </div>
+            </DialogHeader>
+
+            <ScrollArea className="flex-1" style={{ maxHeight: 'calc(95vh - 80px)' }}>
+              <div className="p-4 space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium flex items-center gap-2">
+                    <CalendarIcon className="h-4 w-4" />
+                    Select Date
+                  </Label>
+                  <div className="flex justify-center bg-muted/30 rounded-lg p-3">
+                    <Calendar
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={(date) => date && handleDateSelect(date)}
+                      modifiers={{
+                        logged: selectedPendingItem ? getLoggedDatesForEquipment(selectedPendingItem.equipment.id) : []
+                      }}
+                      modifiersStyles={{
+                        logged: {
+                          backgroundColor: 'hsl(var(--primary))',
+                          color: 'white',
+                          fontWeight: 'bold'
+                        }
+                      }}
+                      className="rounded-md border bg-card"
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground text-center">Blue dates have existing logs</p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-3 p-3 bg-muted/30 rounded-lg">
+                    <Checkbox
+                      id="active"
+                      checked={logForm.active}
+                      onCheckedChange={(checked) => setLogForm({ ...logForm, active: checked as boolean })}
+                    />
+                    <Label htmlFor="active" className="text-sm font-medium cursor-pointer">Equipment Active Today</Label>
+                  </div>
+
+                  {logForm.active && (
+                    <div className="space-y-4">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-medium">Downtime Entries</Label>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setLogForm({
+                              ...logForm,
+                              downtimeEntries: [...logForm.downtimeEntries, { id: Date.now().toString(), downtime: "", downtimeReason: "", downtimeAction: "", uptime: "" }]
+                            })}
+                            className="h-8 text-xs"
+                          >
+                            <Plus className="h-3.5 w-3.5 mr-1" />
+                            Add
+                          </Button>
+                        </div>
+
+                        {logForm.downtimeEntries.map((entry, index) => (
+                          <Card key={entry.id} className="border shadow-none">
+                            <CardContent className="p-3 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-medium text-muted-foreground">Entry {index + 1}</span>
+                                {logForm.downtimeEntries.length > 1 && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setLogForm({
+                                      ...logForm,
+                                      downtimeEntries: logForm.downtimeEntries.filter((_, i) => i !== index)
+                                    })}
+                                    className="h-6 text-xs text-destructive hover:text-destructive"
+                                  >
+                                    Remove
+                                  </Button>
+                                )}
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] text-muted-foreground">Time Off</Label>
+                                  <Input
+                                    value={entry.downtime}
+                                    onChange={(e) => {
+                                      const newEntries = [...logForm.downtimeEntries];
+                                      newEntries[index].downtime = e.target.value;
+                                      setLogForm({ ...logForm, downtimeEntries: newEntries });
+                                    }}
+                                    placeholder="14:30"
+                                    className="h-9 text-sm"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] text-muted-foreground">Time Back</Label>
+                                  <Input
+                                    value={entry.uptime}
+                                    onChange={(e) => {
+                                      const newEntries = [...logForm.downtimeEntries];
+                                      newEntries[index].uptime = e.target.value;
+                                      setLogForm({ ...logForm, downtimeEntries: newEntries });
+                                    }}
+                                    placeholder="16:00"
+                                    className="h-9 text-sm"
+                                  />
+                                </div>
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] text-muted-foreground">Reason</Label>
+                                <Input
+                                  value={entry.downtimeReason}
+                                  onChange={(e) => {
+                                    const newEntries = [...logForm.downtimeEntries];
+                                    newEntries[index].downtimeReason = e.target.value;
+                                    setLogForm({ ...logForm, downtimeEntries: newEntries });
+                                  }}
+                                  placeholder="Reason for downtime"
+                                  className="h-9 text-sm"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] text-muted-foreground">Action Taken</Label>
+                                <Textarea
+                                  value={entry.downtimeAction}
+                                  onChange={(e) => {
+                                    const newEntries = [...logForm.downtimeEntries];
+                                    newEntries[index].downtimeAction = e.target.value;
+                                    setLogForm({ ...logForm, downtimeEntries: newEntries });
+                                  }}
+                                  placeholder="Actions taken"
+                                  rows={2}
+                                  className="text-sm resize-none"
+                                />
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Diesel (L)</Label>
+                          <Input
+                            type="number"
+                            value={logForm.dieselEntered}
+                            onChange={(e) => setLogForm({ ...logForm, dieselEntered: e.target.value })}
+                            placeholder="0.00"
+                            className="h-10"
+                          />
+                          {selectedPendingItem && (() => {
+                            const overdueDays = getDieselOverdueDays(equipmentLogs, selectedPendingItem.equipment.id);
+                            const refillAmount = calculateDieselRefill(equipmentLogs, selectedPendingItem.equipment.id);
+                            return overdueDays > 0 ? (
+                              <p className="text-[10px] text-warning">⚠️ {refillAmount}L due ({overdueDays}d overdue)</p>
+                            ) : refillAmount ? (
+                              <p className="text-[10px] text-primary">💡 Suggested: {refillAmount}L</p>
+                            ) : null;
+                          })()}
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Supervisor</Label>
+                          <Select
+                            value={logForm.supervisorOnSite}
+                            onValueChange={(value) => setLogForm({ ...logForm, supervisorOnSite: value })}
+                          >
+                            <SelectTrigger className="h-10">
+                              <SelectValue placeholder="Select" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {employees.map((employee) => (
+                                <SelectItem key={employee.id} value={employee.name}>{employee.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Maintenance Details</Label>
+                        <Textarea value={logForm.maintenanceDetails} onChange={(e) => setLogForm({ ...logForm, maintenanceDetails: e.target.value })} placeholder="Maintenance performed" rows={2} className="text-sm resize-none" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Client Feedback</Label>
+                        <Textarea value={logForm.clientFeedback} onChange={(e) => setLogForm({ ...logForm, clientFeedback: e.target.value })} placeholder="Client comments" rows={2} className="text-sm resize-none" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Issues on Site</Label>
+                        <Textarea value={logForm.issuesOnSite} onChange={(e) => setLogForm({ ...logForm, issuesOnSite: e.target.value })} placeholder="Any issues encountered" rows={2} className="text-sm resize-none" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </ScrollArea>
+
+            <div className="p-4 border-t bg-card shrink-0">
+              <div className="flex gap-3">
+                <Button onClick={() => setShowQuickLogDialog(false)} variant="outline" className="flex-1 h-11">Cancel</Button>
+                <Button onClick={handleSaveLog} className="flex-1 h-11">Save Log</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Bulk Log Dialog */}
-      <Dialog open={showBulkLogDialog} onOpenChange={setShowBulkLogDialog}>
-        <DialogContent className="sm:max-w-2xl max-h-[95vh] overflow-hidden flex flex-col p-0">
-          <DialogHeader className="px-4 pt-4 pb-2 border-b shrink-0">
-            <DialogTitle className="text-base flex items-center gap-2">
-              <Layers className="h-4 w-4 text-primary" />
-              Bulk Equipment Log
-            </DialogTitle>
-            <DialogDescription className="text-xs">
-              Log multiple machines at once with shared parameters
-            </DialogDescription>
-          </DialogHeader>
+      {showBulkLogDialog && isMobile ? (
+        <div className="fixed inset-0 z-50 bg-background animate-in slide-in-from-bottom duration-300">
+          <div className="flex flex-col h-full">
+            <div className="flex items-center gap-3 p-4 border-b bg-background/95 backdrop-blur sticky top-0 z-10">
+              <Button variant="ghost" size="icon" onClick={() => setShowBulkLogDialog(false)} className="shrink-0">
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <Layers className="h-4 w-4 text-primary" />
+                  <h1 className="text-lg font-semibold">Bulk Equipment Log</h1>
+                </div>
+                <p className="text-xs text-muted-foreground">Log multiple machines at once</p>
+              </div>
+            </div>
 
-          <ScrollArea className="flex-1 overflow-y-auto">
-            <div className="p-4 space-y-4">
-              {/* Date Selection */}
+            <div className="flex-1 overflow-y-auto p-4 pb-6 space-y-4">
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Log Date</Label>
                 <div className="flex justify-center bg-muted/30 rounded-lg p-2">
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={(date) => date && setSelectedDate(date)}
-                    className="rounded-md"
-                  />
+                  <Calendar mode="single" selected={selectedDate} onSelect={(date) => date && setSelectedDate(date)} className="rounded-md" />
                 </div>
               </div>
 
-              {/* Equipment Selection */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium">
-                    Select Equipment ({selectedBulkItems.size}/{filteredLogs.length})
-                  </Label>
+                  <Label className="text-sm font-medium">Select Equipment ({selectedBulkItems.size}/{filteredLogs.length})</Label>
                   <Button variant="ghost" size="sm" onClick={selectAllBulk} className="h-7 text-xs">
                     {selectedBulkItems.size === filteredLogs.length ? 'Deselect All' : 'Select All'}
                   </Button>
                 </div>
-                <ScrollArea className="h-[200px] border rounded-md p-2">
-                  <div className="space-y-2">
-                    {filteredLogs.map(item => {
-                      const key = `${item.equipment.id}-${item.site.id}`;
-                      const isSelected = selectedBulkItems.has(key);
-                      return (
-                        <div
-                          key={key}
-                          className={cn(
-                            "flex flex-col gap-2 p-2 rounded-md border transition-colors",
-                            isSelected ? "bg-primary/5 border-primary/30" : "hover:bg-muted"
-                          )}
-                        >
-                          <div
-                            className="flex items-center gap-3 cursor-pointer"
-                            onClick={() => toggleBulkItem(key)}
-                          >
-                            <Checkbox checked={isSelected} onCheckedChange={() => toggleBulkItem(key)} />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{item.equipment.name}</p>
-                              <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
-                                <MapPin className="h-3 w-3" /> {item.site.name}
-                              </p>
-                            </div>
-                            {item.isOverdue && (
-                              <Badge variant="destructive" className="text-[10px] h-5 shrink-0">
-                                Overdue
-                              </Badge>
-                            )}
+                <div className="max-h-[250px] overflow-y-auto border rounded-md p-2 space-y-2">
+                  {filteredLogs.map(item => {
+                    const key = `${item.equipment.id}-${item.site.id}`;
+                    const isSelected = selectedBulkItems.has(key);
+                    return (
+                      <div key={key} className={cn("flex flex-col gap-2 p-2 rounded-md border transition-colors", isSelected ? "bg-primary/5 border-primary/30" : "hover:bg-muted")}>
+                        <div className="flex items-center gap-3 cursor-pointer" onClick={() => toggleBulkItem(key)}>
+                          <Checkbox checked={isSelected} onCheckedChange={() => toggleBulkItem(key)} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{item.equipment.name}</p>
+                            <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                              <MapPin className="h-3 w-3" /> {item.site.name}
+                            </p>
                           </div>
-                          {isSelected && (
-                            <div className="pl-7 pr-1 animate-in slide-in-from-top-1 duration-200">
-                              <div className="flex items-center gap-2">
-                                <Label className="text-xs w-20 shrink-0">Diesel (L):</Label>
-                                <Input
-                                  type="number"
-                                  className="h-8 bg-background"
-                                  placeholder="Litres"
-                                  value={bulkDieselValues[key] || ''}
-                                  onChange={(e) => setBulkDieselValues(prev => ({
-                                    ...prev,
-                                    [key]: e.target.value
-                                  }))}
-                                  onClick={(e) => e.stopPropagation()}
-                                />
-                              </div>
-                            </div>
-                          )}
+                          {item.isOverdue && <Badge variant="destructive" className="text-[10px] h-5 shrink-0">Overdue</Badge>}
                         </div>
-                      );
-                    })}
-                  </div>
-                </ScrollArea>
+                        {isSelected && (
+                          <div className="pl-7 pr-1 animate-in slide-in-from-top-1 duration-200">
+                            <div className="flex items-center gap-2">
+                              <Label className="text-xs w-20 shrink-0">Diesel (L):</Label>
+                              <Input type="number" className="h-8 bg-background" placeholder="Litres" value={bulkDieselValues[key] || ''} onChange={(e) => setBulkDieselValues(prev => ({ ...prev, [key]: e.target.value }))} onClick={(e) => e.stopPropagation()} />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* Shared Form Fields */}
               <div className="space-y-4 border-t pt-4">
                 <div className="flex items-center gap-3">
-                  <Checkbox
-                    id="bulk-active"
-                    checked={bulkForm.active}
-                    onCheckedChange={(checked) => setBulkForm(prev => ({ ...prev, active: !!checked }))}
-                  />
-                  <Label htmlFor="bulk-active">Machines were operational today</Label>
+                  <Checkbox id="bulk-active-mobile" checked={bulkForm.active} onCheckedChange={(checked) => setBulkForm(prev => ({ ...prev, active: !!checked }))} />
+                  <Label htmlFor="bulk-active-mobile">Machines were operational today</Label>
                 </div>
-
                 <div className="space-y-2">
                   <Label className="text-xs">Supervisor on Site</Label>
-                  <Select
-                    value={bulkForm.supervisorOnSite}
-                    onValueChange={(v) => setBulkForm(prev => ({ ...prev, supervisorOnSite: v }))}
-                  >
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="Select supervisor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {employees.map(emp => (
-                        <SelectItem key={emp.id} value={emp.name}>{emp.name}</SelectItem>
-                      ))}
-                    </SelectContent>
+                  <Select value={bulkForm.supervisorOnSite} onValueChange={(v) => setBulkForm(prev => ({ ...prev, supervisorOnSite: v }))}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Select supervisor" /></SelectTrigger>
+                    <SelectContent>{employees.map(emp => (<SelectItem key={emp.id} value={emp.name}>{emp.name}</SelectItem>))}</SelectContent>
                   </Select>
                 </div>
-
                 <div className="space-y-2">
                   <Label className="text-xs">Maintenance Details</Label>
-                  <Textarea
-                    value={bulkForm.maintenanceDetails}
-                    onChange={(e) => setBulkForm(prev => ({ ...prev, maintenanceDetails: e.target.value }))}
-                    rows={2}
-                    className="text-sm resize-none"
-                  />
+                  <Textarea value={bulkForm.maintenanceDetails} onChange={(e) => setBulkForm(prev => ({ ...prev, maintenanceDetails: e.target.value }))} rows={2} className="text-sm resize-none" />
                 </div>
-
                 <div className="space-y-2">
                   <Label className="text-xs">Client Feedback</Label>
-                  <Textarea
-                    value={bulkForm.clientFeedback}
-                    onChange={(e) => setBulkForm(prev => ({ ...prev, clientFeedback: e.target.value }))}
-                    rows={2}
-                    className="text-sm resize-none"
-                  />
+                  <Textarea value={bulkForm.clientFeedback} onChange={(e) => setBulkForm(prev => ({ ...prev, clientFeedback: e.target.value }))} rows={2} className="text-sm resize-none" />
                 </div>
-
                 <div className="space-y-2">
                   <Label className="text-xs">Issues on Site</Label>
-                  <Textarea
-                    value={bulkForm.issuesOnSite}
-                    onChange={(e) => setBulkForm(prev => ({ ...prev, issuesOnSite: e.target.value }))}
-                    rows={2}
-                    className="text-sm resize-none"
-                  />
+                  <Textarea value={bulkForm.issuesOnSite} onChange={(e) => setBulkForm(prev => ({ ...prev, issuesOnSite: e.target.value }))} rows={2} className="text-sm resize-none" />
                 </div>
               </div>
             </div>
-          </ScrollArea>
 
-          {/* Sticky Footer */}
-          <div className="p-4 border-t bg-card shrink-0">
-            <div className="flex gap-3">
-              <Button
-                onClick={() => setShowBulkLogDialog(false)}
-                variant="outline"
-                className="flex-1 h-11"
-                disabled={bulkSaving}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleBulkSave}
-                className="flex-1 h-11"
-                disabled={bulkSaving || selectedBulkItems.size === 0}
-              >
-                {bulkSaving ? 'Saving...' : `Log ${selectedBulkItems.size} Items`}
-              </Button>
+            <div className="p-4 border-t bg-card shrink-0 safe-area-bottom">
+              <div className="flex gap-3">
+                <Button onClick={() => setShowBulkLogDialog(false)} variant="outline" className="flex-1 h-11" disabled={bulkSaving}>Cancel</Button>
+                <Button onClick={handleBulkSave} className="flex-1 h-11" disabled={bulkSaving || selectedBulkItems.size === 0}>
+                  {bulkSaving ? 'Saving...' : `Log ${selectedBulkItems.size} Items`}
+                </Button>
+              </div>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      ) : (
+        <Dialog open={showBulkLogDialog} onOpenChange={setShowBulkLogDialog}>
+          <DialogContent className="sm:max-w-2xl max-h-[95vh] overflow-hidden flex flex-col p-0">
+            <DialogHeader className="px-4 pt-4 pb-2 border-b shrink-0">
+              <DialogTitle className="text-base flex items-center gap-2">
+                <Layers className="h-4 w-4 text-primary" />
+                Bulk Equipment Log
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Log multiple machines at once with shared parameters
+              </DialogDescription>
+            </DialogHeader>
+
+            <ScrollArea className="flex-1 overflow-y-auto">
+              <div className="p-4 space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Log Date</Label>
+                  <div className="flex justify-center bg-muted/30 rounded-lg p-2">
+                    <Calendar mode="single" selected={selectedDate} onSelect={(date) => date && setSelectedDate(date)} className="rounded-md" />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium">Select Equipment ({selectedBulkItems.size}/{filteredLogs.length})</Label>
+                    <Button variant="ghost" size="sm" onClick={selectAllBulk} className="h-7 text-xs">
+                      {selectedBulkItems.size === filteredLogs.length ? 'Deselect All' : 'Select All'}
+                    </Button>
+                  </div>
+                  <ScrollArea className="h-[200px] border rounded-md p-2">
+                    <div className="space-y-2">
+                      {filteredLogs.map(item => {
+                        const key = `${item.equipment.id}-${item.site.id}`;
+                        const isSelected = selectedBulkItems.has(key);
+                        return (
+                          <div key={key} className={cn("flex flex-col gap-2 p-2 rounded-md border transition-colors", isSelected ? "bg-primary/5 border-primary/30" : "hover:bg-muted")}>
+                            <div className="flex items-center gap-3 cursor-pointer" onClick={() => toggleBulkItem(key)}>
+                              <Checkbox checked={isSelected} onCheckedChange={() => toggleBulkItem(key)} />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{item.equipment.name}</p>
+                                <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                                  <MapPin className="h-3 w-3" /> {item.site.name}
+                                </p>
+                              </div>
+                              {item.isOverdue && <Badge variant="destructive" className="text-[10px] h-5 shrink-0">Overdue</Badge>}
+                            </div>
+                            {isSelected && (
+                              <div className="pl-7 pr-1 animate-in slide-in-from-top-1 duration-200">
+                                <div className="flex items-center gap-2">
+                                  <Label className="text-xs w-20 shrink-0">Diesel (L):</Label>
+                                  <Input type="number" className="h-8 bg-background" placeholder="Litres" value={bulkDieselValues[key] || ''} onChange={(e) => setBulkDieselValues(prev => ({ ...prev, [key]: e.target.value }))} onClick={(e) => e.stopPropagation()} />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </ScrollArea>
+                </div>
+
+                <div className="space-y-4 border-t pt-4">
+                  <div className="flex items-center gap-3">
+                    <Checkbox id="bulk-active" checked={bulkForm.active} onCheckedChange={(checked) => setBulkForm(prev => ({ ...prev, active: !!checked }))} />
+                    <Label htmlFor="bulk-active">Machines were operational today</Label>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Supervisor on Site</Label>
+                    <Select value={bulkForm.supervisorOnSite} onValueChange={(v) => setBulkForm(prev => ({ ...prev, supervisorOnSite: v }))}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Select supervisor" /></SelectTrigger>
+                      <SelectContent>{employees.map(emp => (<SelectItem key={emp.id} value={emp.name}>{emp.name}</SelectItem>))}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Maintenance Details</Label>
+                    <Textarea value={bulkForm.maintenanceDetails} onChange={(e) => setBulkForm(prev => ({ ...prev, maintenanceDetails: e.target.value }))} rows={2} className="text-sm resize-none" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Client Feedback</Label>
+                    <Textarea value={bulkForm.clientFeedback} onChange={(e) => setBulkForm(prev => ({ ...prev, clientFeedback: e.target.value }))} rows={2} className="text-sm resize-none" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Issues on Site</Label>
+                    <Textarea value={bulkForm.issuesOnSite} onChange={(e) => setBulkForm(prev => ({ ...prev, issuesOnSite: e.target.value }))} rows={2} className="text-sm resize-none" />
+                  </div>
+                </div>
+              </div>
+            </ScrollArea>
+
+            <div className="p-4 border-t bg-card shrink-0">
+              <div className="flex gap-3">
+                <Button onClick={() => setShowBulkLogDialog(false)} variant="outline" className="flex-1 h-11" disabled={bulkSaving}>Cancel</Button>
+                <Button onClick={handleBulkSave} className="flex-1 h-11" disabled={bulkSaving || selectedBulkItems.size === 0}>
+                  {bulkSaving ? 'Saving...' : `Log ${selectedBulkItems.size} Items`}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 };
