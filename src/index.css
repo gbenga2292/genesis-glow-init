@@ -851,83 +851,14 @@ All colors MUST be HSL.
   }
 }
 
-/* Custom Scrollbar Styling - Professional Look */
+/* Hide scrollbars globally but keep scrolling */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: hsl(var(--muted) / 0.3);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: hsl(var(--primary) / 0.3);
-  border-radius: 4px;
-  transition: background 0.2s ease;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--primary) / 0.5);
-}
-
-/* Firefox scrollbar */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: hsl(var(--primary) / 0.3) hsl(var(--muted) / 0.3);
-}
-
-/* Hide scrollbar for specific elements that shouldn't scroll */
-.no-scrollbar::-webkit-scrollbar {
   display: none;
 }
 
-.no-scrollbar {
+* {
   -ms-overflow-style: none;
   scrollbar-width: none;
-}
-
-/* Prevent body overflow */
-html,
-body {
-  overflow-x: hidden;
-  max-width: 100vw;
-}
-
-/* Fix dialog content overflow */
-[role="dialog"] {
-  max-height: 90vh;
-}
-
-[role="dialog"]>div {
-  overflow-y: auto;
-  overflow-x: hidden;
-}
-
-/* Custom scrollbar styling */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.2);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.3);
-}
-
-/* Firefox scrollbar */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: hsl(var(--muted-foreground) / 0.2) transparent;
 }
 
 /* Custom animations */
@@ -990,22 +921,4 @@ body {
   }
 }
 
-/* Electron Scrollbar Fix */
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-::-webkit-scrollbar-track {
-  background: hsl(var(--muted));
-  border-radius: 5px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.5);
-  border-radius: 5px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.8);
-}
+/* Electron - also hide scrollbars */
