@@ -28,7 +28,7 @@ interface NotificationPanelProps {
   equipmentLogs: EquipmentLog[];
   maintenanceLogs: MaintenanceLog[];
   employees: Employee[];
-  onQuickLogEquipment: (log: EquipmentLog) => void;
+  onQuickLogEquipment: (log: EquipmentLog) => Promise<void> | void;
   onBulkLogEquipment?: (logs: EquipmentLog[]) => Promise<void>;
 }
 
@@ -322,7 +322,9 @@ export const NotificationPanel = ({
     }
   };
 
-  const handleSaveLog = () => {
+  const [quickSaving, setQuickSaving] = useState(false);
+
+  const handleSaveLog = async () => {
     if (!selectedPendingItem || !selectedDate) return;
 
     const existingLog = equipmentLogs.find(log =>
@@ -347,10 +349,18 @@ export const NotificationPanel = ({
       updatedAt: new Date()
     };
 
-    onQuickLogEquipment(logData);
-    setShowQuickLogDialog(false);
-    setSelectedPendingItem(null);
-    setSelectedDate(undefined);
+    setQuickSaving(true);
+    try {
+      await onQuickLogEquipment(logData);
+      setShowQuickLogDialog(false);
+      setSelectedPendingItem(null);
+      setSelectedDate(undefined);
+    } catch (error) {
+      console.error('Failed to save quick log:', error);
+      toast({ title: "Error", description: "Failed to save equipment log.", variant: "destructive" });
+    } finally {
+      setQuickSaving(false);
+    }
   };
 
   const handleDismiss = (item: PendingLogItem) => {
@@ -948,7 +958,7 @@ export const NotificationPanel = ({
             <div className="p-4 border-t bg-card shrink-0 safe-area-bottom">
               <div className="flex gap-3">
                 <Button onClick={() => setShowQuickLogDialog(false)} variant="outline" className="flex-1 h-11">Cancel</Button>
-                <Button onClick={handleSaveLog} className="flex-1 h-11">Save Log</Button>
+                <Button onClick={handleSaveLog} disabled={quickSaving} className="flex-1 h-11">{quickSaving ? "Saving..." : "Save Log"}</Button>
               </div>
             </div>
           </div>
@@ -1171,7 +1181,7 @@ export const NotificationPanel = ({
             <div className="p-4 border-t bg-card shrink-0">
               <div className="flex gap-3">
                 <Button onClick={() => setShowQuickLogDialog(false)} variant="outline" className="flex-1 h-11">Cancel</Button>
-                <Button onClick={handleSaveLog} className="flex-1 h-11">Save Log</Button>
+                <Button onClick={handleSaveLog} disabled={quickSaving} className="flex-1 h-11">{quickSaving ? "Saving..." : "Save Log"}</Button>
               </div>
             </div>
           </DialogContent>

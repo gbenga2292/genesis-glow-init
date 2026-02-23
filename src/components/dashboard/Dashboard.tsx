@@ -25,7 +25,7 @@ interface DashboardProps {
   maintenanceLogs: MaintenanceLog[];
   employees: Employee[];
   vehicles: Vehicle[];
-  onQuickLogEquipment: (log: EquipmentLog) => void;
+  onQuickLogEquipment: (log: EquipmentLog) => Promise<void> | void;
   onBulkLogEquipment?: (logs: EquipmentLog[]) => Promise<void>;
   onNavigate: (tab: string, params?: {
     availability: 'out' | 'restock';
