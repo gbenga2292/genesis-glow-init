@@ -4,7 +4,7 @@ import * as pdfjsLib from "pdfjs-dist";
 // Point the worker at the bundled worker file.
 // Using a CDN URL is the most reliable approach for Capacitor WebViews
 // because local worker URLs may be blocked by Android's file:// restrictions.
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 interface PdfJsViewerProps {
     /** Raw PDF blob to render */
