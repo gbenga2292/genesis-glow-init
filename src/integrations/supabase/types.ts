@@ -14,7 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      equipment_logs: {
+        Row: {
+          active: boolean | null
+          client_feedback: string | null
+          created_at: string
+          date: string
+          diesel_entered: number | null
+          downtime_entries: Json | null
+          equipment_id: string
+          equipment_name: string
+          id: number
+          issues_on_site: string | null
+          maintenance_details: string | null
+          site_id: string
+          supervisor_on_site: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean | null
+          client_feedback?: string | null
+          created_at?: string
+          date: string
+          diesel_entered?: number | null
+          downtime_entries?: Json | null
+          equipment_id: string
+          equipment_name: string
+          id?: number
+          issues_on_site?: string | null
+          maintenance_details?: string | null
+          site_id: string
+          supervisor_on_site?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean | null
+          client_feedback?: string | null
+          created_at?: string
+          date?: string
+          diesel_entered?: number | null
+          downtime_entries?: Json | null
+          equipment_id?: string
+          equipment_name?: string
+          id?: number
+          issues_on_site?: string | null
+          maintenance_details?: string | null
+          site_id?: string
+          supervisor_on_site?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

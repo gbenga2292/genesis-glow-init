@@ -2684,14 +2684,14 @@ const Index = () => {
                 await dataService.equipmentLogs.createEquipmentLog(log);
                 const logs = await dataService.equipmentLogs.getEquipmentLogs();
                 setEquipmentLogs(logs);
-              } catch (error) { logger.error('Failed to save equipment log', error); }
+              } catch (error) { logger.error('Failed to save equipment log', error); throw error; }
             }}
             onUpdateEquipmentLog={async (log: EquipmentLog) => {
               try {
                 await dataService.equipmentLogs.updateEquipmentLog(Number(log.id), log);
                 const logs = await dataService.equipmentLogs.getEquipmentLogs();
                 setEquipmentLogs(logs);
-              } catch (error) { logger.error('Failed to update equipment log', error); }
+              } catch (error) { logger.error('Failed to update equipment log', error); throw error; }
             }}
             onAddConsumableLog={async (log: ConsumableUsageLog) => {
               try {
@@ -2759,6 +2759,7 @@ const Index = () => {
                 setEquipmentLogs(logs);
               } catch (error) {
                 logger.error('Failed to save equipment log', error);
+                throw error;
               }
             }}
             onUpdateEquipmentLog={async (log: EquipmentLog) => {
@@ -2768,6 +2769,7 @@ const Index = () => {
                 setEquipmentLogs(logs);
               } catch (error) {
                 logger.error('Failed to update equipment log', error);
+                throw error;
               }
             }}
             onAddConsumableLog={async (log: ConsumableUsageLog) => {

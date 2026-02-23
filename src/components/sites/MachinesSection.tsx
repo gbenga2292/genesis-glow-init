@@ -59,7 +59,7 @@ export const MachinesSection = ({
 
   const handleBulkSaveEquipmentLogs = async (logs: EquipmentLogType[]) => {
     for (const log of logs) {
-      onAddEquipmentLog(log);
+      await onAddEquipmentLog(log);
     }
   };
 
