@@ -205,17 +205,17 @@ export const SecurityPanel: React.FC<SecurityPanelProps> = ({ onPasswordChange, 
           </div>
 
           {/* Security Alert */}
-          <div className="flex gap-3 p-4 bg-amber-500/10 rounded-lg border border-amber-200/30 dark:border-amber-800/30">
-            <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
-            <div className="text-sm">
-              <p className="font-semibold text-amber-900 dark:text-amber-200">
-                Security Recommendation
-              </p>
-              <p className="text-amber-800 dark:text-amber-300 mt-1">
-                Keep your password strong and unique. Never share your password with anyone.
-              </p>
-            </div>
-          </div>
+          
+
+
+
+
+
+
+
+
+
+
         </CardContent>
       </Card>
 
