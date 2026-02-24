@@ -20,13 +20,13 @@ export const PreferencesCard: React.FC<PreferencesCardProps> = ({ isLoading = fa
     inAppNotifications: true,
     lowStockAlerts: true,
     waybillUpdates: true,
-    weeklyReport: false,
+    weeklyReport: false
   });
 
   // Load preferences from currentUser
   React.useEffect(() => {
     if (currentUser?.preferences) {
-      setPreferences(prev => ({
+      setPreferences((prev) => ({
         ...prev,
         ...currentUser.preferences
       }));
@@ -36,13 +36,13 @@ export const PreferencesCard: React.FC<PreferencesCardProps> = ({ isLoading = fa
       if (local) {
         try {
           setPreferences(JSON.parse(local));
-        } catch (e) { }
+        } catch (e) {}
       }
     }
   }, [currentUser]);
 
   const handlePreferenceChange = (key: keyof typeof preferences, value: boolean) => {
-    setPreferences(prev => ({ ...prev, [key]: value }));
+    setPreferences((prev) => ({ ...prev, [key]: value }));
     // Optimistic toast, or wait for save?
     // The UI shows a "Save Preferences" button, so we just update state.
   };
@@ -83,9 +83,9 @@ export const PreferencesCard: React.FC<PreferencesCardProps> = ({ isLoading = fa
           <Monitor className="h-5 w-5 text-green-600" />
           Preferences & Settings
         </CardTitle>
-        <CardDescription>
-          Customize your experience and notification preferences
-        </CardDescription>
+        
+
+
       </CardHeader>
 
       <CardContent className="relative z-10 space-y-6">
@@ -116,8 +116,8 @@ export const PreferencesCard: React.FC<PreferencesCardProps> = ({ isLoading = fa
             <Switch
               checked={preferences.emailNotifications}
               onCheckedChange={(value) => handlePreferenceChange('emailNotifications', value)}
-              disabled={isLoading}
-            />
+              disabled={isLoading} />
+
           </div>
 
           <div className="flex items-center justify-between p-3 bg-background/40 rounded-lg border border-border/50 gap-4">
@@ -133,8 +133,8 @@ export const PreferencesCard: React.FC<PreferencesCardProps> = ({ isLoading = fa
             <Switch
               checked={preferences.inAppNotifications}
               onCheckedChange={(value) => handlePreferenceChange('inAppNotifications', value)}
-              disabled={isLoading}
-            />
+              disabled={isLoading} />
+
           </div>
 
           <div className="flex items-center justify-between p-3 bg-background/40 rounded-lg border border-border/50 gap-4">
@@ -150,8 +150,8 @@ export const PreferencesCard: React.FC<PreferencesCardProps> = ({ isLoading = fa
             <Switch
               checked={preferences.lowStockAlerts}
               onCheckedChange={(value) => handlePreferenceChange('lowStockAlerts', value)}
-              disabled={isLoading}
-            />
+              disabled={isLoading} />
+
           </div>
 
           <div className="flex items-center justify-between p-3 bg-background/40 rounded-lg border border-border/50 gap-4">
@@ -167,8 +167,8 @@ export const PreferencesCard: React.FC<PreferencesCardProps> = ({ isLoading = fa
             <Switch
               checked={preferences.waybillUpdates}
               onCheckedChange={(value) => handlePreferenceChange('waybillUpdates', value)}
-              disabled={isLoading}
-            />
+              disabled={isLoading} />
+
           </div>
 
           <div className="flex items-center justify-between p-3 bg-background/40 rounded-lg border border-border/50 gap-4">
@@ -184,21 +184,21 @@ export const PreferencesCard: React.FC<PreferencesCardProps> = ({ isLoading = fa
             <Switch
               checked={preferences.weeklyReport}
               onCheckedChange={(value) => handlePreferenceChange('weeklyReport', value)}
-              disabled={isLoading}
-            />
+              disabled={isLoading} />
+
           </div>
         </div>
 
         <Button
           className="w-full bg-green-600 hover:bg-green-700"
           disabled={isLoading}
-          onClick={savePreferences}
-        >
+          onClick={savePreferences}>
+
           Save Preferences
         </Button>
       </CardContent>
-    </Card>
-  );
+    </Card>);
+
 };
 
 export default PreferencesCard;
