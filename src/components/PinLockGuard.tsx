@@ -24,6 +24,14 @@ export const PinLockGuard: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
+    // Dev-mode admin bypass: skip PIN lock entirely
+    if (import.meta.env.DEV && currentUser.id === 'admin') {
+      sessionStorage.setItem(PIN_UNLOCKED_KEY, 'true');
+      setChecking(false);
+      setIsLocked(false);
+      return;
+    }
+
     // If already unlocked this session, skip
     if (sessionStorage.getItem(PIN_UNLOCKED_KEY) === 'true') {
       setChecking(false);

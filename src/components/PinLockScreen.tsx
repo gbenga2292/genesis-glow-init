@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, Shield, Delete, KeyRound } from 'lucide-react';
+import { Lock, Shield, Delete, KeyRound, ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { dataService } from '@/services/dataService';
 
 interface PinLockScreenProps {
   onUnlock: () => void;
@@ -14,6 +17,11 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onUnlock, onLogout
   const [error, setError] = useState('');
   const [isShaking, setIsShaking] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [showForgotPin, setShowForgotPin] = useState(false);
+  const [forgotPassword, setForgotPassword] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState('');
+  const [forgotSuccess, setForgotSuccess] = useState(false);
   const maxLength = 4;
 
   const verifyPin = React.useCallback(async (enteredPin: string) => {
@@ -307,14 +315,104 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onUnlock, onLogout
             </div>
           )}
 
+          {/* Forgot PIN */}
+          <button
+            onClick={() => { setShowForgotPin(true); setForgotError(''); setForgotPassword(''); setForgotSuccess(false); }}
+            className="mt-5 text-xs text-primary hover:text-primary/80 transition-colors underline underline-offset-4"
+          >
+            Forgot PIN?
+          </button>
+
           {/* Sign out */}
           <button
             onClick={onLogout}
-            className="mt-8 text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-4"
+            className="mt-3 text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-4"
           >
             Sign out instead
           </button>
         </div>
+
+        {/* Forgot PIN overlay */}
+        {showForgotPin && (
+          <div className="absolute inset-0 bg-background/95 backdrop-blur-sm z-20 flex items-center justify-center p-8">
+            <div className="w-full max-w-sm space-y-5">
+              <button
+                onClick={() => setShowForgotPin(false)}
+                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ArrowLeft className="h-4 w-4" /> Back to PIN
+              </button>
+
+              <div className="text-center space-y-1">
+                <KeyRound className="h-10 w-10 text-primary mx-auto" />
+                <h2 className="text-lg font-bold text-foreground">Reset Your PIN</h2>
+                <p className="text-xs text-muted-foreground">
+                  Enter your account password to remove your PIN and unlock.
+                </p>
+              </div>
+
+              {forgotSuccess ? (
+                <div className="text-center space-y-3">
+                  <div className="h-12 w-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto">
+                    <Shield className="h-6 w-6 text-emerald-500" />
+                  </div>
+                  <p className="text-sm text-foreground font-medium">PIN removed! Unlocking…</p>
+                </div>
+              ) : (
+                <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  setForgotError('');
+                  setForgotLoading(true);
+                  try {
+                    const storedUser = localStorage.getItem('currentUser');
+                    if (!storedUser) throw new Error('Session expired');
+                    const user = JSON.parse(storedUser);
+                    
+                    // Verify password via login
+                    const result = await dataService.auth.login(user.username, forgotPassword);
+                    if (!result.success) {
+                      setForgotError('Incorrect password. Please try again.');
+                      setForgotLoading(false);
+                      return;
+                    }
+
+                    // Password correct — remove PIN
+                    const { supabase } = await import('@/integrations/supabase/client');
+                    await (supabase as any)
+                      .from('users')
+                      .update({ pin_hash: null })
+                      .eq('id', user.id);
+
+                    localStorage.removeItem(`pin_hash_${user.id}`);
+                    localStorage.setItem(`pin_status_${user.id}`, 'disabled');
+
+                    setForgotSuccess(true);
+                    setTimeout(() => onUnlock(), 1200);
+                  } catch (err: any) {
+                    setForgotError(err.message || 'Something went wrong');
+                  } finally {
+                    setForgotLoading(false);
+                  }
+                }} className="space-y-3">
+                  <Input
+                    type="password"
+                    placeholder="Enter your password"
+                    value={forgotPassword}
+                    onChange={(e) => setForgotPassword(e.target.value)}
+                    required
+                    autoFocus
+                  />
+                  {forgotError && (
+                    <p className="text-xs text-destructive font-medium">{forgotError}</p>
+                  )}
+                  <Button type="submit" className="w-full" disabled={forgotLoading || !forgotPassword}>
+                    {forgotLoading ? 'Verifying…' : 'Reset PIN & Unlock'}
+                  </Button>
+                </form>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Shake animation */}
