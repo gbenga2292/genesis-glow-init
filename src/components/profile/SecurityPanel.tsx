@@ -14,7 +14,7 @@ import { PinSetupCard } from './PinSetupCard';
 import QRCode from 'qrcode';
 
 interface SecurityPanelProps {
-  onPasswordChange?: (data: { currentPassword: string; newPassword: string }) => Promise<void>;
+  onPasswordChange?: (data: {currentPassword: string;newPassword: string;}) => Promise<void>;
   isLoading?: boolean;
 }
 
@@ -37,7 +37,7 @@ export const SecurityPanel: React.FC<SecurityPanelProps> = ({ onPasswordChange, 
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
     newPassword: '',
-    confirmPassword: '',
+    confirmPassword: ''
   });
 
   const handlePasswordChange = async () => {
@@ -66,11 +66,11 @@ export const SecurityPanel: React.FC<SecurityPanelProps> = ({ onPasswordChange, 
       if (onPasswordChange) {
         await onPasswordChange({
           currentPassword: passwordForm.currentPassword,
-          newPassword: passwordForm.newPassword,
+          newPassword: passwordForm.newPassword
         });
       } else {
         await updateUser(currentUser?.id || '', {
-          password: passwordForm.newPassword,
+          password: passwordForm.newPassword
         });
       }
       toast.success('Password changed successfully');
@@ -176,8 +176,8 @@ export const SecurityPanel: React.FC<SecurityPanelProps> = ({ onPasswordChange, 
                 variant="outline"
                 size="sm"
                 className="w-full sm:w-auto"
-                disabled={isSaving || isLoading}
-              >
+                disabled={isSaving || isLoading}>
+
                 Change
               </Button>
             </div>
@@ -192,16 +192,16 @@ export const SecurityPanel: React.FC<SecurityPanelProps> = ({ onPasswordChange, 
               <Smartphone className="h-5 w-5 text-indigo-600 mt-1 flex-shrink-0" />
               <div>
                 <h4 className="font-semibold">Multi-Factor Authentication</h4>
-                <p className="text-sm text-muted-foreground mr-2">
-                  Add an extra layer of security to your account
-                </p>
+                
+
+
               </div>
             </div>
             <Switch
               checked={isMFAEnabled}
               onCheckedChange={handleMFAToggle}
-              disabled={isSaving || isLoading}
-            />
+              disabled={isSaving || isLoading} />
+
           </div>
 
           {/* Security Alert */}
@@ -240,10 +240,10 @@ export const SecurityPanel: React.FC<SecurityPanelProps> = ({ onPasswordChange, 
                 id="current-password"
                 type="password"
                 value={passwordForm.currentPassword}
-                onChange={(e) => setPasswordForm(prev => ({ ...prev, currentPassword: e.target.value }))}
+                onChange={(e) => setPasswordForm((prev) => ({ ...prev, currentPassword: e.target.value }))}
                 placeholder="Enter your current password"
-                disabled={isSaving}
-              />
+                disabled={isSaving} />
+
             </div>
 
             {/* New Password */}
@@ -253,13 +253,13 @@ export const SecurityPanel: React.FC<SecurityPanelProps> = ({ onPasswordChange, 
                 id="new-password"
                 type="password"
                 value={passwordForm.newPassword}
-                onChange={(e) => setPasswordForm(prev => ({ ...prev, newPassword: e.target.value }))}
+                onChange={(e) => setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))}
                 placeholder="Enter your new password"
-                disabled={isSaving}
-              />
-              {passwordForm.newPassword && (
-                <PasswordStrengthMeter password={passwordForm.newPassword} />
-              )}
+                disabled={isSaving} />
+
+              {passwordForm.newPassword &&
+              <PasswordStrengthMeter password={passwordForm.newPassword} />
+              }
             </div>
 
             {/* Confirm Password */}
@@ -269,10 +269,10 @@ export const SecurityPanel: React.FC<SecurityPanelProps> = ({ onPasswordChange, 
                 id="confirm-password"
                 type="password"
                 value={passwordForm.confirmPassword}
-                onChange={(e) => setPasswordForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
                 placeholder="Confirm your new password"
-                disabled={isSaving}
-              />
+                disabled={isSaving} />
+
             </div>
           </div>
 
@@ -280,15 +280,15 @@ export const SecurityPanel: React.FC<SecurityPanelProps> = ({ onPasswordChange, 
             <Button
               variant="outline"
               onClick={() => setIsPasswordDialogOpen(false)}
-              disabled={isSaving}
-            >
+              disabled={isSaving}>
+
               Cancel
             </Button>
             <Button
               onClick={handlePasswordChange}
               disabled={isSaving || !passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword}
-              className="bg-red-600 hover:bg-red-700"
-            >
+              className="bg-red-600 hover:bg-red-700">
+
               {isSaving ? 'Changing...' : 'Change Password'}
             </Button>
           </DialogFooter>
@@ -310,11 +310,11 @@ export const SecurityPanel: React.FC<SecurityPanelProps> = ({ onPasswordChange, 
 
           <div className="space-y-6 py-4">
             <div className="flex flex-col items-center justify-center space-y-4">
-              {qrCodeUrl && (
-                <div className="bg-white p-2 rounded-lg border border-border">
+              {qrCodeUrl &&
+              <div className="bg-white p-2 rounded-lg border border-border">
                   <img src={qrCodeUrl} alt="MFA QR Code" className="w-48 h-48" />
                 </div>
-              )}
+              }
               <div className="bg-muted p-4 rounded-md text-center w-full">
                 <p className="text-xs text-muted-foreground mb-2">Secret Key (if you can't scan)</p>
                 <code className="text-sm font-mono font-bold tracking-wider select-all break-all">
@@ -331,8 +331,8 @@ export const SecurityPanel: React.FC<SecurityPanelProps> = ({ onPasswordChange, 
                 onChange={(e) => setMfaCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
                 placeholder="000000"
                 className="text-center text-2xl tracking-widest"
-                maxLength={6}
-              />
+                maxLength={6} />
+
               <p className="text-xs text-muted-foreground text-center">
                 Enter the 6-digit code from your app to verify setup.
               </p>
@@ -343,22 +343,22 @@ export const SecurityPanel: React.FC<SecurityPanelProps> = ({ onPasswordChange, 
             <Button
               variant="outline"
               onClick={() => setIsMFASetupOpen(false)}
-              disabled={isSaving}
-            >
+              disabled={isSaving}>
+
               Cancel
             </Button>
             <Button
               onClick={handleVerifyAndEnableMFA}
               disabled={isSaving || mfaCode.length !== 6}
-              className="bg-indigo-600 hover:bg-indigo-700"
-            >
+              className="bg-indigo-600 hover:bg-indigo-700">
+
               {isSaving ? 'Verifying...' : 'Verify & Enable'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
-  );
+    </>);
+
 };
 
 export default SecurityPanel;
