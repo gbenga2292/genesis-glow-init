@@ -151,7 +151,7 @@ const ProfilePage = () => {
 
                                 <ArrowLeft className="h-4 w-4" />
                             </Button>
-                            <h2 className="text-sm font-semibold leading-tight">Personal Command Center</h2>
+                            <h2 className="text-sm font-semibold leading-tight mx-px">Personal Command Center</h2>
                         </div>
                         {isMobile
 
