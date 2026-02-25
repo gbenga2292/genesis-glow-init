@@ -1,8 +1,15 @@
 import { app, BrowserWindow, ipcMain, shell, Menu, Tray, nativeImage, Notification } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { autoUpdater } from 'electron-updater';
-import log from 'electron-log';
+import { createRequire } from 'module';
+
+// electron-updater and electron-log are CommonJS packages.
+// In an ESM main process we must use createRequire to load them correctly.
+// Using ESM named imports (import { autoUpdater } from 'electron-updater') can
+// silently resolve to undefined, which breaks all IPC handler registration.
+const require = createRequire(import.meta.url);
+const { autoUpdater } = require('electron-updater');
+const log = require('electron-log');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -55,79 +62,98 @@ function createTray() {
 
 // ─── Auto-Updater Setup ───────────────────────────────────────────────────────
 function setupAutoUpdater() {
-  // Use electron-log for updater logs so they are stored in the app log file
-  autoUpdater.logger = log;
-  autoUpdater.logger.transports.file.level = 'info';
-
-  // Disable auto-download — we let the user decide in Settings
-  autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = true;
-
-  // Forward updater events to the renderer window
+  // Helper to safely send events to the renderer
   const send = (channel, data) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(channel, data);
     }
   };
 
-  autoUpdater.on('update-available', (info) => {
-    log.info('Update available:', info.version);
-    send('updater:update-available', info);
-  });
+  // ─── Register IPC handlers FIRST ────────────────────────────────────────
+  // We register these BEFORE configuring autoUpdater so they are always
+  // available to the renderer even if auto-updater setup fails.
 
-  autoUpdater.on('update-not-available', (info) => {
-    log.info('Update not available. Current version is latest.');
-    send('updater:update-not-available', info);
-  });
+  ipcMain.handle('updater:getVersion', () => app.getVersion());
 
-  autoUpdater.on('download-progress', (progress) => {
-    send('updater:download-progress', progress);
-  });
-
-  autoUpdater.on('update-downloaded', (info) => {
-    log.info('Update downloaded:', info.version);
-    send('updater:update-downloaded', info);
-  });
-
-  autoUpdater.on('error', (err) => {
-    log.error('Auto-updater error:', err);
-    send('updater:error', { message: err.message });
-  });
-
-  // IPC Commands from renderer (Settings page)
   ipcMain.handle('updater:check', async () => {
+    if (!app.isPackaged) {
+      // In development, simulate a successful check with no update available
+      log.info('[updater] Dev mode: skipping real update check');
+      send('updater:update-not-available', { version: app.getVersion() });
+      return;
+    }
     try {
       await autoUpdater.checkForUpdates();
     } catch (err) {
-      log.error('checkForUpdates failed:', err);
+      log.error('[updater] checkForUpdates failed:', err);
       send('updater:error', { message: err.message });
     }
   });
 
   ipcMain.handle('updater:download', async () => {
+    if (!app.isPackaged) {
+      log.info('[updater] Dev mode: skipping download');
+      return;
+    }
     try {
       await autoUpdater.downloadUpdate();
     } catch (err) {
-      log.error('downloadUpdate failed:', err);
+      log.error('[updater] downloadUpdate failed:', err);
       send('updater:error', { message: err.message });
     }
   });
 
   ipcMain.handle('updater:quitAndInstall', () => {
-    autoUpdater.quitAndInstall();
+    if (app.isPackaged) autoUpdater.quitAndInstall();
   });
 
-  ipcMain.handle('updater:getVersion', () => {
-    return app.getVersion();
-  });
+  // ─── Configure autoUpdater (only in production) ───────────────────────────
+  // Skip in dev — auto-updater requires a published app-update.yml which only
+  // exists in a packaged build. Running it in dev causes confusing errors.
+  if (!app.isPackaged) {
+    log.info('[updater] Running in development — auto-updater is disabled.');
+    return;
+  }
 
-  // Check for updates 10 seconds after startup (only in production)
-  if (app.isPackaged) {
+  try {
+    autoUpdater.logger = log;
+    autoUpdater.logger.transports.file.level = 'info';
+    autoUpdater.autoDownload = false;        // User decides when to download
+    autoUpdater.autoInstallOnAppQuit = true; // Installs on next quit if downloaded
+
+    autoUpdater.on('update-available', (info) => {
+      log.info('[updater] Update available:', info.version);
+      send('updater:update-available', info);
+    });
+
+    autoUpdater.on('update-not-available', (info) => {
+      log.info('[updater] Already up to date.');
+      send('updater:update-not-available', info);
+    });
+
+    autoUpdater.on('download-progress', (progress) => {
+      send('updater:download-progress', progress);
+    });
+
+    autoUpdater.on('update-downloaded', (info) => {
+      log.info('[updater] Update downloaded:', info.version);
+      send('updater:update-downloaded', info);
+    });
+
+    autoUpdater.on('error', (err) => {
+      log.error('[updater] Error:', err);
+      send('updater:error', { message: err.message });
+    });
+
+    // Auto-check 10 seconds after startup
     setTimeout(() => {
       autoUpdater.checkForUpdates().catch((err) => {
-        log.warn('Startup update check failed (non-critical):', err.message);
+        log.warn('[updater] Startup check failed (non-critical):', err.message);
       });
     }, 10000);
+
+  } catch (err) {
+    log.error('[updater] Failed to configure auto-updater:', err);
   }
 }
 
