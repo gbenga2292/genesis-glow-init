@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Machine, MaintenanceLog, MaintenanceDashboard } from "@/types/maintenance";
 import { Asset, Site, Employee, Vehicle } from "@/types/asset";
+import { EquipmentLog } from "@/types/equipment";
 // Maintenance Entry Form Component
 import { MaintenanceEntryForm } from "./MaintenanceEntryForm";
 import { MachineCard } from "./MachineCard";
@@ -31,6 +32,7 @@ interface MachineMaintenancePageProps {
     sites: Site[];
     employees: Employee[];
     vehicles: Vehicle[];
+    equipmentLogs: EquipmentLog[];
     onAddMachine?: () => void;
     onSubmitMaintenance: (entries: Partial<MaintenanceLog>[]) => Promise<void>;
 }
@@ -42,6 +44,7 @@ export const MachineMaintenancePage = ({
     sites,
     employees,
     vehicles,
+    equipmentLogs,
     onAddMachine,
     onSubmitMaintenance
 }: MachineMaintenancePageProps) => {
@@ -448,6 +451,8 @@ export const MachineMaintenancePage = ({
                                     key={machine.id}
                                     machine={machine}
                                     maintenanceLogs={machineMaintenanceData.get(machine.id)?.allLogs || []}
+                                    equipmentLogs={equipmentLogs}
+                                    sites={sites}
                                     onViewDetails={setSelectedMachine}
                                 />
                             ))}
@@ -514,6 +519,8 @@ export const MachineMaintenancePage = ({
                                     key={machine.id}
                                     machine={machine}
                                     maintenanceLogs={machineMaintenanceData.get(machine.id)?.allLogs || []}
+                                    equipmentLogs={equipmentLogs}
+                                    sites={sites}
                                     onViewDetails={setSelectedMachine}
                                 />
                             ))}

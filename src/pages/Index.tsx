@@ -2037,6 +2037,7 @@ const Index = () => {
           sites={sites}
           employees={employees}
           vehicles={vehicles}
+          equipmentLogs={equipmentLogs}
           onAddMachine={() => setActiveTab('add-asset')}
           onSubmitMaintenance={handleSubmitMaintenance}
         />;
