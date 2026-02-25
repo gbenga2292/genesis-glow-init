@@ -309,32 +309,36 @@ export const WaybillDocument = ({ waybill, sites, vehicles, companySettings, onC
           <div>
             <h2 className="text-lg font-semibold mb-4">Items Issued</h2>
             <div className="border rounded-lg overflow-hidden">
-              <div className="bg-muted/50 px-4 py-3 font-medium grid grid-cols-3 gap-4 text-sm">
-                <div>Asset Name</div>
-                <div>Quantity Issued</div>
-                <div>Status</div>
-              </div>
-
-              {waybill.items.map((item, index) => (
-                <div key={index} className="px-4 py-3 border-t grid grid-cols-3 gap-4 text-sm">
-                  <div className="font-medium">{item.assetName}</div>
-                  <div>{item.quantity}</div>
-                  <div>
-                    <Badge
-                      variant={
-                        item.status === 'outstanding'
-                          ? (waybill.status === 'sent_to_site' || waybill.status === 'partial_returned' ? 'default' : 'secondary')
-                          : item.status === 'return_completed' ? 'default' : 'outline'
-                      }
-                      className={`text-xs ${item.status === 'outstanding' && (waybill.status === 'sent_to_site' || waybill.status === 'partial_returned') ? 'bg-blue-500 hover:bg-blue-600 text-white border-transparent' : ''}`}
-                    >
-                      {item.status === 'outstanding' && (waybill.status === 'sent_to_site' || waybill.status === 'partial_returned')
-                        ? 'SENT TO SITE'
-                        : item.status.replace('_', ' ').toUpperCase()}
-                    </Badge>
-                  </div>
+              <div className="max-h-[350px] overflow-y-auto">
+                <div className="bg-muted px-4 py-3 font-medium grid grid-cols-4 gap-4 text-sm sticky top-0 z-10 border-b">
+                  <div>Asset Name</div>
+                  <div>Quantity Issued</div>
+                  <div>Quantity Returned</div>
+                  <div>Status</div>
                 </div>
-              ))}
+
+                {waybill.items.map((item, index) => (
+                  <div key={index} className="px-4 py-3 border-t grid grid-cols-4 gap-4 text-sm">
+                    <div className="font-medium">{item.assetName}</div>
+                    <div>{item.quantity}</div>
+                    <div>{item.returnedQuantity ?? 0}</div>
+                    <div>
+                      <Badge
+                        variant={
+                          item.status === 'outstanding'
+                            ? (waybill.status === 'sent_to_site' || waybill.status === 'partial_returned' ? 'default' : 'secondary')
+                            : item.status === 'return_completed' ? 'default' : 'outline'
+                        }
+                        className={`text-xs ${item.status === 'outstanding' && (waybill.status === 'sent_to_site' || waybill.status === 'partial_returned') ? 'bg-blue-500 hover:bg-blue-600 text-white border-transparent' : ''}`}
+                      >
+                        {item.status === 'outstanding' && (waybill.status === 'sent_to_site' || waybill.status === 'partial_returned')
+                          ? 'SENT TO SITE'
+                          : item.status.replace('_', ' ').toUpperCase()}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -353,14 +357,6 @@ export const WaybillDocument = ({ waybill, sites, vehicles, companySettings, onC
           </div>
         </div>
 
-        {/* Desktop Close Button */}
-        {!isMobile && (
-          <div className="flex justify-end gap-3 pt-6 print:hidden">
-            <Button variant="outline" onClick={onClose}>
-              Close
-            </Button>
-          </div>
-        )}
       </ResponsiveFormContainer>
 
       <PDFPreviewDialog

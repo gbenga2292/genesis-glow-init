@@ -45,7 +45,7 @@ export const MachinesSection = ({
     hasPermission
   } = useAuth();
   const isMobile = useIsMobile();
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
   const [showItemDialog, setShowItemDialog] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Asset | null>(null);
   const [showBulkLogDialog, setShowBulkLogDialog] = useState(false);
@@ -65,69 +65,41 @@ export const MachinesSection = ({
 
   return (
     <>
-      <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-4">
-        <div className={isMobile ? "space-y-3" : "flex items-center justify-between"}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Wrench className="h-5 w-5" />
-              <h3 className="text-lg font-semibold">Machines</h3>
-              {isMobile && (
-                <Badge variant="secondary" className="text-xs">{siteEquipment.length}</Badge>
-              )}
-            </div>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm" className={isMobile ? "" : "hidden"}>
-                <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-              </Button>
-            </CollapsibleTrigger>
-          </div>
-          <div className="flex items-center gap-2">
-            {siteEquipment.length > 1 && (
-              <Button
-                onClick={() => setShowBulkLogDialog(true)}
-                variant="outline"
-                size="sm"
-                disabled={!hasPermission('write_assets')}
-                className={isMobile ? "flex-1 h-9" : ""}
-              >
-                <Layers className="h-4 w-4 mr-2" />
-                Bulk Log
-              </Button>
-            )}
-            <Button onClick={onViewAnalytics} variant="outline" size="sm" disabled={!onViewAnalytics} className={isMobile ? "flex-1 h-9" : ""}>
-              <LineChart className="h-4 w-4 mr-2" />
-              Site Analytics
-            </Button>
-            {!isMobile && (
-              <CollapsibleTrigger asChild>
-                <Button variant="ghost" size="sm">
-                  <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-                </Button>
-              </CollapsibleTrigger>
-            )}
-          </div>
+      {/* Site Analytics button */}
+      {onViewAnalytics && (
+        <div className="flex justify-end mb-3">
+          <Button onClick={onViewAnalytics} variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground">
+            <LineChart className="h-3.5 w-3.5 mr-1.5" />
+            Site Analytics
+          </Button>
         </div>
+      )}
 
-        <CollapsibleContent className="space-y-4">
-          {siteEquipment.length === 0 ? <p className="text-muted-foreground">No equipment assigned to this dewatering site.</p> : <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-            {siteEquipment.map(equipment => <Card key={equipment.id} className="border-0 shadow-soft">
+      {/* Equipment grid — always visible */}
+      {siteEquipment.length === 0 ? (
+        <p className="text-sm text-muted-foreground py-2">No equipment assigned to this site.</p>
+      ) : (
+        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          {siteEquipment.map(equipment => (
+            <Card key={equipment.id} className="border shadow-sm">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center justify-between">
-                  <span className="truncate">{equipment.name}</span>
-                  <Badge variant="outline">{equipment.status}</Badge>
+                <CardTitle className="text-sm flex items-center justify-between gap-2">
+                  <span className="truncate font-medium">{equipment.name}</span>
+                  <Badge variant="outline" className="text-xs shrink-0">{equipment.status}</Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-
                 {(() => {
                   const overdueDays = getDieselOverdueDays(equipmentLogs, equipment.id);
-                  return overdueDays > 0 ? <div className="text-xs text-warning font-medium">
-                    ⚠️ Diesel refill overdue by {overdueDays} day{overdueDays > 1 ? 's' : ''}
-                  </div> : null;
+                  return overdueDays > 0 ? (
+                    <div className="text-xs text-warning font-medium">
+                      ⚠️ Diesel refill overdue by {overdueDays} day{overdueDays > 1 ? 's' : ''}
+                    </div>
+                  ) : null;
                 })()}
                 <div className="flex gap-2">
-                  <Button onClick={() => onViewAssetDetails?.(equipment)} variant="outline" size="sm" className="flex-1">
-                    <CalendarIcon className="h-4 w-4 mr-2" />
+                  <Button onClick={() => onViewAssetDetails?.(equipment)} variant="outline" size="sm" className="flex-1 text-xs">
+                    <CalendarIcon className="h-3.5 w-3.5 mr-1.5" />
                     Logs
                   </Button>
                   <Button onClick={() => onViewAssetHistory?.(equipment)} variant="ghost" size="sm" className="px-2" title="View History">
@@ -138,10 +110,10 @@ export const MachinesSection = ({
                   </Button>
                 </div>
               </CardContent>
-            </Card>)}
-          </div>}
-        </CollapsibleContent>
-      </Collapsible>
+            </Card>
+          ))}
+        </div>
+      )}
 
       <BulkLogDialog
         open={showBulkLogDialog}

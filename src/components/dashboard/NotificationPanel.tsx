@@ -965,7 +965,7 @@ export const NotificationPanel = ({
         </div>
       ) : (
         <Dialog open={showQuickLogDialog} onOpenChange={setShowQuickLogDialog}>
-          <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+          <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
             <DialogHeader className="px-4 pt-4 pb-2 border-b shrink-0">
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
@@ -984,7 +984,7 @@ export const NotificationPanel = ({
               </div>
             </DialogHeader>
 
-            <ScrollArea className="flex-1 min-h-0">
+            <ScrollArea className="flex-1 min-h-0 overflow-y-auto">
               <div className="p-4 space-y-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium flex items-center gap-2">

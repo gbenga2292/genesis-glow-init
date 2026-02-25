@@ -142,11 +142,21 @@ export const generateProfessionalPDF = async ({ waybill, companySettings, sites,
     };
 
     // Ensure we have a proper Date object
-    const sentDate = waybill.sentToSiteDate ? new Date(waybill.sentToSiteDate) : null;
+    // Return waybills: prefer expectedReturnDate → issueDate
+    // Regular waybills: prefer sentToSiteDate → issueDate
     const issueDate = new Date(waybill.issueDate);
-    const effectiveDate = sentDate || issueDate;
+    let effectiveDate: Date;
+    if (type === 'return') {
+      effectiveDate = waybill.expectedReturnDate
+        ? new Date(waybill.expectedReturnDate)
+        : issueDate;
+    } else {
+      effectiveDate = waybill.sentToSiteDate
+        ? new Date(waybill.sentToSiteDate)
+        : issueDate;
+    }
 
-    // Format as ordinal (11th December 2025)
+    // Format as ordinal (e.g. 26th February 2026)
     const day = effectiveDate.getDate();
     const monthYear = effectiveDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
     const dateText = `${getOrdinal(day)} ${monthYear}`;

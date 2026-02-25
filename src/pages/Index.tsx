@@ -1137,7 +1137,6 @@ const Index = () => {
       const siteQty = asset.siteQuantities?.[selectedSiteForReport!.id] || 0;
       return {
         name: asset.name,
-        description: asset.description || '-',
         quantity: siteQty,
         unit: asset.unitOfMeasurement,
         category: asset.category,
@@ -1155,12 +1154,11 @@ const Index = () => {
       companySettings: companySettings,
       orientation: 'landscape',
       columns: [
-        { header: 'Name', dataKey: 'name', width: 35 },
-        { header: 'Description', dataKey: 'description', width: 40 },
+        { header: 'Name', dataKey: 'name', width: 45 },
         { header: 'Quantity', dataKey: 'quantity', width: 20 },
         { header: 'Unit', dataKey: 'unit', width: 20 },
-        { header: 'Category', dataKey: 'category', width: 25 },
-        { header: 'Type', dataKey: 'type', width: 25 },
+        { header: 'Category', dataKey: 'category', width: 28 },
+        { header: 'Type', dataKey: 'type', width: 28 },
         { header: 'Status', dataKey: 'status', width: 22 },
         { header: 'Condition', dataKey: 'condition', width: 22 },
         { header: 'Unit Cost', dataKey: 'cost', width: 20 }

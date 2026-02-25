@@ -156,20 +156,20 @@ export const ReturnWaybillDocument = ({ waybill, sites, companySettings, onClose
 
         {/* Mobile Action Buttons */}
         {isMobile &&
-        <div className="flex gap-2 mb-4">
+          <div className="flex gap-2 mb-4">
             <Button
-            onClick={handlePreview}
-            variant="outline"
-            className="flex-1 gap-2"
-            disabled={!hasPermission('print_documents')}>
+              onClick={handlePreview}
+              variant="outline"
+              className="flex-1 gap-2"
+              disabled={!hasPermission('print_documents')}>
 
               <Printer className="h-4 w-4" />
               Preview
             </Button>
             <Button
-            onClick={handleSharePDF}
-            className="flex-1 gap-2 bg-gradient-primary"
-            disabled={!hasPermission('print_documents')}>
+              onClick={handleSharePDF}
+              className="flex-1 gap-2 bg-gradient-primary"
+              disabled={!hasPermission('print_documents')}>
 
               <Share2 className="h-4 w-4" />
               Share
@@ -179,23 +179,23 @@ export const ReturnWaybillDocument = ({ waybill, sites, companySettings, onClose
 
         {/* Desktop Header with Actions */}
         {!isMobile &&
-        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2 flex-wrap">
               {getStatusBadge(waybill.status)}
               <span className="text-sm text-muted-foreground">
                 Created: {new Date(waybill.createdAt).toLocaleDateString('en-GB')}
               </span>
               {waybill.status === 'return_completed' &&
-            <span className="text-sm text-muted-foreground ml-2">
+                <span className="text-sm text-muted-foreground ml-2">
                   Actual Return: {new Date(waybill.updatedAt).toLocaleDateString('en-GB')}
                 </span>
-            }
+              }
               {waybill.siteId &&
-            <div className="flex items-center gap-1 ml-2">
+                <div className="flex items-center gap-1 ml-2">
                   <MapPin className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm text-muted-foreground font-medium">{siteName}</span>
                 </div>
-            }
+              }
             </div>
             <div className="flex gap-2">
               <Button onClick={handlePreview} variant="outline" className="gap-2" disabled={!hasPermission('print_documents')}>
@@ -212,16 +212,16 @@ export const ReturnWaybillDocument = ({ waybill, sites, companySettings, onClose
 
         {/* Mobile Status Badge */}
         {isMobile &&
-        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <div className="flex flex-wrap items-center gap-2 mb-4">
             {getStatusBadge(waybill.status)}
             <span className="text-sm text-muted-foreground">
               Created: {new Date(waybill.createdAt).toLocaleDateString('en-GB')}
             </span>
             {waybill.status === 'return_completed' &&
-          <span className="text-sm text-muted-foreground">
+              <span className="text-sm text-muted-foreground">
                 Returned: {new Date(waybill.updatedAt).toLocaleDateString('en-GB')}
               </span>
-          }
+            }
           </div>
         }
 
@@ -240,7 +240,7 @@ export const ReturnWaybillDocument = ({ waybill, sites, companySettings, onClose
                 </div>
 
                 {waybill.expectedReturnDate &&
-                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <p className="text-sm text-muted-foreground">Expected Return</p>
@@ -260,7 +260,7 @@ export const ReturnWaybillDocument = ({ waybill, sites, companySettings, onClose
                 </div>
 
                 {waybill.vehicle &&
-                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
                     <Truck className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <p className="text-sm text-muted-foreground">Vehicle</p>
@@ -283,31 +283,33 @@ export const ReturnWaybillDocument = ({ waybill, sites, companySettings, onClose
           <div>
             <h2 className="text-lg font-semibold mb-4">Items Returned</h2>
             <div className="border rounded-lg overflow-hidden">
-              <div className="bg-muted/50 px-4 py-3 font-medium grid grid-cols-4 gap-4 text-sm">
-                <div>Asset Name</div>
-                <div>Quantity Expected</div>
-                <div>Quantity Returned</div>
-                <div>Status</div>
-              </div>
-
-              {waybill.items.map((item, index) =>
-              <div key={index} className="px-4 py-3 border-t grid grid-cols-4 gap-4 text-sm">
-                  <div className="font-medium">{item.assetName}</div>
-                  <div>{item.quantity}</div>
-                  <div>{item.returnedQuantity}</div>
-                  <div>
-                    <Badge
-                    variant={
-                    item.status === 'outstanding' ? 'secondary' :
-                    item.status === 'return_completed' ? 'default' : 'outline'
-                    }
-                    className="text-xs">
-
-                      {item.status.replace('_', ' ').toUpperCase()}
-                    </Badge>
-                  </div>
+              <div className="max-h-[350px] overflow-y-auto">
+                <div className="bg-muted px-4 py-3 font-medium grid grid-cols-4 gap-4 text-sm sticky top-0 z-10 border-b">
+                  <div>Asset Name</div>
+                  <div>Quantity Expected</div>
+                  <div>Quantity Returned</div>
+                  <div>Status</div>
                 </div>
-              )}
+
+                {waybill.items.map((item, index) =>
+                  <div key={index} className="px-4 py-3 border-t grid grid-cols-4 gap-4 text-sm">
+                    <div className="font-medium">{item.assetName}</div>
+                    <div>{item.quantity}</div>
+                    <div>{item.returnedQuantity}</div>
+                    <div>
+                      <Badge
+                        variant={
+                          item.status === 'outstanding' ? 'secondary' :
+                            item.status === 'return_completed' ? 'default' : 'outline'
+                        }
+                        className="text-xs">
+
+                        {item.status.replace('_', ' ').toUpperCase()}
+                      </Badge>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -332,14 +334,6 @@ export const ReturnWaybillDocument = ({ waybill, sites, companySettings, onClose
           </div>
         </div>
 
-        {/* Desktop Close Button */}
-        {!isMobile &&
-        <div className="flex justify-end gap-3 pt-6 print:hidden">
-            <Button variant="outline" onClick={onClose}>
-              Close
-            </Button>
-          </div>
-        }
       </ResponsiveFormContainer>
 
       <PDFPreviewDialog

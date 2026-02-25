@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { SiteMachineAnalytics } from "@/components/sites/SiteMachineAnalytics";
 import { ConsumableAnalyticsView } from "@/components/sites/ConsumableAnalyticsView";
-import { ArrowLeft, Calendar as CalendarIcon, Save, Clock, AlertTriangle, FileText, Activity } from "lucide-react";
+import { ArrowLeft, Calendar as CalendarIcon, Save, Clock, AlertTriangle, FileText, Activity, Plus, CheckCircle, Zap } from "lucide-react";
 import { format } from "date-fns";
 import { createDefaultOperationalLog, applyDefaultTemplate, calculateDieselRefill, getDieselOverdueDays } from "@/utils/defaultLogTemplate";
 import { useToast } from "@/hooks/use-toast";
@@ -53,6 +53,7 @@ export const SiteAssetDetailsPage = ({
 }: SiteAssetDetailsPageProps) => {
     const { toast } = useToast();
     const isMobile = useIsMobile();
+    const [isSaving, setIsSaving] = useState(false);
     const isEquipment = asset.type === 'equipment';
     const [activeTab, setActiveTab] = useState(initialTab);
     const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
@@ -201,9 +202,20 @@ export const SiteAssetDetailsPage = ({
         return missedCount;
     };
 
+    const handleAutoFill = () => {
+        setEquipmentForm(prev => ({
+            ...prev,
+            active: true,
+            maintenanceDetails: prev.maintenanceDetails || "Routine check completed - all systems operational",
+            clientFeedback: prev.clientFeedback || "Site operational and progressing as planned",
+            issuesOnSite: prev.issuesOnSite || "No issues on site",
+        }));
+        toast({ title: "Auto-Filled", description: "Default values applied to empty fields." });
+    };
+
     const handleSaveEquipmentLog = async () => {
         if (!selectedDate) return;
-
+        setIsSaving(true);
         try {
             const existingLog = equipmentLogs.find(log =>
                 log.equipmentId === asset.id &&
@@ -212,18 +224,13 @@ export const SiteAssetDetailsPage = ({
             );
 
             const logData: EquipmentLog = {
-                id: existingLog?.id, // ID is optional in type? Check type definition. Assuming it handles optional or separate Create type.
-                // If ID is required by type but missing for new, we generate it or let backend handle?
-                // Existing logic uses Date.now().toString() for new logs usually.
-                // I'll ensure ID is present if updating.
-                // Type definition usually has id?: string or id: string. I'll check usage.
-                // MachinesSection used: id: existingLog?.id || Date.now().toString(),
+                id: existingLog?.id,
                 equipmentId: asset.id,
                 equipmentName: asset.name,
                 siteId: site.id,
                 date: selectedDate,
                 active: equipmentForm.active,
-                downtimeEntries: equipmentForm.downtimeEntries.filter(e => e.downtime || e.downtimeReason), // Filter empty?
+                downtimeEntries: equipmentForm.downtimeEntries.filter(e => e.downtime || e.downtimeReason || e.downtimeAction || e.uptime),
                 maintenanceDetails: equipmentForm.maintenanceDetails || undefined,
                 dieselEntered: equipmentForm.dieselEntered ? parseFloat(equipmentForm.dieselEntered) : undefined,
                 supervisorOnSite: equipmentForm.supervisorOnSite || undefined,
@@ -231,13 +238,12 @@ export const SiteAssetDetailsPage = ({
                 issuesOnSite: equipmentForm.issuesOnSite || undefined,
                 createdAt: existingLog?.createdAt || new Date(),
                 updatedAt: new Date()
-            } as EquipmentLog; // Cast to ensure compatibility if strict
+            } as EquipmentLog;
 
             if (existingLog) {
                 await onUpdateEquipmentLog(logData);
                 toast({ title: "Log Updated", description: `Equipment log for ${format(selectedDate, 'PPP')} updated.` });
             } else {
-                // For new log, ensure ID
                 const newLog = { ...logData, id: Date.now().toString() };
                 await onAddEquipmentLog(newLog);
                 toast({ title: "Log Created", description: `Equipment log for ${format(selectedDate, 'PPP')} created.` });
@@ -245,6 +251,8 @@ export const SiteAssetDetailsPage = ({
         } catch (error) {
             console.error(error);
             toast({ title: "Error", description: "Failed to save log.", variant: "destructive" });
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -421,99 +429,224 @@ export const SiteAssetDetailsPage = ({
                             {/* Form Card - Full width on mobile, 2 cols on desktop */}
                             <div className="lg:col-span-2">
                                 <Card>
-                                    <CardHeader className="p-3 sm:p-6">
-                                        <CardTitle className="text-sm sm:text-base">
-                                            {selectedDate ? format(selectedDate, 'PPP') : 'Select a Date'}
-                                        </CardTitle>
-                                        <CardDescription className="text-xs sm:text-sm">
-                                            {isEquipment ? 'Daily Equipment Log' : 'Consumable Usage Log'}
-                                        </CardDescription>
+                                    <CardHeader className="p-3 sm:p-4">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="min-w-0">
+                                                <CardTitle className="text-sm sm:text-base">
+                                                    {selectedDate ? format(selectedDate, 'PPP') : 'Select a Date'}
+                                                </CardTitle>
+                                                <CardDescription className="text-xs sm:text-sm">
+                                                    {isEquipment ? 'Daily Equipment Log' : 'Consumable Usage Log'}
+                                                </CardDescription>
+                                            </div>
+                                            {isEquipment && (
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={handleAutoFill}
+                                                    className="shrink-0 h-8 text-xs gap-1.5"
+                                                >
+                                                    <CheckCircle className="h-3.5 w-3.5" />
+                                                    Auto-Fill
+                                                </Button>
+                                            )}
+                                        </div>
                                     </CardHeader>
                                     <CardContent className="p-3 sm:p-6 pt-0 space-y-3 sm:space-y-4">
                                         {isEquipment ? (
-                                            /* Equipment Form - Mobile responsive */
-                                            <div className="space-y-3 sm:space-y-4">
-                                                <div className="flex items-center space-x-2">
+                                            /* Equipment Form — matches Quick Log field set */
+                                            <div className="space-y-4">
+                                                {/* Machine Active */}
+                                                <div className="flex items-center space-x-3 p-3 bg-muted/30 rounded-lg">
                                                     <Checkbox
-                                                        id="active"
+                                                        id="site-active"
                                                         checked={equipmentForm.active}
                                                         onCheckedChange={(checked) => setEquipmentForm({ ...equipmentForm, active: checked as boolean })}
                                                     />
-                                                    <Label htmlFor="active" className="text-sm">Machine Active</Label>
+                                                    <Label htmlFor="site-active" className="text-sm font-medium cursor-pointer">Machine Active</Label>
                                                 </div>
 
                                                 {equipmentForm.active && (
-                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                                                    <div className="space-y-4">
+                                                        {/* Downtime Entries */}
+                                                        <div className="space-y-3">
+                                                            <div className="flex items-center justify-between">
+                                                                <Label className="text-sm font-medium">Downtime Entries</Label>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() => setEquipmentForm({
+                                                                        ...equipmentForm,
+                                                                        downtimeEntries: [...equipmentForm.downtimeEntries, { id: Date.now().toString(), downtime: "", downtimeReason: "", downtimeAction: "", uptime: "" }]
+                                                                    })}
+                                                                    className="h-8 text-xs"
+                                                                >
+                                                                    <Plus className="h-3.5 w-3.5 mr-1" />
+                                                                    Add
+                                                                </Button>
+                                                            </div>
+
+                                                            {equipmentForm.downtimeEntries.map((entry, index) => (
+                                                                <Card key={entry.id || index} className="border shadow-none">
+                                                                    <CardContent className="p-3 space-y-3">
+                                                                        <div className="flex items-center justify-between">
+                                                                            <span className="text-xs font-medium text-muted-foreground">Entry {index + 1}</span>
+                                                                            {equipmentForm.downtimeEntries.length > 1 && (
+                                                                                <Button
+                                                                                    type="button"
+                                                                                    variant="ghost"
+                                                                                    size="sm"
+                                                                                    onClick={() => setEquipmentForm({
+                                                                                        ...equipmentForm,
+                                                                                        downtimeEntries: equipmentForm.downtimeEntries.filter((_, i) => i !== index)
+                                                                                    })}
+                                                                                    className="h-6 text-xs text-destructive hover:text-destructive"
+                                                                                >
+                                                                                    Remove
+                                                                                </Button>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="grid grid-cols-2 gap-2">
+                                                                            <div className="space-y-1">
+                                                                                <Label className="text-[10px] text-muted-foreground">Time Off</Label>
+                                                                                <Input
+                                                                                    value={entry.downtime}
+                                                                                    onChange={(e) => {
+                                                                                        const newEntries = [...equipmentForm.downtimeEntries];
+                                                                                        newEntries[index].downtime = e.target.value;
+                                                                                        setEquipmentForm({ ...equipmentForm, downtimeEntries: newEntries });
+                                                                                    }}
+                                                                                    placeholder="14:30"
+                                                                                    className="h-9 text-sm"
+                                                                                />
+                                                                            </div>
+                                                                            <div className="space-y-1">
+                                                                                <Label className="text-[10px] text-muted-foreground">Time Back</Label>
+                                                                                <Input
+                                                                                    value={entry.uptime}
+                                                                                    onChange={(e) => {
+                                                                                        const newEntries = [...equipmentForm.downtimeEntries];
+                                                                                        newEntries[index].uptime = e.target.value;
+                                                                                        setEquipmentForm({ ...equipmentForm, downtimeEntries: newEntries });
+                                                                                    }}
+                                                                                    placeholder="16:00"
+                                                                                    className="h-9 text-sm"
+                                                                                />
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="space-y-1">
+                                                                            <Label className="text-[10px] text-muted-foreground">Reason</Label>
+                                                                            <Input
+                                                                                value={entry.downtimeReason}
+                                                                                onChange={(e) => {
+                                                                                    const newEntries = [...equipmentForm.downtimeEntries];
+                                                                                    newEntries[index].downtimeReason = e.target.value;
+                                                                                    setEquipmentForm({ ...equipmentForm, downtimeEntries: newEntries });
+                                                                                }}
+                                                                                placeholder="Reason for downtime"
+                                                                                className="h-9 text-sm"
+                                                                            />
+                                                                        </div>
+                                                                        <div className="space-y-1">
+                                                                            <Label className="text-[10px] text-muted-foreground">Action Taken</Label>
+                                                                            <Textarea
+                                                                                value={entry.downtimeAction}
+                                                                                onChange={(e) => {
+                                                                                    const newEntries = [...equipmentForm.downtimeEntries];
+                                                                                    newEntries[index].downtimeAction = e.target.value;
+                                                                                    setEquipmentForm({ ...equipmentForm, downtimeEntries: newEntries });
+                                                                                }}
+                                                                                placeholder="Actions taken"
+                                                                                rows={2}
+                                                                                className="text-sm resize-none"
+                                                                            />
+                                                                        </div>
+                                                                    </CardContent>
+                                                                </Card>
+                                                            ))}
+                                                        </div>
+
+                                                        {/* Diesel & Supervisor */}
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                            <div className="space-y-1.5">
+                                                                <Label className="text-xs sm:text-sm">Diesel (L)</Label>
+                                                                <Input
+                                                                    type="number"
+                                                                    value={equipmentForm.dieselEntered}
+                                                                    onChange={e => setEquipmentForm({ ...equipmentForm, dieselEntered: e.target.value })}
+                                                                    placeholder="0.0"
+                                                                    className="h-9"
+                                                                />
+                                                                {(() => {
+                                                                    const overdueDays = getDieselOverdueDays(equipmentLogs, asset.id);
+                                                                    const refillAmount = calculateDieselRefill(equipmentLogs, asset.id);
+                                                                    return overdueDays > 0 ? (
+                                                                        <p className="text-[10px] text-warning">⚠️ {refillAmount}L due ({overdueDays}d overdue)</p>
+                                                                    ) : refillAmount ? (
+                                                                        <p className="text-[10px] text-primary">💡 Suggested: {refillAmount}L</p>
+                                                                    ) : null;
+                                                                })()}
+                                                            </div>
+                                                            <div className="space-y-1.5">
+                                                                <Label className="text-xs sm:text-sm">Supervisor</Label>
+                                                                <Select
+                                                                    value={equipmentForm.supervisorOnSite}
+                                                                    onValueChange={v => setEquipmentForm({ ...equipmentForm, supervisorOnSite: v })}
+                                                                >
+                                                                    <SelectTrigger className="h-9">
+                                                                        <SelectValue placeholder="Select..." />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        {employees.map(e => <SelectItem key={e.id} value={e.name}>{e.name}</SelectItem>)}
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Maintenance Details */}
                                                         <div className="space-y-1.5">
-                                                            <Label className="text-xs sm:text-sm">Diesel Added (L)</Label>
-                                                            <Input
-                                                                type="number"
-                                                                value={equipmentForm.dieselEntered}
-                                                                onChange={e => setEquipmentForm({ ...equipmentForm, dieselEntered: e.target.value })}
-                                                                placeholder="0.0"
-                                                                className="h-9"
+                                                            <Label className="text-xs sm:text-sm">Maintenance Details</Label>
+                                                            <Textarea
+                                                                value={equipmentForm.maintenanceDetails}
+                                                                onChange={e => setEquipmentForm({ ...equipmentForm, maintenanceDetails: e.target.value })}
+                                                                placeholder="Maintenance performed"
+                                                                rows={2}
+                                                                className="text-sm resize-none"
                                                             />
                                                         </div>
+
+                                                        {/* Client Feedback */}
                                                         <div className="space-y-1.5">
-                                                            <Label className="text-xs sm:text-sm">Supervisor</Label>
-                                                            <Select
-                                                                value={equipmentForm.supervisorOnSite}
-                                                                onValueChange={v => setEquipmentForm({ ...equipmentForm, supervisorOnSite: v })}
-                                                            >
-                                                                <SelectTrigger className="h-9">
-                                                                    <SelectValue placeholder="Select..." />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    {employees.map(e => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)}
-                                                                </SelectContent>
-                                                            </Select>
+                                                            <Label className="text-xs sm:text-sm">Client Feedback</Label>
+                                                            <Textarea
+                                                                value={equipmentForm.clientFeedback}
+                                                                onChange={e => setEquipmentForm({ ...equipmentForm, clientFeedback: e.target.value })}
+                                                                placeholder="Client comments"
+                                                                rows={2}
+                                                                className="text-sm resize-none"
+                                                            />
+                                                        </div>
+
+                                                        {/* Issues on Site */}
+                                                        <div className="space-y-1.5">
+                                                            <Label className="text-xs sm:text-sm">Issues on Site</Label>
+                                                            <Textarea
+                                                                value={equipmentForm.issuesOnSite}
+                                                                onChange={e => setEquipmentForm({ ...equipmentForm, issuesOnSite: e.target.value })}
+                                                                placeholder="Any issues encountered"
+                                                                rows={2}
+                                                                className="text-sm resize-none"
+                                                            />
                                                         </div>
                                                     </div>
                                                 )}
 
-                                                <div className="space-y-1.5">
-                                                    <Label className="text-xs sm:text-sm">Maintenance / Issues</Label>
-                                                    <Textarea
-                                                        value={equipmentForm.maintenanceDetails}
-                                                        onChange={e => setEquipmentForm({ ...equipmentForm, maintenanceDetails: e.target.value })}
-                                                        placeholder="Describe maintenance or issues..."
-                                                        rows={2}
-                                                        className="text-sm"
-                                                    />
-                                                </div>
-
-                                                <div className="space-y-1.5">
-                                                    <Label className="text-xs sm:text-sm">Downtime (Optional)</Label>
-                                                    {equipmentForm.downtimeEntries.map((entry, index) => (
-                                                        <div key={entry.id || index} className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-2 border rounded">
-                                                            <Input
-                                                                placeholder="Time (HH:MM)"
-                                                                value={entry.downtime}
-                                                                onChange={e => {
-                                                                    const newEntries = [...equipmentForm.downtimeEntries];
-                                                                    newEntries[index].downtime = e.target.value;
-                                                                    setEquipmentForm({ ...equipmentForm, downtimeEntries: newEntries });
-                                                                }}
-                                                                className="h-9"
-                                                            />
-                                                            <Input
-                                                                placeholder="Reason"
-                                                                value={entry.downtimeReason}
-                                                                onChange={e => {
-                                                                    const newEntries = [...equipmentForm.downtimeEntries];
-                                                                    newEntries[index].downtimeReason = e.target.value;
-                                                                    setEquipmentForm({ ...equipmentForm, downtimeEntries: newEntries });
-                                                                }}
-                                                                className="h-9"
-                                                            />
-                                                        </div>
-                                                    ))}
-                                                </div>
-
-                                                <div className="pt-3 sm:pt-4">
-                                                    <Button onClick={handleSaveEquipmentLog} className="w-full h-10">
+                                                <div className="pt-2">
+                                                    <Button onClick={handleSaveEquipmentLog} disabled={isSaving} className="w-full h-10">
                                                         <Save className="h-4 w-4 mr-2" />
-                                                        Save Log
+                                                        {isSaving ? "Saving..." : "Save Log"}
                                                     </Button>
                                                 </div>
                                             </div>

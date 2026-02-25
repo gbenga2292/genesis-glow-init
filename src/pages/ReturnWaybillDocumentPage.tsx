@@ -78,7 +78,7 @@ export const ReturnWaybillDocumentPage = ({ waybill, sites, companySettings, onB
     };
 
     return (
-        <div className="flex flex-col h-full bg-background animate-fade-in">
+        <div className="flex flex-col h-full overflow-hidden bg-background animate-fade-in">
             {/* Header - Sticky at top */}
             <div className="flex-shrink-0 border-b bg-background sticky top-0 z-10">
                 <div className="flex items-center gap-2 sm:gap-4 p-3 sm:p-4">
@@ -142,7 +142,7 @@ export const ReturnWaybillDocumentPage = ({ waybill, sites, companySettings, onB
             </div>
 
             {/* Main Content - Scrollable */}
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 min-h-0 overflow-y-auto">
                 <div className="max-w-5xl mx-auto p-3 sm:p-4 md:p-6 space-y-3 sm:space-y-4 md:space-y-6 pb-20 sm:pb-6">
                     {/* Header Information */}
                     <div className="bg-muted/30 p-3 sm:p-4 md:p-6 rounded-lg">
@@ -233,31 +233,33 @@ export const ReturnWaybillDocumentPage = ({ waybill, sites, companySettings, onB
                         ) : (
                             // Desktop View: Table
                             <div className="border rounded-lg overflow-hidden">
-                                <div className="bg-muted/50 px-4 py-3 font-medium grid grid-cols-4 gap-4 text-sm">
-                                    <div>Asset Name</div>
-                                    <div>Quantity Expected</div>
-                                    <div>Quantity Returned</div>
-                                    <div>Status</div>
-                                </div>
-
-                                {waybill.items.map((item, index) => (
-                                    <div key={index} className="px-4 py-3 border-t grid grid-cols-4 gap-4 text-sm">
-                                        <div className="font-medium">{item.assetName}</div>
-                                        <div>{item.quantity}</div>
-                                        <div>{item.returnedQuantity}</div>
-                                        <div>
-                                            <Badge
-                                                variant={
-                                                    item.status === 'outstanding' ? 'secondary' :
-                                                        item.status === 'return_completed' ? 'default' : 'outline'
-                                                }
-                                                className="text-xs"
-                                            >
-                                                {item.status.replace('_', ' ').toUpperCase()}
-                                            </Badge>
-                                        </div>
+                                <div className="max-h-[400px] overflow-y-auto">
+                                    <div className="bg-muted/50 px-4 py-3 font-medium grid grid-cols-4 gap-4 text-sm sticky top-0 z-10 border-b">
+                                        <div>Asset Name</div>
+                                        <div>Quantity Expected</div>
+                                        <div>Quantity Returned</div>
+                                        <div>Status</div>
                                     </div>
-                                ))}
+
+                                    {waybill.items.map((item, index) => (
+                                        <div key={index} className="px-4 py-3 border-t grid grid-cols-4 gap-4 text-sm">
+                                            <div className="font-medium">{item.assetName}</div>
+                                            <div>{item.quantity}</div>
+                                            <div>{item.returnedQuantity}</div>
+                                            <div>
+                                                <Badge
+                                                    variant={
+                                                        item.status === 'outstanding' ? 'secondary' :
+                                                            item.status === 'return_completed' ? 'default' : 'outline'
+                                                    }
+                                                    className="text-xs"
+                                                >
+                                                    {item.status.replace('_', ' ').toUpperCase()}
+                                                </Badge>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         )}
                     </div>
