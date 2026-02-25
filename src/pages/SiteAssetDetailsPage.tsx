@@ -218,9 +218,9 @@ export const SiteAssetDetailsPage = ({
         setIsSaving(true);
         try {
             const existingLog = equipmentLogs.find(log =>
-                log.equipmentId === asset.id &&
-                log.siteId === site.id &&
-                format(log.date, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd')
+                String(log.equipmentId) === String(asset.id) &&
+                String(log.siteId) === String(site.id) &&
+                format(new Date(log.date), 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd')
             );
 
             const logData: EquipmentLog = {
@@ -311,9 +311,24 @@ export const SiteAssetDetailsPage = ({
         }
     };
 
-    const activeLogs = isEquipment
-        ? equipmentLogs.filter(l => l.equipmentId === asset.id && l.siteId === site.id)
-        : consumableLogs.filter(l => l.consumableId === asset.id && l.siteId === site.id);
+    // Filter logs for this asset+site, then deduplicate by date — keep the most recently-updated
+    // entry per date (older duplicates caused by the pre-fix transform bug are hidden this way)
+    const rawLogs = isEquipment
+        ? equipmentLogs.filter(l => String(l.equipmentId) === String(asset.id) && String(l.siteId) === String(site.id))
+        : consumableLogs.filter(l => String(l.consumableId) === String(asset.id) && String(l.siteId) === String(site.id));
+
+    const activeLogs = (() => {
+        const byDate = new Map<string, any>();
+        for (const log of rawLogs) {
+            const dateKey = format(new Date(log.date), 'yyyy-MM-dd');
+            const existing = byDate.get(dateKey);
+            // Keep the one with the latest updatedAt (most recently saved)
+            if (!existing || new Date(log.updatedAt) > new Date(existing.updatedAt)) {
+                byDate.set(dateKey, log);
+            }
+        }
+        return Array.from(byDate.values());
+    })();
 
     const tabs = [
         { value: 'log-entry', label: 'Log Entry' },

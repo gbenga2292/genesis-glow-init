@@ -1086,14 +1086,83 @@ export const equipmentLogService = {
 
     createEquipmentLog: async (log: Partial<EquipmentLog>): Promise<EquipmentLog> => {
         const dbLog = transformEquipmentLogToDB(log);
+
+        // Use upsert on the natural unique key (equipment_id, site_id, date::date).
+        // If a row already exists for that machine+site+day it gets updated in-place
+        // instead of creating a duplicate. This is the application-level safeguard;
+        // the DB-level unique index (migration 20260225) enforces the same rule.
         const { data, error } = await supabase
             .from('equipment_logs')
-            .insert(dbLog)
+            .upsert(dbLog, {
+                onConflict: 'equipment_id,site_id,date',
+                ignoreDuplicates: false, // always overwrite with the latest data
+            })
             .select()
             .single();
 
-        if (error) throw error;
+        if (error) {
+            // Fallback: if upsert fails (e.g. unique index not yet applied),
+            // try a plain insert — this preserves backwards compatibility.
+            console.warn('Upsert failed, falling back to insert:', error.message);
+            const { data: insertData, error: insertError } = await supabase
+                .from('equipment_logs')
+                .insert(dbLog)
+                .select()
+                .single();
+            if (insertError) throw insertError;
+            return transformEquipmentLogFromDB(insertData);
+        }
         return transformEquipmentLogFromDB(data);
+    },
+
+    /**
+     * One-time cleanup: removes duplicate equipment log rows from the database,
+     * keeping only the most recently-updated row per (equipment_id, site_id, date).
+     * Safe to call multiple times — subsequent calls are no-ops.
+     */
+    cleanupDuplicateEquipmentLogs: async (): Promise<{ removed: number; kept: number }> => {
+        // 1. Fetch ALL equipment logs (no limit for cleanup purposes)
+        const { data: allLogs, error: fetchError } = await supabase
+            .from('equipment_logs')
+            .select('id, equipment_id, site_id, date, updated_at')
+            .order('updated_at', { ascending: false });
+
+        if (fetchError) throw fetchError;
+        if (!allLogs || allLogs.length === 0) return { removed: 0, kept: 0 };
+
+        // 2. Group by natural key and find duplicates
+        const seen = new Map<string, string>(); // key → winning id
+        const toDelete: string[] = [];
+
+        for (const row of allLogs) {
+            // Normalise date to YYYY-MM-DD so timestamps don't create false mismatches
+            const dateKey = new Date(row.date).toISOString().split('T')[0];
+            const key = `${row.equipment_id}::${row.site_id}::${dateKey}`;
+
+            if (seen.has(key)) {
+                // This row is a duplicate — the "winner" was already set (most recent first)
+                toDelete.push(row.id);
+            } else {
+                seen.set(key, row.id);
+            }
+        }
+
+        if (toDelete.length === 0) {
+            return { removed: 0, kept: allLogs.length };
+        }
+
+        // 3. Delete in batches of 50 to avoid URL length limits
+        const batchSize = 50;
+        for (let i = 0; i < toDelete.length; i += batchSize) {
+            const batch = toDelete.slice(i, i + batchSize);
+            const { error: deleteError } = await supabase
+                .from('equipment_logs')
+                .delete()
+                .in('id', batch);
+            if (deleteError) throw deleteError;
+        }
+
+        return { removed: toDelete.length, kept: allLogs.length - toDelete.length };
     },
 
     updateEquipmentLog: async (id: number, log: Partial<EquipmentLog>): Promise<EquipmentLog> => {
@@ -1539,10 +1608,10 @@ export const dataService = {
             }
         },
 
-        resetAllData: async (): Promise<void> => {
+        resetAllData: async (tablesToReset?: string[]): Promise<void> => {
             // Delete in reverse dependency order
             // Note: We skipping 'users' to prevent lockout
-            const tables = [
+            const defaultTables = [
                 'activities',
                 'consumable_logs',
                 'equipment_logs',
@@ -1558,6 +1627,39 @@ export const dataService = {
                 'vehicles',
                 'company_settings'
             ];
+
+            const mapIdToTables = (id: string): string[] => {
+                switch (id) {
+                    case 'assets': return ['assets'];
+                    case 'waybills': return ['waybills'];
+                    case 'quickCheckouts': return ['quick_checkouts'];
+                    case 'sites': return ['sites'];
+                    case 'siteTransactions': return ['site_transactions'];
+                    case 'employees': return ['employees'];
+                    case 'vehicles': return ['vehicles'];
+                    case 'companySettings': return ['company_settings'];
+                    case 'activities': return ['activities'];
+                    case 'equipmentLogs': return ['equipment_logs'];
+                    case 'consumableLogs': return ['consumable_logs'];
+                    case 'maintenanceLogs': return ['maintenance_logs'];
+                    case 'metrics': return ['metrics_snapshots'];
+                    case 'siteRequests': return ['site_requests'];
+                    default: return [];
+                }
+            };
+
+            let tables = defaultTables;
+            if (tablesToReset && tablesToReset.length > 0) {
+                const requestedTables = tablesToReset.flatMap(mapIdToTables);
+                // Keep the reverse dependency order
+                tables = defaultTables.filter(t => requestedTables.includes(t));
+                // Add any extra tables that were explicitly requested but not in defaultTables
+                for (const rt of requestedTables) {
+                    if (!tables.includes(rt)) {
+                        tables.push(rt);
+                    }
+                }
+            }
 
             for (const table of tables) {
                 try {

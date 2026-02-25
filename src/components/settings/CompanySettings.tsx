@@ -152,7 +152,7 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
   const [backupTypes, setBackupTypes] = useState<Set<'json' | 'database'>>(new Set(['json', 'database']));
 
   const [selectedResetItems, setSelectedResetItems] = useState(new Set([
-    'assets', 'waybills', 'quickCheckouts', 'sites', 'siteTransactions', 'employees', 'vehicles', 'companySettings', 'equipmentLogs', 'activities', 'activeTab'
+    'assets', 'waybills', 'quickCheckouts', 'sites', 'siteTransactions', 'employees', 'vehicles', 'companySettings', 'equipmentLogs', 'consumableLogs', 'maintenanceLogs', 'siteRequests', 'activities', 'activeTab'
   ]));
 
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -229,6 +229,10 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     { id: 'employees', label: 'Employees' },
     { id: 'vehicles', label: 'Vehicles' },
     { id: 'companySettings', label: 'Company Settings' },
+    { id: 'equipmentLogs', label: 'Equipment Logs' },
+    { id: 'consumableLogs', label: 'Consumable Usage Logs' },
+    { id: 'maintenanceLogs', label: 'Maintenance Logs' },
+    { id: 'siteRequests', label: 'Site Requests' },
     { id: 'activities', label: 'Activity Logs' },
     { id: 'activeTab', label: 'Active Tab State' }
   ];
@@ -704,29 +708,34 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
     setIsLoading(true);
     setError(null);
     try {
-      // 1. Wipe DB
-      await dataService.system.resetAllData();
+      const resetIds = Array.from(selectedResetItems);
+      // 1. Wipe DB conditionally
+      await dataService.system.resetAllData(resetIds);
 
       // 2. Clear Parent State
       onResetAllData();
 
-      // 3. Clear Local State
-      onAssetsChange([]);
-      onWaybillsChange([]);
-      onQuickCheckoutsChange([]);
-      onSitesChange([]);
-      onSiteTransactionsChange([]);
-      onEmployeesChange([]);
-      onVehiclesChange([]);
-      setFormData(defaultSettings);
-      setLogoPreview(null);
+      // 3. Clear Local State conditionally
+      if (resetIds.includes('assets')) onAssetsChange([]);
+      if (resetIds.includes('waybills')) onWaybillsChange([]);
+      if (resetIds.includes('quickCheckouts')) onQuickCheckoutsChange([]);
+      if (resetIds.includes('sites')) onSitesChange([]);
+      if (resetIds.includes('siteTransactions')) onSiteTransactionsChange([]);
+      if (resetIds.includes('employees')) onEmployeesChange([]);
+      if (resetIds.includes('vehicles')) onVehiclesChange([]);
+      if (resetIds.includes('activities')) onActivitiesChange?.([]);
+      if (resetIds.includes('equipmentLogs')) onEquipmentLogsChange?.([]);
+      if (resetIds.includes('consumableLogs')) onConsumableLogsChange?.([]);
 
-      // 4. Update settings
-      onSave(defaultSettings);
+      if (resetIds.includes('companySettings')) {
+        setFormData(defaultSettings);
+        setLogoPreview(null);
+        onSave(defaultSettings);
+      }
 
       toast({
         title: "Data Reset",
-        description: "All application data has been wiped from the database."
+        description: "Selected application data has been wiped from the database."
       });
 
       // Optional: reload to ensure clean slate
@@ -2827,31 +2836,12 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <p className="text-xs text-muted-foreground">
-                    Permanently wipe all inventory data from the database. <strong>This cannot be undone.</strong>
+                    Permanently wipe selected inventory data from the database. <strong>This cannot be undone.</strong>
                   </p>
-                  <AlertDialog open={isResetOpen} onOpenChange={setIsResetOpen}>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="destructive" className="w-full gap-2" disabled={isLoading}>
-                        <Trash2 className="h-4 w-4" />
-                        Reset All Data
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Reset All Data</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will permanently delete all assets, waybills, returns, sites, employees, vehicles, and settings. This action <strong>cannot be undone</strong>. Make sure you have a backup first.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleReset} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                          {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                          Yes, Reset Everything
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                  <Button variant="destructive" className="w-full gap-2" disabled={isLoading} onClick={() => setIsResetOpen(true)}>
+                    <Trash2 className="h-4 w-4" />
+                    Reset Data...
+                  </Button>
                 </CardContent>
               </Card>
             )}
@@ -3056,6 +3046,45 @@ export const CompanySettings = ({ settings, onSave, employees, onEmployeesChange
             <Button onClick={handleBackupConfirm} disabled={isLoading || selectedBackupItems.size === 0} className="gap-2">
               {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               Download Backup
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Selective Reset Dialog */}
+      <Dialog open={isResetOpen} onOpenChange={setIsResetOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive"><Trash2 className="h-5 w-5" />Reset Data</DialogTitle>
+            <DialogDescription>
+              Select which data sections to permanently reset. <strong>This action cannot be undone.</strong>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2 max-h-72 overflow-y-auto">
+            <div className="flex items-center justify-between mb-2">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Data Sections</Label>
+              <button className="text-xs text-primary underline" onClick={() => setSelectedResetItems(new Set(resetOptions.map(o => o.id)))}>Select All</button>
+            </div>
+            {resetOptions.map((option) => (
+              <div key={option.id} className="flex items-center space-x-2 p-2 rounded-lg hover:bg-muted/50">
+                <Checkbox
+                  id={`reset-${option.id}`}
+                  checked={selectedResetItems.has(option.id)}
+                  onCheckedChange={(checked) => {
+                    const s = new Set(selectedResetItems);
+                    checked ? s.add(option.id) : s.delete(option.id);
+                    setSelectedResetItems(s);
+                  }}
+                />
+                <Label htmlFor={`reset-${option.id}`} className="cursor-pointer text-sm">{option.label}</Label>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsResetOpen(false)}>Cancel</Button>
+            <Button onClick={handleReset} disabled={isLoading || selectedResetItems.size === 0} className="gap-2 bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Reset Selected Data
             </Button>
           </DialogFooter>
         </DialogContent>
