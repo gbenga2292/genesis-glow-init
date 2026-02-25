@@ -187,11 +187,24 @@ export function transformCompanySettingsToDB(settings: any): any {
  */
 export function transformEquipmentLogFromDB(dbLog: any): any {
   return {
-    ...dbLog,
+    id: String(dbLog.id),
+    equipmentId: String(dbLog.equipment_id),
+    equipmentName: dbLog.equipment_name,
+    siteId: String(dbLog.site_id),
+    date: new Date(dbLog.date),
+    active: dbLog.active,
+    downtimeEntries: dbLog.downtime_entries
+      ? (typeof dbLog.downtime_entries === 'string'
+        ? JSON.parse(dbLog.downtime_entries)
+        : dbLog.downtime_entries)
+      : [],
+    maintenanceDetails: dbLog.maintenance_details,
+    dieselEntered: dbLog.diesel_entered,
+    supervisorOnSite: dbLog.supervisor_on_site,
+    clientFeedback: dbLog.client_feedback,
+    issuesOnSite: dbLog.issues_on_site,
     createdAt: new Date(dbLog.created_at),
     updatedAt: new Date(dbLog.updated_at),
-    date: new Date(dbLog.date),
-    downtimeEntries: dbLog.downtime_entries ? JSON.parse(dbLog.downtime_entries) : [],
   };
 }
 
@@ -203,7 +216,7 @@ export function transformEquipmentLogToDB(log: any): any {
     equipment_id: log.equipmentId,
     equipment_name: log.equipmentName,
     site_id: log.siteId,
-    date: log.date,
+    date: log.date instanceof Date ? log.date.toISOString() : log.date,
     active: log.active,
     downtime_entries: JSON.stringify(log.downtimeEntries || []),
     maintenance_details: log.maintenanceDetails,
