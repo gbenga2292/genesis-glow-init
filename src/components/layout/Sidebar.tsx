@@ -185,9 +185,9 @@ export const Sidebar = ({
         )}>
 
         {/* Header */}
-        <div className={cn(
-          "p-2 border-b border-border flex items-center",
-          isCollapsed && mode === 'desktop' ? "justify-center" : "justify-end"
+        <div className={cn("p-2 border-b border-border flex items-center px-[3px] py-[3px] mx-[3px]",
+
+        isCollapsed && mode === 'desktop' ? "justify-center" : "justify-end"
         )}>
           {mode === 'desktop' &&
           <Button
