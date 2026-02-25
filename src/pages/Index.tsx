@@ -1719,16 +1719,17 @@ const Index = () => {
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
       const lastLog = assetLogs[0];
-      const logSaysInactive = lastLog && !lastLog.active; // If log exists and active is false
+      const isLoggedActive = lastLog ? lastLog.active : false;
 
       let status: 'active' | 'maintenance' | 'retired' | 'standby' | 'missing' | 'idle' = 'active';
 
       if (asset.status === 'maintenance') status = 'maintenance';
       else if (asset.status === 'damaged') status = 'maintenance'; // severe damage implies maintenance
       else if (asset.status === 'missing') status = 'missing';
-      else if (isWarehouse) status = 'idle'; // Warehouse = Inactive/Idle
-      else if (logSaysInactive) status = 'standby'; // On site but logged as inactive
-      else if (asset.status === 'active') status = 'active';
+      else if ((asset.status as string) === 'retired') status = 'retired';
+      else if (isWarehouse) status = 'idle'; // In warehouse = Inactive
+      else if (site && isLoggedActive) status = 'active';
+      else status = 'idle'; // Not on site or no active log = Inactive
 
       // Calculate deployment date
       let deploymentDate = asset.deploymentDate;

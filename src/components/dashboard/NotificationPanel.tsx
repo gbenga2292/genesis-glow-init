@@ -965,7 +965,7 @@ export const NotificationPanel = ({
         </div>
       ) : (
         <Dialog open={showQuickLogDialog} onOpenChange={setShowQuickLogDialog}>
-          <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+          <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col p-0">
             <DialogHeader className="px-4 pt-4 pb-2 border-b shrink-0">
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
@@ -984,7 +984,7 @@ export const NotificationPanel = ({
               </div>
             </DialogHeader>
 
-            <ScrollArea className="flex-1 min-h-0 overflow-y-auto">
+            <div style={{ overflowY: 'auto', maxHeight: 'calc(90vh - 130px)' }}>
               <div className="p-4 space-y-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium flex items-center gap-2">
@@ -1176,7 +1176,7 @@ export const NotificationPanel = ({
                   )}
                 </div>
               </div>
-            </ScrollArea>
+            </div>
 
             <div className="p-4 border-t bg-card shrink-0">
               <div className="flex gap-3">

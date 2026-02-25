@@ -29,7 +29,6 @@ const defaultCompanySettings: CompanySettings = {
   },
 };
 
-// Helper to load image
 const loadImage = (src: string): Promise<HTMLImageElement> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -37,7 +36,13 @@ const loadImage = (src: string): Promise<HTMLImageElement> => {
     img.onerror = reject;
     // Convert relative paths to absolute URLs
     if (src.startsWith('/') && !src.startsWith('//')) {
-      img.src = window.location.origin + src;
+      if (window.location.protocol === 'file:') {
+        const pathname = window.location.pathname;
+        const basePath = pathname.substring(0, pathname.lastIndexOf('/'));
+        img.src = `file://${basePath}${src}`;
+      } else {
+        img.src = window.location.origin + src;
+      }
     } else {
       img.src = src;
     }

@@ -47,7 +47,7 @@ export const MachineCard = ({ machine, maintenanceLogs, onViewDetails }: Machine
         'active': 'bg-green-500',
         'idle': 'bg-gray-500',
         'maintenance': 'bg-red-500',
-        'standby': 'bg-yellow-500',
+        'standby': 'bg-gray-500',
         'missing': 'bg-red-700',
         'retired': 'bg-gray-700'
     };
@@ -60,6 +60,10 @@ export const MachineCard = ({ machine, maintenanceLogs, onViewDetails }: Machine
 
     const statusConfig = serviceStatusConfig[serviceStatus];
 
+    const displayStatus = (machine.status === 'idle' || machine.status === 'standby')
+        ? 'Inactive'
+        : machine.status;
+
     return (
         <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>
@@ -71,8 +75,8 @@ export const MachineCard = ({ machine, maintenanceLogs, onViewDetails }: Machine
                             {machine.serialNumber && <span>S/N: {machine.serialNumber}</span>}
                         </CardDescription>
                     </div>
-                    <Badge variant="outline" className={cn("capitalize", statusColors[machine.status], "text-white")}>
-                        {machine.status}
+                    <Badge variant="outline" className={cn("capitalize border-0", statusColors[machine.status], "text-white")}>
+                        {displayStatus}
                     </Badge>
                 </div>
             </CardHeader>

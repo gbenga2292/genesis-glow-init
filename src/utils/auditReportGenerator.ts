@@ -29,7 +29,13 @@ const loadImage = (src: string): Promise<HTMLImageElement> => {
         img.onload = () => resolve(img);
         img.onerror = reject;
         if (src.startsWith('/') && !src.startsWith('//')) {
-            img.src = window.location.origin + src;
+            if (window.location.protocol === 'file:') {
+                const pathname = window.location.pathname;
+                const basePath = pathname.substring(0, pathname.lastIndexOf('/'));
+                img.src = `file://${basePath}${src}`;
+            } else {
+                img.src = window.location.origin + src;
+            }
         } else {
             img.src = src;
         }

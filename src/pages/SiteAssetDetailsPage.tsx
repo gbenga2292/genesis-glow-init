@@ -215,6 +215,22 @@ export const SiteAssetDetailsPage = ({
 
     const handleSaveEquipmentLog = async () => {
         if (!selectedDate) return;
+
+        // Guard: prevent saving a log before the machine's arrival date
+        if (arrivalDate) {
+            const arrivalMidnight = new Date(arrivalDate);
+            arrivalMidnight.setHours(0, 0, 0, 0);
+            const selectedMidnight = new Date(selectedDate);
+            selectedMidnight.setHours(0, 0, 0, 0);
+            if (selectedMidnight < arrivalMidnight) {
+                toast({
+                    title: "Date Not Allowed",
+                    description: `This machine arrived on site on ${format(arrivalDate, 'PPP')}. You cannot log before that date.`,
+                    variant: "destructive"
+                });
+                return;
+            }
+        }
         setIsSaving(true);
         try {
             const existingLog = equipmentLogs.find(log =>
@@ -311,6 +327,12 @@ export const SiteAssetDetailsPage = ({
         }
     };
 
+    // Arrival date for this asset at this site (used to restrict calendar & filter history)
+    const arrivalDate = isEquipment ? getEquipmentArrivalDate(asset.id) : null;
+
+    // Clamp selectedDate: if it falls before arrival, reset to arrival date
+    // (handled via fromDate prop on Calendar — we just guard on save)
+
     // Filter logs for this asset+site, then deduplicate by date — keep the most recently-updated
     // entry per date (older duplicates caused by the pre-fix transform bug are hidden this way)
     const rawLogs = isEquipment
@@ -320,6 +342,14 @@ export const SiteAssetDetailsPage = ({
     const activeLogs = (() => {
         const byDate = new Map<string, any>();
         for (const log of rawLogs) {
+            const logDate = new Date(log.date);
+            // Exclude logs before the arrival date
+            if (arrivalDate) {
+                const arrivalMidnight = new Date(arrivalDate);
+                arrivalMidnight.setHours(0, 0, 0, 0);
+                logDate.setHours(0, 0, 0, 0);
+                if (logDate < arrivalMidnight) continue;
+            }
             const dateKey = format(new Date(log.date), 'yyyy-MM-dd');
             const existing = byDate.get(dateKey);
             // Keep the one with the latest updatedAt (most recently saved)
@@ -401,9 +431,10 @@ export const SiteAssetDetailsPage = ({
                                                 selected={selectedDate}
                                                 onSelect={setSelectedDate}
                                                 className="rounded-md border w-full max-w-[280px]"
+                                                fromDate={isEquipment && arrivalDate ? arrivalDate : undefined}
                                                 modifiers={{
                                                     logged: activeLogs.map(l => new Date(l.date)),
-                                                    arrival: isEquipment && getEquipmentArrivalDate(asset.id) ? [getEquipmentArrivalDate(asset.id) as Date] : []
+                                                    arrival: isEquipment && arrivalDate ? [arrivalDate] : []
                                                 }}
                                                 modifiersStyles={{
                                                     logged: {
