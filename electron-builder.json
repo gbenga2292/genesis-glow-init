@@ -6,6 +6,14 @@
   },
   "compression": "store",
   "icon": "build/icon.ico",
+  "publish": [
+    {
+      "provider": "github",
+      "owner": "gbenga2292",
+      "repo": "genesis-glow-init",
+      "releaseType": "release"
+    }
+  ],
   "files": [
     "dist/**/*",
     "electron/**/*",
@@ -48,7 +56,7 @@
     "verifyUpdateCodeSignature": false,
     "forceCodeSigning": false,
     "signAndEditExecutable": false,
-    "artifactName": "dcel_inventory.${ext}"
+    "artifactName": "dcel_inventory_setup_${version}.${ext}"
   },
   "protocols": [
     {

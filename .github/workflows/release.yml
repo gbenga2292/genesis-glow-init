@@ -1,0 +1,150 @@
+name: 🚀 Release — Build & Publish
+
+# Only runs when you push a version tag like v1.0.1, v1.2.0, etc.
+# This is the trigger YOU control — you decide when a release happens.
+# Workflow:
+#   1. You merge your work into main on your machine
+#   2. You bump the version: npm version patch  (or minor / major)
+#   3. You run: git push && git push --tags
+#   4. This workflow fires and builds everything automatically.
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write   # Required to create GitHub Releases and upload assets
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # JOB 1: Build the web assets (dist/) — shared by both Electron and Android
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-web:
+    name: 🏗️ Build Web Assets
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Extract version from tag
+        id: get_version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Build web assets (Vite)
+        run: npm run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+          VITE_APP_VERSION: ${{ steps.get_version.outputs.version }}
+
+      - name: Package Android bundle zip
+        # This is the asset Android devices download for live updates.
+        # It contains only the web assets (dist/ folder), zipped up.
+        run: |
+          cd dist
+          zip -r ../android-bundle.zip .
+          cd ..
+          echo "✅ android-bundle.zip created ($(du -sh android-bundle.zip | cut -f1))"
+
+      - name: Upload dist artifact (for Electron job)
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 1
+
+      - name: Upload Android bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-bundle
+          path: android-bundle.zip
+          retention-days: 1
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # JOB 2: Build Electron app (Windows .exe installer)
+  # Runs on Windows so the native modules (better-sqlite3) compile correctly
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-electron:
+    name: 🖥️ Build Electron (Windows)
+    needs: build-web
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Build Electron app (publish to GitHub)
+        # GH_TOKEN is automatically provided by GitHub Actions.
+        # electron-builder reads it to upload to the GitHub Release.
+        # We pass --publish always so it uploads even if release already has assets.
+        run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_OPTIONS: --max-old-space-size=4096
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # JOB 3: Create the GitHub Release and attach Android bundle
+  # ─────────────────────────────────────────────────────────────────────────────
+  create-release:
+    name: 📦 Create GitHub Release
+    needs: [build-web, build-electron]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Android bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: android-bundle
+          path: ./
+
+      - name: Create Release and upload Android bundle
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "DCEL Inventory ${{ github.ref_name }}"
+          body: |
+            ## 🚀 DCEL Inventory ${{ github.ref_name }}
+
+            ### Installation
+            - **Windows Desktop**: Download the `.exe` installer below
+            - **Android**: Open the app → Settings → App Updates → Check for Updates
+
+            ### What's Changed
+            <!-- Add release notes here before tagging -->
+          draft: false
+          prerelease: false
+          files: |
+            android-bundle.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

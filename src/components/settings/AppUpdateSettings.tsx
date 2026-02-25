@@ -6,13 +6,13 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { 
-  RefreshCw, 
-  Download, 
-  CheckCircle2, 
-  AlertCircle, 
-  Smartphone, 
-  Monitor, 
+import {
+  RefreshCw,
+  Download,
+  CheckCircle2,
+  AlertCircle,
+  Smartphone,
+  Monitor,
   Globe,
   Loader2,
   Sparkles
@@ -30,6 +30,7 @@ export const AppUpdateSettings: React.FC = () => {
     progress,
     error,
     updateInfo,
+    currentVersion,
     lastChecked,
     checkForUpdates,
     downloadUpdate,
@@ -37,7 +38,7 @@ export const AppUpdateSettings: React.FC = () => {
     platform
   } = useAppUpdate();
 
-  const [autoCheck, setAutoCheck] = useState(() => 
+  const [autoCheck, setAutoCheck] = useState(() =>
     localStorage.getItem('autoCheckUpdates') !== 'false'
   );
 
@@ -72,13 +73,13 @@ export const AppUpdateSettings: React.FC = () => {
     const now = new Date();
     const diff = now.getTime() - lastChecked.getTime();
     const minutes = Math.floor(diff / 60000);
-    
+
     if (minutes < 1) return 'Just now';
     if (minutes < 60) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
-    
+
     const hours = Math.floor(minutes / 60);
     if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-    
+
     return lastChecked.toLocaleDateString();
   };
 
@@ -106,7 +107,7 @@ export const AppUpdateSettings: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-muted/50 rounded-lg">
           <div>
             <p className="text-sm font-medium">Current Version</p>
-            <p className="text-xs text-muted-foreground">v1.0.0</p>
+            <p className="text-xs text-muted-foreground">v{currentVersion}</p>
           </div>
           <div className="text-right">
             <p className="text-xs text-muted-foreground">Last checked</p>
@@ -122,9 +123,9 @@ export const AppUpdateSettings: React.FC = () => {
               Check for updates when app starts
             </span>
           </Label>
-          <Switch 
-            id="auto-check" 
-            checked={autoCheck} 
+          <Switch
+            id="auto-check"
+            checked={autoCheck}
             onCheckedChange={setAutoCheck}
           />
         </div>
@@ -144,7 +145,7 @@ export const AppUpdateSettings: React.FC = () => {
             <Sparkles className="h-4 w-4 text-primary" />
             <AlertTitle>Update Available!</AlertTitle>
             <AlertDescription>
-              {updateInfo?.version 
+              {updateInfo?.version
                 ? `Version ${updateInfo.version} is ready to download.`
                 : 'A new version is available.'}
               {updateInfo?.releaseNotes && (
@@ -171,7 +172,7 @@ export const AppUpdateSettings: React.FC = () => {
             <CheckCircle2 className="h-4 w-4 text-green-500" />
             <AlertTitle>Update Ready!</AlertTitle>
             <AlertDescription>
-              {updateInfo?.version 
+              {updateInfo?.version
                 ? `Version ${updateInfo.version} is ready to install.`
                 : 'The update has been downloaded and is ready to install.'}
             </AlertDescription>
@@ -199,7 +200,7 @@ export const AppUpdateSettings: React.FC = () => {
             )}
           </Button>
 
-          {available && !downloaded && platform === 'electron' && (
+          {available && !downloaded && (
             <Button
               onClick={downloadUpdate}
               disabled={downloading}
@@ -208,7 +209,7 @@ export const AppUpdateSettings: React.FC = () => {
               {downloading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Downloading...
+                  Downloading... {Math.round(progress)}%
                 </>
               ) : (
                 <>

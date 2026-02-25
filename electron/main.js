@@ -1,6 +1,8 @@
 import { app, BrowserWindow, ipcMain, shell, Menu, Tray, nativeImage, Notification } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { autoUpdater } from 'electron-updater';
+import log from 'electron-log';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -49,6 +51,84 @@ function createTray() {
       mainWindow.focus();
     }
   });
+}
+
+// ─── Auto-Updater Setup ───────────────────────────────────────────────────────
+function setupAutoUpdater() {
+  // Use electron-log for updater logs so they are stored in the app log file
+  autoUpdater.logger = log;
+  autoUpdater.logger.transports.file.level = 'info';
+
+  // Disable auto-download — we let the user decide in Settings
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  // Forward updater events to the renderer window
+  const send = (channel, data) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(channel, data);
+    }
+  };
+
+  autoUpdater.on('update-available', (info) => {
+    log.info('Update available:', info.version);
+    send('updater:update-available', info);
+  });
+
+  autoUpdater.on('update-not-available', (info) => {
+    log.info('Update not available. Current version is latest.');
+    send('updater:update-not-available', info);
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    send('updater:download-progress', progress);
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    log.info('Update downloaded:', info.version);
+    send('updater:update-downloaded', info);
+  });
+
+  autoUpdater.on('error', (err) => {
+    log.error('Auto-updater error:', err);
+    send('updater:error', { message: err.message });
+  });
+
+  // IPC Commands from renderer (Settings page)
+  ipcMain.handle('updater:check', async () => {
+    try {
+      await autoUpdater.checkForUpdates();
+    } catch (err) {
+      log.error('checkForUpdates failed:', err);
+      send('updater:error', { message: err.message });
+    }
+  });
+
+  ipcMain.handle('updater:download', async () => {
+    try {
+      await autoUpdater.downloadUpdate();
+    } catch (err) {
+      log.error('downloadUpdate failed:', err);
+      send('updater:error', { message: err.message });
+    }
+  });
+
+  ipcMain.handle('updater:quitAndInstall', () => {
+    autoUpdater.quitAndInstall();
+  });
+
+  ipcMain.handle('updater:getVersion', () => {
+    return app.getVersion();
+  });
+
+  // Check for updates 10 seconds after startup (only in production)
+  if (app.isPackaged) {
+    setTimeout(() => {
+      autoUpdater.checkForUpdates().catch((err) => {
+        log.warn('Startup update check failed (non-critical):', err.message);
+      });
+    }, 10000);
+  }
 }
 
 function createWindow() {
@@ -197,6 +277,7 @@ if (!gotTheLock) {
 
   app.whenReady().then(() => {
     createWindow();
+    setupAutoUpdater();
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
