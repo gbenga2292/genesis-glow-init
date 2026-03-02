@@ -40,8 +40,9 @@ interface SiteInventoryPageProps {
     onViewAnalyticsEquipment?: () => void;
     onViewAnalyticsConsumables?: () => void;
     onViewAssetDetails?: (asset: Asset) => void;
-    onViewAssetHistory?: (asset: Asset) => void;
+    onViewAssetHistory?: (asset: Asset, options?: { readOnly?: boolean; selectedDate?: Date }) => void;
     onViewAssetAnalytics?: (asset: Asset) => void;
+    onSetMachineStartDate?: (asset: Asset, startDate: Date) => Promise<void> | void;
 }
 
 type TabId = 'materials' | 'machines' | 'consumables' | 'waybills';
@@ -53,6 +54,7 @@ export const SiteInventoryPage: React.FC<SiteInventoryPageProps> = ({
     onAddEquipmentLog, onUpdateEquipmentLog, onAddConsumableLog, onUpdateConsumableLog,
     onViewAnalyticsEquipment, onViewAnalyticsConsumables,
     onViewAssetDetails, onViewAssetHistory, onViewAssetAnalytics,
+    onSetMachineStartDate,
 }) => {
     const [activeTab, setActiveTab] = useState<TabId>('materials');
     const isMobile = useIsMobile();
@@ -281,6 +283,7 @@ export const SiteInventoryPage: React.FC<SiteInventoryPageProps> = ({
                         onViewAssetDetails={onViewAssetDetails}
                         onViewAssetHistory={onViewAssetHistory}
                         onViewAssetAnalytics={onViewAssetAnalytics}
+                        onSetMachineStartDate={onSetMachineStartDate}
                     />
                 )}
 
