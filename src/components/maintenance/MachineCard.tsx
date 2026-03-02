@@ -2,13 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
-} from "@/components/ui/dialog";
+import { ResponsiveFormContainer } from "@/components/ui/responsive-form-container";
 import { Machine, MaintenanceLog } from "@/types/maintenance";
 import { EquipmentLog } from "@/types/equipment";
 import { Site } from "@/types/asset";
@@ -176,40 +170,37 @@ export const MachineCard = ({ machine, maintenanceLogs, equipmentLogs, sites, on
             </Card>
 
             {/* Equipment Log Dialog */}
-            <Dialog open={showEquipmentLog} onOpenChange={setShowEquipmentLog}>
-                <DialogContent className="sm:max-w-3xl max-h-[85vh] flex flex-col p-0">
-                    <DialogHeader className="px-6 pt-5 pb-3 border-b shrink-0">
-                        <DialogTitle className="flex items-center gap-2">
-                            <ClipboardList className="h-5 w-5 text-primary" />
-                            Equipment Log — {machine.name}
-                        </DialogTitle>
-                        <DialogDescription className="text-xs">
-                            Full operational history across all sites • {machineEquipmentLogs.length} entries
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <div style={{ overflowY: 'auto', maxHeight: 'calc(85vh - 110px)' }}>
-                        {machineEquipmentLogs.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
-                                <ClipboardList className="h-10 w-10 opacity-30" />
-                                <p className="text-sm">No equipment logs recorded yet.</p>
-                            </div>
-                        ) : (
+            <ResponsiveFormContainer
+                open={showEquipmentLog}
+                onOpenChange={setShowEquipmentLog}
+                title={`Equipment Log — ${machine.name}`}
+                subtitle={`Full operational history across all sites • ${machineEquipmentLogs.length} entries`}
+                icon={<ClipboardList className="h-5 w-5" />}
+                maxWidth="max-w-3xl"
+            >
+                <div className="flex-1 overflow-y-auto mt-2">
+                    {machineEquipmentLogs.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
+                            <ClipboardList className="h-10 w-10 opacity-30" />
+                            <p className="text-sm">No equipment logs recorded yet.</p>
+                        </div>
+                    ) : (
+                        <div className="rounded-md border overflow-hidden">
                             <table className="w-full text-sm">
-                                <thead className="sticky top-0 bg-muted/80 backdrop-blur border-b z-10">
+                                <thead className="bg-muted">
                                     <tr>
-                                        <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wider text-muted-foreground">Date</th>
-                                        <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wider text-muted-foreground">Site</th>
-                                        <th className="px-4 py-3 text-center font-semibold text-xs uppercase tracking-wider text-muted-foreground">
+                                        <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wider text-muted-foreground border-b">Date</th>
+                                        <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wider text-muted-foreground border-b">Site</th>
+                                        <th className="px-4 py-3 text-center font-semibold text-xs uppercase tracking-wider text-muted-foreground border-b">
                                             <span className="flex items-center justify-center gap-1"><Activity className="h-3.5 w-3.5" /> Status</span>
                                         </th>
-                                        <th className="px-4 py-3 text-center font-semibold text-xs uppercase tracking-wider text-muted-foreground">
+                                        <th className="px-4 py-3 text-center font-semibold text-xs uppercase tracking-wider text-muted-foreground border-b">
                                             <span className="flex items-center justify-center gap-1"><Fuel className="h-3.5 w-3.5" /> Diesel (L)</span>
                                         </th>
-                                        <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wider text-muted-foreground">Supervisor</th>
+                                        <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wider text-muted-foreground border-b">Supervisor</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-border">
+                                <tbody className="divide-y divide-border bg-card">
                                     {machineEquipmentLogs.map((log, i) => (
                                         <tr key={log.id || i} className="hover:bg-muted/40 transition-colors">
                                             <td className="px-4 py-3 font-medium whitespace-nowrap">
@@ -246,10 +237,10 @@ export const MachineCard = ({ machine, maintenanceLogs, equipmentLogs, sites, on
                                     ))}
                                 </tbody>
                             </table>
-                        )}
-                    </div>
-                </DialogContent>
-            </Dialog>
+                        </div>
+                    )}
+                </div>
+            </ResponsiveFormContainer>
         </>
     );
 };

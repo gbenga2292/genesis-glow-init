@@ -2,9 +2,9 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { ResponsiveFormContainer } from "@/components/ui/responsive-form-container";
 import { Machine, MaintenanceLog } from "@/types/maintenance";
 import { format, differenceInHours } from "date-fns";
 import { ArrowLeft, Calendar, Wrench, DollarSign, MapPin, User, FileText } from "lucide-react";
@@ -39,30 +39,23 @@ export const MachineDetailsDialog = ({ machine, maintenanceLogs, onClose }: Mach
     };
 
     return (
-        <Dialog open={!!machine} onOpenChange={onClose}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                    <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="icon" onClick={onClose}>
-                            <ArrowLeft className="h-4 w-4" />
-                        </Button>
-                        <div>
-                            <DialogTitle className="text-xl">{machine.name}</DialogTitle>
-                            <p className="text-sm text-muted-foreground">
-                                {machine.model} • {machine.serialNumber}
-                            </p>
-                        </div>
-                    </div>
-                </DialogHeader>
+        <ResponsiveFormContainer
+            open={!!machine}
+            onOpenChange={onClose}
+            title={machine.name}
+            subtitle={`${machine.model || 'N/A'} • ${machine.serialNumber || 'N/A'}`}
+            icon={<Wrench className="h-5 w-5" />}
+            maxWidth="max-w-4xl"
+        >
+            <Tabs defaultValue="overview" className="w-full min-h-0 flex flex-col">
+                <TabsList className="grid w-full grid-cols-3 shrink-0">
+                    <TabsTrigger value="overview">Overview</TabsTrigger>
+                    <TabsTrigger value="maintenance">Maintenance Log</TabsTrigger>
+                    <TabsTrigger value="statistics">Statistics</TabsTrigger>
+                </TabsList>
 
-                <Tabs defaultValue="overview" className="w-full">
-                    <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="overview">Overview</TabsTrigger>
-                        <TabsTrigger value="maintenance">Maintenance Log</TabsTrigger>
-                        <TabsTrigger value="statistics">Statistics</TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="overview" className="space-y-4">
+                <div className="flex-1 overflow-y-auto mt-4 pr-1 min-h-0">
+                    <TabsContent value="overview" className="space-y-4 m-0">
                         {/* Machine Profile */}
                         <Card>
                             <CardHeader>
@@ -71,7 +64,7 @@ export const MachineDetailsDialog = ({ machine, maintenanceLogs, onClose }: Mach
                             <CardContent className="grid grid-cols-2 gap-4">
                                 <div>
                                     <span className="text-sm text-muted-foreground">Machine ID</span>
-                                    <p className="font-medium">{machine.id}</p>
+                                    <p className="font-medium break-all">{machine.id}</p>
                                 </div>
                                 <div>
                                     <span className="text-sm text-muted-foreground">Status</span>
@@ -110,7 +103,7 @@ export const MachineDetailsDialog = ({ machine, maintenanceLogs, onClose }: Mach
                                 <CardContent className="pt-6">
                                     <div className="text-center">
                                         <p className="text-2xl font-bold">{machineLogs.length}</p>
-                                        <p className="text-xs text-muted-foreground">Total Maintenance</p>
+                                        <p className="text-xs text-muted-foreground mt-1">Total Maintenance</p>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -118,22 +111,22 @@ export const MachineDetailsDialog = ({ machine, maintenanceLogs, onClose }: Mach
                                 <CardContent className="pt-6">
                                     <div className="text-center">
                                         <p className="text-2xl font-bold">{totalDowntime}h</p>
-                                        <p className="text-xs text-muted-foreground">Total Downtime</p>
+                                        <p className="text-xs text-muted-foreground mt-1">Total Downtime</p>
                                     </div>
                                 </CardContent>
                             </Card>
                             <Card>
-                                <CardContent className="pt-6">
+                                <CardContent className="pt-6 overflow-hidden">
                                     <div className="text-center">
-                                        <p className="text-2xl font-bold">₦{totalCost.toLocaleString()}</p>
-                                        <p className="text-xs text-muted-foreground">Total Cost</p>
+                                        <p className="text-xl sm:text-2xl font-bold truncate">₦{totalCost.toLocaleString()}</p>
+                                        <p className="text-xs text-muted-foreground mt-1">Total Cost</p>
                                     </div>
                                 </CardContent>
                             </Card>
                         </div>
                     </TabsContent>
 
-                    <TabsContent value="maintenance" className="space-y-4">
+                    <TabsContent value="maintenance" className="space-y-4 m-0">
                         {machineLogs.length === 0 ? (
                             <Card>
                                 <CardContent className="py-8 text-center text-muted-foreground">
@@ -145,42 +138,44 @@ export const MachineDetailsDialog = ({ machine, maintenanceLogs, onClose }: Mach
                                 {machineLogs.map(log => (
                                     <AccordionItem key={log.id} value={log.id} className="border rounded-lg bg-card px-4">
                                         <AccordionTrigger className="hover:no-underline py-3">
-                                            <div className="flex flex-1 items-center justify-between mr-4 text-left">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="flex items-center gap-2 min-w-[100px]">
+                                            <div className="flex flex-col sm:flex-row flex-1 items-start sm:items-center justify-between mr-4 text-left gap-2 sm:gap-4">
+                                                <div className="flex items-center gap-3 w-full sm:w-auto">
+                                                    <div className="flex items-center gap-2 min-w-[100px] shrink-0">
                                                         <Wrench className="h-4 w-4 text-muted-foreground" />
                                                         <span className="font-semibold">{format(new Date(log.dateStarted), 'dd/MM/yyyy')}</span>
                                                     </div>
-                                                    <Badge className={cn("w-24 justify-center", maintenanceTypeColors[log.maintenanceType])}>
+                                                    <Badge className={cn("w-24 justify-center shrink-0", maintenanceTypeColors[log.maintenanceType])}>
                                                         {log.maintenanceType}
                                                     </Badge>
-                                                    <span className="text-sm text-muted-foreground line-clamp-1">{log.reason}</span>
                                                 </div>
-                                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                    <User className="h-3 w-3" />
-                                                    <span className="hidden sm:inline">{log.technician}</span>
+                                                <div className="flex items-center justify-between w-full sm:w-auto gap-4">
+                                                    <span className="text-sm text-muted-foreground line-clamp-1 flex-1 sm:max-w-[200px]">{log.reason}</span>
+                                                    <div className="flex items-center gap-2 text-sm text-muted-foreground shrink-0">
+                                                        <User className="h-3 w-3" />
+                                                        <span className="hidden sm:inline">{log.technician}</span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </AccordionTrigger>
                                         <AccordionContent className="pb-4 pt-1">
                                             <div className="space-y-4 border-t pt-4">
-                                                <div className="grid grid-cols-2 gap-3 text-sm">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                                                     {log.location && (
                                                         <div className="flex items-center gap-2">
-                                                            <MapPin className="h-4 w-4 text-muted-foreground" />
-                                                            <span>Location: {log.location}</span>
+                                                            <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+                                                            <span className="truncate">Location: {log.location}</span>
                                                         </div>
                                                     )}
                                                     {log.downtime && (
                                                         <div className="flex items-center gap-2">
-                                                            <Calendar className="h-4 w-4 text-muted-foreground" />
+                                                            <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
                                                             <span>{log.downtime}h downtime</span>
                                                         </div>
                                                     )}
                                                     {log.cost && (
                                                         <div className="flex items-center gap-2">
-                                                            <DollarSign className="h-4 w-4 text-muted-foreground" />
-                                                            <span>Cost: ₦{log.cost.toLocaleString()}</span>
+                                                            <DollarSign className="h-4 w-4 text-muted-foreground shrink-0" />
+                                                            <span className="truncate">Cost: ₦{log.cost.toLocaleString()}</span>
                                                         </div>
                                                     )}
                                                 </div>
@@ -204,7 +199,7 @@ export const MachineDetailsDialog = ({ machine, maintenanceLogs, onClose }: Mach
                                                     )}
                                                 </div>
 
-                                                <div className="flex items-center gap-2 text-xs">
+                                                <div className="flex flex-wrap items-center gap-2 text-xs">
                                                     <Badge variant={log.machineActiveAtTime ? "default" : "secondary"}>
                                                         {log.machineActiveAtTime ? "Active during maintenance" : "Inactive during maintenance"}
                                                     </Badge>
@@ -222,55 +217,58 @@ export const MachineDetailsDialog = ({ machine, maintenanceLogs, onClose }: Mach
                         )}
                     </TabsContent>
 
-                    <TabsContent value="statistics" className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
+                    <TabsContent value="statistics" className="space-y-4 m-0">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <Card>
-                                <CardHeader>
+                                <CardHeader className="pb-3">
                                     <CardTitle className="text-sm">Maintenance Breakdown</CardTitle>
                                 </CardHeader>
-                                <CardContent className="space-y-2">
-                                    <div className="flex justify-between text-sm">
-                                        <span>Scheduled:</span>
-                                        <Badge variant="secondary">
-                                            {machineLogs.filter(l => l.maintenanceType === 'scheduled').length}
-                                        </Badge>
+                                <CardContent className="space-y-3">
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-muted-foreground flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                            Scheduled
+                                        </span>
+                                        <span className="font-semibold">{machineLogs.filter(l => l.maintenanceType === 'scheduled').length}</span>
                                     </div>
-                                    <div className="flex justify-between text-sm">
-                                        <span>Unscheduled:</span>
-                                        <Badge variant="secondary">
-                                            {machineLogs.filter(l => l.maintenanceType === 'unscheduled').length}
-                                        </Badge>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-muted-foreground flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-yellow-500" />
+                                            Unscheduled
+                                        </span>
+                                        <span className="font-semibold">{machineLogs.filter(l => l.maintenanceType === 'unscheduled').length}</span>
                                     </div>
-                                    <div className="flex justify-between text-sm">
-                                        <span>Emergency:</span>
-                                        <Badge variant="secondary">
-                                            {machineLogs.filter(l => l.maintenanceType === 'emergency').length}
-                                        </Badge>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-muted-foreground flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-red-500" />
+                                            Emergency
+                                        </span>
+                                        <span className="font-semibold">{machineLogs.filter(l => l.maintenanceType === 'emergency').length}</span>
                                     </div>
                                 </CardContent>
                             </Card>
 
                             <Card>
-                                <CardHeader>
+                                <CardHeader className="pb-3">
                                     <CardTitle className="text-sm">Downtime Analysis</CardTitle>
                                 </CardHeader>
-                                <CardContent className="space-y-2">
-                                    <div className="flex justify-between text-sm">
-                                        <span>Total Hours:</span>
-                                        <Badge variant="secondary">{totalDowntime}h</Badge>
+                                <CardContent className="space-y-3">
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-muted-foreground">Total Hours:</span>
+                                        <span className="font-semibold">{totalDowntime}h</span>
                                     </div>
-                                    <div className="flex justify-between text-sm">
-                                        <span>Average per Event:</span>
-                                        <Badge variant="secondary">
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-muted-foreground">Average per Event:</span>
+                                        <span className="font-semibold">
                                             {machineLogs.length > 0 ? (totalDowntime / machineLogs.length).toFixed(1) : 0}h
-                                        </Badge>
+                                        </span>
                                     </div>
                                 </CardContent>
                             </Card>
                         </div>
                     </TabsContent>
-                </Tabs>
-            </DialogContent>
-        </Dialog>
+                </div>
+            </Tabs>
+        </ResponsiveFormContainer>
     );
 };

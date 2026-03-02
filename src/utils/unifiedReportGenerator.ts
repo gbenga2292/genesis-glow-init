@@ -102,14 +102,14 @@ export const generateUnifiedReport = async (config: ReportConfig): Promise<void>
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
 
-  // Always show contact details — fall back to defaults if DB fields are empty
-  const addressStr = companySettings.address || "Industrial Layout, Port Harcourt, Rivers State";
-  const phoneStr = `Phone: ${companySettings.phone || "+234 803 000 0000"}`;
-  const emailStr = `Email: ${companySettings.email || "info@dewateringconstruction.com"}`;
+  // Only show contact details that are actually set in company settings
+  const addressStr = companySettings.address || '';
+  const phoneStr = companySettings.phone ? `Phone: ${companySettings.phone}` : '';
+  const emailStr = companySettings.email ? `Email: ${companySettings.email}` : '';
 
-  const addressWidth = doc.getTextWidth(addressStr);
-  const phoneWidth = doc.getTextWidth(phoneStr);
-  const emailWidth = doc.getTextWidth(emailStr);
+  const addressWidth = addressStr ? doc.getTextWidth(addressStr) : 0;
+  const phoneWidth = phoneStr ? doc.getTextWidth(phoneStr) : 0;
+  const emailWidth = emailStr ? doc.getTextWidth(emailStr) : 0;
 
   const maxTextWidth = Math.max(companyNameWidth, addressWidth, phoneWidth, emailWidth);
 
@@ -166,13 +166,23 @@ export const generateUnifiedReport = async (config: ReportConfig): Promise<void>
   let headerY = 22;
   const lineHeight = 5;
 
-  doc.text(addressStr, pageWidth - margin, headerY, { align: 'right' });
-  headerY += lineHeight;
+  if (addressStr) {
+    doc.text(addressStr, pageWidth - margin, headerY, { align: 'right' });
+    headerY += lineHeight;
+  }
 
-  doc.text(phoneStr, pageWidth - margin, headerY, { align: 'right' });
-  headerY += lineHeight;
+  if (phoneStr) {
+    doc.text(phoneStr, pageWidth - margin, headerY, { align: 'right' });
+    headerY += lineHeight;
+  }
 
-  doc.text(emailStr, pageWidth - margin, headerY, { align: 'right' });
+  if (emailStr) {
+    doc.text(emailStr, pageWidth - margin, headerY, { align: 'right' });
+    headerY += lineHeight;
+  }
+
+  // Step back one line since we always add lineHeight after each, adjust for separator
+  if (addressStr || phoneStr || emailStr) headerY -= lineHeight;
 
   // Draw a professional separator line — positioned just below the last contact info line
   const separatorY = headerY + 8;
