@@ -144,7 +144,7 @@ const Index = () => {
   // Analytics State
   const [selectedSiteForAnalytics, setSelectedSiteForAnalytics] = useState<Site | null>(null);
   const [analyticsTab, setAnalyticsTab] = useState<'equipment' | 'consumables'>('equipment');
-  const [selectedAssetForDetails, setSelectedAssetForDetails] = useState<{ site: Site, asset: Asset, initialTab?: string } | null>(null);
+  const [selectedAssetForDetails, setSelectedAssetForDetails] = useState<{ site: Site, asset: Asset, initialTab?: string, readOnly?: boolean, selectedDate?: Date } | null>(null);
   // Use AppData Context to avoid redundant fetching
   const {
     employees, setEmployees,
@@ -1226,8 +1226,13 @@ const Index = () => {
     setActiveTab('site-analytics'); // Ensure activeTab is also set
   };
 
-  const handleViewAssetDetails = (site: Site, asset: Asset, initialTab?: string) => {
-    setSelectedAssetForDetails({ site, asset, initialTab });
+  const handleViewAssetDetails = (
+    site: Site,
+    asset: Asset,
+    initialTab?: string,
+    options?: { readOnly?: boolean; selectedDate?: Date }
+  ) => {
+    setSelectedAssetForDetails({ site, asset, initialTab, readOnly: options?.readOnly, selectedDate: options?.selectedDate });
     setCurrentView('site-asset-details');
     setActiveTab('site-asset-details'); // Ensure activeTab is also set
   };
@@ -2710,8 +2715,16 @@ const Index = () => {
             onViewAnalyticsEquipment={() => handleViewAnalytics(selectedSiteForInventory, 'equipment')}
             onViewAnalyticsConsumables={() => handleViewAnalytics(selectedSiteForInventory, 'consumables')}
             onViewAssetDetails={(asset) => handleViewAssetDetails(selectedSiteForInventory, asset)}
-            onViewAssetHistory={(asset) => handleViewAssetDetails(selectedSiteForInventory, asset, 'history')}
+            onViewAssetHistory={(asset, options) => handleViewAssetDetails(selectedSiteForInventory, asset, 'history', options)}
             onViewAssetAnalytics={(asset) => handleViewAssetDetails(selectedSiteForInventory, asset, 'analytics')}
+            onSetMachineStartDate={async (asset, startDate) => {
+              const updatedAsset = { ...asset, deploymentDate: startDate, updatedAt: new Date() };
+              await dataService.assets.updateAsset(asset.id, updatedAsset);
+              setAssets((prev) => prev.map((a) => (a.id === asset.id ? updatedAsset : a)));
+              if (selectedAssetForDetails?.asset.id === asset.id) {
+                setSelectedAssetForDetails((prev) => prev ? { ...prev, asset: updatedAsset } : prev);
+              }
+            }}
           />
         ) : null;
 
@@ -2741,6 +2754,8 @@ const Index = () => {
           <SiteAssetDetailsPage
             site={selectedAssetForDetails.site}
             initialTab={selectedAssetForDetails.initialTab}
+            initialSelectedDate={selectedAssetForDetails.selectedDate}
+            isReadOnly={selectedAssetForDetails.readOnly}
             asset={selectedAssetForDetails.asset}
             equipmentLogs={equipmentLogs}
             consumableLogs={consumableLogs}

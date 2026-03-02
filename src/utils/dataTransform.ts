@@ -212,11 +212,22 @@ export function transformEquipmentLogFromDB(dbLog: any): any {
  * Transform equipment log from frontend format to database format
  */
 export function transformEquipmentLogToDB(log: any): any {
+  const rawDate = log.date instanceof Date ? log.date : new Date(log.date);
+  const normalizedDate = new Date(Date.UTC(
+    rawDate.getFullYear(),
+    rawDate.getMonth(),
+    rawDate.getDate(),
+    12,
+    0,
+    0,
+    0
+  ));
+
   return {
     equipment_id: log.equipmentId,
     equipment_name: log.equipmentName,
     site_id: log.siteId,
-    date: log.date instanceof Date ? log.date.toISOString() : log.date,
+    date: normalizedDate.toISOString(),
     active: log.active,
     downtime_entries: JSON.stringify(log.downtimeEntries || []),
     maintenance_details: log.maintenanceDetails,

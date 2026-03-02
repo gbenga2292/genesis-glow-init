@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { SiteMachineAnalytics } from "@/components/sites/SiteMachineAnalytics";
 import { ConsumableAnalyticsView } from "@/components/sites/ConsumableAnalyticsView";
-import { ArrowLeft, Calendar as CalendarIcon, Save, Clock, AlertTriangle, FileText, Activity, Plus, CheckCircle, Zap } from "lucide-react";
+import { ArrowLeft, Calendar as CalendarIcon, Save, Clock, AlertTriangle, FileText, Activity, Plus, CheckCircle, Zap, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { createDefaultOperationalLog, applyDefaultTemplate, calculateDieselRefill, getDieselOverdueDays } from "@/utils/defaultLogTemplate";
 import { useToast } from "@/hooks/use-toast";
@@ -31,9 +31,12 @@ interface SiteAssetDetailsPageProps {
     onBack: () => void;
     onAddEquipmentLog: (log: EquipmentLog) => Promise<void> | void;
     onUpdateEquipmentLog: (log: EquipmentLog) => Promise<void> | void;
+    onDeleteEquipmentLog?: (logId: string) => Promise<void> | void;
     onAddConsumableLog: (log: ConsumableUsageLog) => Promise<void> | void;
     onUpdateConsumableLog: (log: ConsumableUsageLog) => Promise<void> | void;
     initialTab?: string;
+    initialSelectedDate?: Date;
+    isReadOnly?: boolean;
 }
 
 export const SiteAssetDetailsPage = ({
@@ -47,16 +50,19 @@ export const SiteAssetDetailsPage = ({
     onBack,
     onAddEquipmentLog,
     onUpdateEquipmentLog,
+    onDeleteEquipmentLog,
     onAddConsumableLog,
     onUpdateConsumableLog,
-    initialTab = "log-entry"
+    initialTab = "log-entry",
+    initialSelectedDate,
+    isReadOnly = false,
 }: SiteAssetDetailsPageProps) => {
     const { toast } = useToast();
     const isMobile = useIsMobile();
     const [isSaving, setIsSaving] = useState(false);
     const isEquipment = asset.type === 'equipment';
     const [activeTab, setActiveTab] = useState(initialTab);
-    const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+    const [selectedDate, setSelectedDate] = useState<Date | undefined>(initialSelectedDate || new Date());
 
     // Equipment Form State
     const [equipmentForm, setEquipmentForm] = useState<{
@@ -215,6 +221,10 @@ export const SiteAssetDetailsPage = ({
 
     const handleSaveEquipmentLog = async () => {
         if (!selectedDate) return;
+        if (isReadOnly) {
+            toast({ title: "Read-only", description: "This machine is in history mode; logs cannot be edited.", variant: "destructive" });
+            return;
+        }
 
         // Guard: prevent saving a log before the machine's arrival date
         if (arrivalDate) {
@@ -690,9 +700,9 @@ export const SiteAssetDetailsPage = ({
                                                 )}
 
                                                 <div className="pt-2">
-                                                    <Button onClick={handleSaveEquipmentLog} disabled={isSaving} className="w-full h-10">
+                                                    <Button onClick={handleSaveEquipmentLog} disabled={isSaving || isReadOnly} className="w-full h-10">
                                                         <Save className="h-4 w-4 mr-2" />
-                                                        {isSaving ? "Saving..." : "Save Log"}
+                                                        {isReadOnly ? "Read-only" : isSaving ? "Saving..." : "Save Log"}
                                                     </Button>
                                                 </div>
                                             </div>
@@ -788,7 +798,7 @@ export const SiteAssetDetailsPage = ({
                                                         setSelectedDate(new Date(log.date));
                                                         setActiveTab("log-entry");
                                                     }}>
-                                                        Edit
+                                                        {isReadOnly ? "View" : "Edit"}
                                                     </Button>
                                                 </div>
                                             ))}

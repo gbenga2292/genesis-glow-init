@@ -1078,7 +1078,7 @@ export const equipmentLogService = {
             .from('equipment_logs')
             .select('*')
             .order('date', { ascending: false })
-            .limit(100); // Reduced from 500 for faster initial load
+            .limit(1000);
 
         if (error) throw error;
         return (data || []).map(transformEquipmentLogFromDB);
@@ -1086,32 +1086,42 @@ export const equipmentLogService = {
 
     createEquipmentLog: async (log: Partial<EquipmentLog>): Promise<EquipmentLog> => {
         const dbLog = transformEquipmentLogToDB(log);
+        const baseDate = log.date instanceof Date ? log.date : new Date(log.date || new Date());
+        const dayStartUtc = new Date(Date.UTC(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 0, 0, 0, 0)).toISOString();
+        const dayEndUtc = new Date(Date.UTC(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() + 1, 0, 0, 0, 0)).toISOString();
 
-        // Use upsert on the natural unique key (equipment_id, site_id, date::date).
-        // If a row already exists for that machine+site+day it gets updated in-place
-        // instead of creating a duplicate. This is the application-level safeguard;
-        // the DB-level unique index (migration 20260225) enforces the same rule.
+        const { data: existingLogs, error: existingError } = await supabase
+            .from('equipment_logs')
+            .select('id')
+            .eq('equipment_id', dbLog.equipment_id)
+            .eq('site_id', dbLog.site_id)
+            .gte('date', dayStartUtc)
+            .lt('date', dayEndUtc)
+            .order('updated_at', { ascending: false })
+            .limit(1);
+
+        if (existingError) throw existingError;
+
+        if (existingLogs && existingLogs.length > 0) {
+            const existingId = existingLogs[0].id;
+            const { data, error } = await supabase
+                .from('equipment_logs')
+                .update({ ...dbLog, updated_at: new Date().toISOString() })
+                .eq('id', existingId)
+                .select()
+                .single();
+
+            if (error) throw error;
+            return transformEquipmentLogFromDB(data);
+        }
+
         const { data, error } = await supabase
             .from('equipment_logs')
-            .upsert(dbLog, {
-                onConflict: 'equipment_id,site_id,date',
-                ignoreDuplicates: false, // always overwrite with the latest data
-            })
+            .insert(dbLog)
             .select()
             .single();
 
-        if (error) {
-            // Fallback: if upsert fails (e.g. unique index not yet applied),
-            // try a plain insert — this preserves backwards compatibility.
-            console.warn('Upsert failed, falling back to insert:', error.message);
-            const { data: insertData, error: insertError } = await supabase
-                .from('equipment_logs')
-                .insert(dbLog)
-                .select()
-                .single();
-            if (insertError) throw insertError;
-            return transformEquipmentLogFromDB(insertData);
-        }
+        if (error) throw error;
         return transformEquipmentLogFromDB(data);
     },
 
@@ -1165,12 +1175,12 @@ export const equipmentLogService = {
         return { removed: toDelete.length, kept: allLogs.length - toDelete.length };
     },
 
-    updateEquipmentLog: async (id: number, log: Partial<EquipmentLog>): Promise<EquipmentLog> => {
+    updateEquipmentLog: async (id: number | string, log: Partial<EquipmentLog>): Promise<EquipmentLog> => {
         const dbLog = transformEquipmentLogToDB(log);
         const { data, error } = await supabase
             .from('equipment_logs')
             .update({ ...dbLog, updated_at: new Date().toISOString() })
-            .eq('id', id)
+            .eq('id', Number(id))
             .select()
             .single();
 
@@ -1178,11 +1188,11 @@ export const equipmentLogService = {
         return transformEquipmentLogFromDB(data);
     },
 
-    deleteEquipmentLog: async (id: number): Promise<void> => {
+    deleteEquipmentLog: async (id: number | string): Promise<void> => {
         const { error } = await supabase
             .from('equipment_logs')
             .delete()
-            .eq('id', id);
+            .eq('id', Number(id));
 
         if (error) throw error;
     }
