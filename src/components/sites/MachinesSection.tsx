@@ -47,6 +47,7 @@ export const MachinesSection = ({
   onViewAssetHistory,
   onViewAssetAnalytics,
   onSetMachineStartDate,
+  showAdminControls = true,
 }: MachinesSectionProps) => {
   const { toast } = useToast();
   const [showBulkLogDialog, setShowBulkLogDialog] = useState(false);
@@ -55,7 +56,7 @@ export const MachinesSection = ({
   const [showStartDateDialog, setShowStartDateDialog] = useState(false);
   const [selectedMachineForDate, setSelectedMachineForDate] = useState<Asset | null>(null);
 
-  const isAdmin = currentUser?.role === 'admin';
+  const isAdmin = currentUser?.role === 'admin' && showAdminControls;
 
   const siteId = String(site.id);
 
