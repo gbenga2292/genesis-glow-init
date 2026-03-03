@@ -441,7 +441,7 @@ export const SiteAssetDetailsPage = ({
                 <Button
                     variant="outline"
                     size="icon"
-                    onClick={onBack}
+                    onClick={onBack || (() => window.history.back())}
                     className="shrink-0 h-9 w-9 sm:h-10 sm:w-10"
                     aria-label="Go back"
                 >
