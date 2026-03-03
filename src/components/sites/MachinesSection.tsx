@@ -28,6 +28,8 @@ interface MachinesSectionProps {
   onViewAssetHistory?: (asset: Asset, options?: { readOnly?: boolean; selectedDate?: Date }) => void;
   onViewAssetAnalytics?: (asset: Asset) => void;
   onSetMachineStartDate?: (asset: Asset, startDate: Date) => Promise<void> | void;
+  /** When false, hides admin-only controls (edit start date, machine history) regardless of role */
+  showAdminControls?: boolean;
 }
 
 export const MachinesSection = ({
