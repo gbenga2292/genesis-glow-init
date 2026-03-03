@@ -44,44 +44,63 @@ export const SiteWorkerDashboard = ({ onExit, isSimulated }: SiteWorkerDashboard
   const [waybills, setWaybills] = useState<any[]>([]);
   const [consumableLogs, setConsumableLogs] = useState<ConsumableUsageLog[]>([]);
 
+  const loadData = async () => {
+    try {
+      const [loadedAssets, loadedWaybills, loadedConsumableLogs] = await Promise.all([
+        dataService.assets.getAssets(),
+        dataService.waybills.getWaybills(),
+        dataService.consumableLogs.getConsumableLogs(),
+      ]);
+      setAssets(
+        loadedAssets.map((item: any) => ({
+          ...item,
+          createdAt: new Date(item.createdAt),
+          updatedAt: new Date(item.updatedAt),
+          siteQuantities:
+            typeof item.siteQuantities === "string"
+              ? JSON.parse(item.siteQuantities)
+              : item.siteQuantities || {},
+        }))
+      );
+      setWaybills(
+        loadedWaybills.map((item: any) => ({
+          ...item,
+          issueDate: new Date(item.issueDate),
+          createdAt: new Date(item.createdAt),
+        }))
+      );
+      setConsumableLogs(
+        loadedConsumableLogs.map((item: any) => ({
+          ...item,
+          date: new Date(item.date),
+          createdAt: new Date(item.createdAt),
+        }))
+      );
+    } catch (error) {
+      console.error("Failed to load dashboard data", error);
+    }
+  };
+
+  // Load on mount
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const [loadedAssets, loadedWaybills, loadedConsumableLogs] = await Promise.all([
-          dataService.assets.getAssets(),
-          dataService.waybills.getWaybills(),
-          dataService.consumableLogs.getConsumableLogs(),
-        ]);
-        setAssets(
-          loadedAssets.map((item: any) => ({
-            ...item,
-            createdAt: new Date(item.createdAt),
-            updatedAt: new Date(item.updatedAt),
-            siteQuantities:
-              typeof item.siteQuantities === "string"
-                ? JSON.parse(item.siteQuantities)
-                : item.siteQuantities || {},
-          }))
-        );
-        setWaybills(
-          loadedWaybills.map((item: any) => ({
-            ...item,
-            issueDate: new Date(item.issueDate),
-            createdAt: new Date(item.createdAt),
-          }))
-        );
-        setConsumableLogs(
-          loadedConsumableLogs.map((item: any) => ({
-            ...item,
-            date: new Date(item.date),
-            createdAt: new Date(item.createdAt),
-          }))
-        );
-      } catch (error) {
-        console.error("Failed to load dashboard data", error);
+    loadData();
+  }, []);
+
+  // Re-sync data when tab/window regains focus (picks up admin changes like start date overrides)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadData();
       }
     };
-    loadData();
+    const handleFocus = () => loadData();
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
   const [view, setView] = useState<ViewType>("dashboard");
