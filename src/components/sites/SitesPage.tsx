@@ -41,6 +41,7 @@ interface SitesPageProps {
   siteInventory: SiteInventoryItem[];
   getSiteInventory: (siteId: string) => SiteInventoryItem[];
   companySettings?: CompanySettings;
+  currentUser?: { role: string; name: string; avatar?: string; id?: string; username?: string } | null | undefined;
   onAddSite: (site: Site) => void;
   onUpdateSite: (site: Site) => void;
   onDeleteSite: (siteId: string) => void;
@@ -65,11 +66,17 @@ interface SitesPageProps {
   onAddConsumableLog: (log: ConsumableUsageLog) => void;
   onUpdateConsumableLog: (log: ConsumableUsageLog) => void;
   onViewSiteInventory?: (site: Site) => void;
+
   onViewAssetHistory?: (site: Site, asset: Asset) => void;
+
   onViewAssetDetails?: (site: Site, asset: Asset) => void;
+
   onViewAssetAnalytics?: (site: Site, asset: Asset) => void;
 
+  onSetMachineStartDate?: (asset: Asset, startDate: Date) => Promise<void> | void;
+
 }
+
 
 const defaultCompanySettings: CompanySettings = {
   companyName: "Dewatering Construction Etc Limited",
@@ -207,6 +214,7 @@ interface SiteItemsDialogProps {
   employees: Employee[];
   companySettings?: CompanySettings;
   getSiteInventory: (siteId: string) => SiteInventoryItem[];
+  currentUser?: { role: string; name: string; avatar?: string; id?: string; username?: string } | null | undefined;
   onClose: () => void;
   onCreateReturnWaybill: () => void;
   onShowTransactions: () => void;
@@ -219,14 +227,15 @@ interface SiteItemsDialogProps {
   onViewAssetHistory: (asset: Asset) => void;
   onViewAssetDetails?: (asset: Asset) => void;
   onViewAssetAnalytics?: (asset: Asset) => void;
+  onSetMachineStartDate?: (asset: Asset, startDate: Date) => Promise<void> | void;
 }
 
 const SiteItemsDialog: React.FC<SiteItemsDialogProps> = ({
   selectedSite, assets, waybills, equipmentLogs, consumableLogs, employees,
-  companySettings, getSiteInventory, onClose, onCreateReturnWaybill,
+  companySettings, getSiteInventory, currentUser, onClose, onCreateReturnWaybill,
   onShowTransactions, onGenerateReport, onViewWaybill,
   onAddEquipmentLog, onUpdateEquipmentLog, onAddConsumableLog, onUpdateConsumableLog,
-  onViewAssetHistory, onViewAssetDetails, onViewAssetAnalytics
+  onViewAssetHistory, onViewAssetDetails, onViewAssetAnalytics, onSetMachineStartDate
 }) => {
   const [activeTab, setActiveTab] = useState<'materials' | 'machines' | 'consumables' | 'waybills'>('materials');
   const materialsAtSite = getSiteInventory(selectedSite.id);
@@ -369,6 +378,8 @@ const SiteItemsDialog: React.FC<SiteItemsDialogProps> = ({
               onViewAssetHistory={onViewAssetHistory}
               onViewAssetDetails={onViewAssetDetails}
               onViewAssetAnalytics={onViewAssetAnalytics}
+              onSetMachineStartDate={onSetMachineStartDate}
+              currentUser={currentUser}
             />
           )}
 
@@ -439,7 +450,8 @@ const SiteItemsDialog: React.FC<SiteItemsDialogProps> = ({
 
 // ── SitesPage ────────────────────────────────────────────────────────────────
 
-export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transactions, equipmentLogs, consumableLogs, siteInventory, getSiteInventory, companySettings, onAddSite, onUpdateSite, onDeleteSite, onUpdateAsset, onCreateWaybill, onCreateReturnWaybill, onProcessReturn, onAddEquipmentLog, onUpdateEquipmentLog, onAddConsumableLog, onUpdateConsumableLog, onViewSiteInventory, onViewAssetHistory, onViewAssetDetails, onViewAssetAnalytics }: SitesPageProps) => {
+
+export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transactions, equipmentLogs, consumableLogs, siteInventory, getSiteInventory, companySettings, currentUser, onAddSite, onUpdateSite, onDeleteSite, onUpdateAsset, onCreateWaybill, onCreateReturnWaybill, onProcessReturn, onAddEquipmentLog, onUpdateEquipmentLog, onAddConsumableLog, onUpdateConsumableLog, onViewSiteInventory, onViewAssetHistory, onViewAssetDetails, onViewAssetAnalytics, onSetMachineStartDate }: SitesPageProps) => {
   // Merge provided companySettings with defaults, only using non-empty values from database
   const effectiveCompanySettings: CompanySettings = {
     ...defaultCompanySettings,
@@ -883,8 +895,13 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
           consumableLogs={consumableLogs}
           employees={employees}
           companySettings={companySettings}
+
           getSiteInventory={getSiteInventory}
+
+          currentUser={currentUser}
+
           onClose={() => setShowItemsModal(false)}
+
           onCreateReturnWaybill={() => handleCreateReturnWaybill(selectedSite)}
           onShowTransactions={() => handleShowTransactions(selectedSite)}
           onGenerateReport={() => handleGenerateReport(selectedSite)}
@@ -896,6 +913,7 @@ export const SitesPage = ({ sites, assets, waybills, employees, vehicles, transa
           onViewAssetHistory={(asset) => onViewAssetHistory ? onViewAssetHistory(selectedSite, asset) : navigate(`/asset/${asset.id}/history`)}
           onViewAssetDetails={(asset) => onViewAssetDetails?.(selectedSite, asset)}
           onViewAssetAnalytics={(asset) => onViewAssetAnalytics?.(selectedSite, asset)}
+          onSetMachineStartDate={onSetMachineStartDate}
         />
       )}
 

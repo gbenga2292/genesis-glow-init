@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Site, Asset, Employee, Waybill, CompanySettings } from "@/types/asset";
 import { EquipmentLog, DowntimeEntry } from "@/types/equipment";
 import { ConsumableUsageLog } from "@/types/consumable";
@@ -11,9 +11,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { SiteMachineAnalytics } from "@/components/sites/SiteMachineAnalytics";
 import { ConsumableAnalyticsView } from "@/components/sites/ConsumableAnalyticsView";
-import { ArrowLeft, Calendar as CalendarIcon, Save, Clock, AlertTriangle, FileText, Activity, Plus, CheckCircle, Zap, Trash2 } from "lucide-react";
+import { ArrowLeft, Calendar as CalendarIcon, Save, Clock, AlertTriangle, FileText, Activity, Plus, CheckCircle, Zap, Trash2, Settings, History } from "lucide-react";
 import { format } from "date-fns";
 import { createDefaultOperationalLog, applyDefaultTemplate, calculateDieselRefill, getDieselOverdueDays } from "@/utils/defaultLogTemplate";
 import { useToast } from "@/hooks/use-toast";
@@ -28,12 +29,14 @@ interface SiteAssetDetailsPageProps {
     waybills: Waybill[];
     employees: Employee[];
     companySettings?: CompanySettings;
+    currentUser?: { role: string; name: string; avatar?: string; id?: string; username?: string } | null;
     onBack: () => void;
     onAddEquipmentLog: (log: EquipmentLog) => Promise<void> | void;
     onUpdateEquipmentLog: (log: EquipmentLog) => Promise<void> | void;
     onDeleteEquipmentLog?: (logId: string) => Promise<void> | void;
     onAddConsumableLog: (log: ConsumableUsageLog) => Promise<void> | void;
     onUpdateConsumableLog: (log: ConsumableUsageLog) => Promise<void> | void;
+    onSetMachineStartDate?: (asset: Asset, startDate: Date) => Promise<void> | void;
     initialTab?: string;
     initialSelectedDate?: Date;
     isReadOnly?: boolean;
@@ -47,12 +50,14 @@ export const SiteAssetDetailsPage = ({
     waybills,
     employees,
     companySettings,
+    currentUser,
     onBack,
     onAddEquipmentLog,
     onUpdateEquipmentLog,
     onDeleteEquipmentLog,
     onAddConsumableLog,
     onUpdateConsumableLog,
+    onSetMachineStartDate,
     initialTab = "log-entry",
     initialSelectedDate,
     isReadOnly = false,
@@ -63,6 +68,63 @@ export const SiteAssetDetailsPage = ({
     const isEquipment = asset.type === 'equipment';
     const [activeTab, setActiveTab] = useState(initialTab);
     const [selectedDate, setSelectedDate] = useState<Date | undefined>(initialSelectedDate || new Date());
+    
+    // Deployment date dialog state
+    const [showDeploymentDateDialog, setShowDeploymentDateDialog] = useState(false);
+    const [deploymentDateDraft, setDeploymentDateDraft] = useState<string>("");
+    const [isSavingDeploymentDate, setIsSavingDeploymentDate] = useState(false);
+    
+    // History tab state (active vs returned)
+    const [historyTab, setHistoryTab] = useState<'active' | 'returned'>('active');
+    
+    const isAdmin = currentUser?.role === 'admin';
+
+    // Helper to convert Date to input value (YYYY-MM-DD)
+    const toDateInputValue = (date?: Date | null) => {
+        if (!date) return "";
+        const d = new Date(date);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+    };
+
+    // Get the machine start/deployment date
+    const getMachineStartDate = () => {
+        if (asset.deploymentDate) return new Date(asset.deploymentDate);
+        return null;
+    };
+
+    // Open dialog to edit deployment date
+    const handleOpenDeploymentDateDialog = () => {
+        setDeploymentDateDraft(toDateInputValue(getMachineStartDate()));
+        setShowDeploymentDateDialog(true);
+    };
+
+    // Save deployment date
+    const handleSaveDeploymentDate = async () => {
+        if (!onSetMachineStartDate || !deploymentDateDraft) {
+            toast({ title: "Missing date", description: "Select a deployment date first.", variant: "destructive" });
+            return;
+        }
+
+        const parsed = new Date(`${deploymentDateDraft}T00:00:00`);
+        if (isNaN(parsed.getTime())) {
+            toast({ title: "Invalid date", description: "Please choose a valid date.", variant: "destructive" });
+            return;
+        }
+
+        try {
+            setIsSavingDeploymentDate(true);
+            await onSetMachineStartDate(asset, parsed);
+            toast({ title: "Deployment date saved", description: `${asset.name} deployment date updated.` });
+            setShowDeploymentDateDialog(false);
+        } catch (error) {
+            toast({ title: "Error", description: "Failed to save deployment date.", variant: "destructive" });
+        } finally {
+            setIsSavingDeploymentDate(false);
+        }
+    };
 
     // Equipment Form State
     const [equipmentForm, setEquipmentForm] = useState<{
@@ -297,9 +359,6 @@ export const SiteAssetDetailsPage = ({
         }
 
         const currentQty = asset.siteQuantities?.[site.id] || 0;
-        // Note: If updating, we should account for previous usage?
-        // Logic in ConsumablesSection checks against currentQty.
-        // If updating, we might allow if diff is valid. Simpler to just warn.
 
         const existingLog = consumableLogs.find(log =>
             log.consumableId === asset.id &&
@@ -314,7 +373,7 @@ export const SiteAssetDetailsPage = ({
             siteId: site.id,
             date: selectedDate,
             quantityUsed: quantityUsed,
-            quantityRemaining: currentQty - quantityUsed, // This might be inaccurate if multiple logs exist? Logic in Section was simple subtraction.
+            quantityRemaining: currentQty - quantityUsed,
             unit: asset.unitOfMeasurement,
             usedFor: consumableForm.usedFor,
             usedBy: consumableForm.usedBy,
@@ -340,11 +399,7 @@ export const SiteAssetDetailsPage = ({
     // Arrival date for this asset at this site (used to restrict calendar & filter history)
     const arrivalDate = isEquipment ? getEquipmentArrivalDate(asset.id) : null;
 
-    // Clamp selectedDate: if it falls before arrival, reset to arrival date
-    // (handled via fromDate prop on Calendar — we just guard on save)
-
-    // Filter logs for this asset+site, then deduplicate by date — keep the most recently-updated
-    // entry per date (older duplicates caused by the pre-fix transform bug are hidden this way)
+    // Filter logs for this asset+site
     const rawLogs = isEquipment
         ? equipmentLogs.filter(l => String(l.equipmentId) === String(asset.id) && String(l.siteId) === String(site.id))
         : consumableLogs.filter(l => String(l.consumableId) === String(asset.id) && String(l.siteId) === String(site.id));
@@ -376,6 +431,9 @@ export const SiteAssetDetailsPage = ({
         { value: 'analytics', label: 'Analytics' }
     ];
 
+    // Filter tabs for mobile - hide history tab if read-only
+    const visibleTabs = isReadOnly ? tabs.filter(t => t.value !== 'history') : tabs;
+
     return (
         <div className="flex flex-col h-full bg-background animate-fade-in">
             {/* Header - Mobile responsive */}
@@ -399,6 +457,17 @@ export const SiteAssetDetailsPage = ({
                     <p className="text-xs sm:text-sm text-muted-foreground truncate">
                         {site.name} • {asset.status || 'Active'}
                     </p>
+                    {isAdmin && isEquipment && onSetMachineStartDate && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleOpenDeploymentDateDialog}
+                            className="ml-2 shrink-0 h-8 text-xs gap-1.5"
+                        >
+                            <CalendarIcon className="h-3.5 w-3.5" />
+                            Set Deployment Date
+                        </Button>
+                    )}
                 </div>
             </div>
 
@@ -411,7 +480,7 @@ export const SiteAssetDetailsPage = ({
                                 <SelectValue placeholder="Select view" />
                             </SelectTrigger>
                             <SelectContent>
-                                {tabs.map(tab => (
+                                {visibleTabs.map(tab => (
                                     <SelectItem key={tab.value} value={tab.value}>
                                         {tab.label}
                                     </SelectItem>
@@ -421,7 +490,7 @@ export const SiteAssetDetailsPage = ({
                     ) : (
                         <TabsList>
                             <TabsTrigger value="log-entry">Log Entry</TabsTrigger>
-                            <TabsTrigger value="history">History / Logs</TabsTrigger>
+                            {!isReadOnly && <TabsTrigger value="history">History / Logs</TabsTrigger>}
                             <TabsTrigger value="analytics">Analytics</TabsTrigger>
                         </TabsList>
                     )}
@@ -495,7 +564,7 @@ export const SiteAssetDetailsPage = ({
                                                     {isEquipment ? 'Daily Equipment Log' : 'Consumable Usage Log'}
                                                 </CardDescription>
                                             </div>
-                                            {isEquipment && (
+                                            {isEquipment && !isReadOnly && (
                                                 <Button
                                                     type="button"
                                                     variant="outline"
@@ -511,7 +580,7 @@ export const SiteAssetDetailsPage = ({
                                     </CardHeader>
                                     <CardContent className="p-3 sm:p-6 pt-0 space-y-3 sm:space-y-4">
                                         {isEquipment ? (
-                                            /* Equipment Form — matches Quick Log field set */
+                                            /* Equipment Form */
                                             <div className="space-y-4">
                                                 {/* Machine Active */}
                                                 <div className="flex items-center space-x-3 p-3 bg-muted/30 rounded-lg">
@@ -519,6 +588,7 @@ export const SiteAssetDetailsPage = ({
                                                         id="site-active"
                                                         checked={equipmentForm.active}
                                                         onCheckedChange={(checked) => setEquipmentForm({ ...equipmentForm, active: checked as boolean })}
+                                                        disabled={isReadOnly}
                                                     />
                                                     <Label htmlFor="site-active" className="text-sm font-medium cursor-pointer">Machine Active</Label>
                                                 </div>
@@ -529,19 +599,21 @@ export const SiteAssetDetailsPage = ({
                                                         <div className="space-y-3">
                                                             <div className="flex items-center justify-between">
                                                                 <Label className="text-sm font-medium">Downtime Entries</Label>
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    onClick={() => setEquipmentForm({
-                                                                        ...equipmentForm,
-                                                                        downtimeEntries: [...equipmentForm.downtimeEntries, { id: Date.now().toString(), downtime: "", downtimeReason: "", downtimeAction: "", uptime: "" }]
-                                                                    })}
-                                                                    className="h-8 text-xs"
-                                                                >
-                                                                    <Plus className="h-3.5 w-3.5 mr-1" />
-                                                                    Add
-                                                                </Button>
+                                                                {!isReadOnly && (
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        onClick={() => setEquipmentForm({
+                                                                            ...equipmentForm,
+                                                                            downtimeEntries: [...equipmentForm.downtimeEntries, { id: Date.now().toString(), downtime: "", downtimeReason: "", downtimeAction: "", uptime: "" }]
+                                                                        })}
+                                                                        className="h-8 text-xs"
+                                                                    >
+                                                                        <Plus className="h-3.5 w-3.5 mr-1" />
+                                                                        Add
+                                                                    </Button>
+                                                                )}
                                                             </div>
 
                                                             {equipmentForm.downtimeEntries.map((entry, index) => (
@@ -549,7 +621,7 @@ export const SiteAssetDetailsPage = ({
                                                                     <CardContent className="p-3 space-y-3">
                                                                         <div className="flex items-center justify-between">
                                                                             <span className="text-xs font-medium text-muted-foreground">Entry {index + 1}</span>
-                                                                            {equipmentForm.downtimeEntries.length > 1 && (
+                                                                            {equipmentForm.downtimeEntries.length > 1 && !isReadOnly && (
                                                                                 <Button
                                                                                     type="button"
                                                                                     variant="ghost"
@@ -576,6 +648,7 @@ export const SiteAssetDetailsPage = ({
                                                                                     }}
                                                                                     placeholder="14:30"
                                                                                     className="h-9 text-sm"
+                                                                                    disabled={isReadOnly}
                                                                                 />
                                                                             </div>
                                                                             <div className="space-y-1">
@@ -589,6 +662,7 @@ export const SiteAssetDetailsPage = ({
                                                                                     }}
                                                                                     placeholder="16:00"
                                                                                     className="h-9 text-sm"
+                                                                                    disabled={isReadOnly}
                                                                                 />
                                                                             </div>
                                                                         </div>
@@ -603,6 +677,7 @@ export const SiteAssetDetailsPage = ({
                                                                                 }}
                                                                                 placeholder="Reason for downtime"
                                                                                 className="h-9 text-sm"
+                                                                                disabled={isReadOnly}
                                                                             />
                                                                         </div>
                                                                         <div className="space-y-1">
@@ -617,6 +692,7 @@ export const SiteAssetDetailsPage = ({
                                                                                 placeholder="Actions taken"
                                                                                 rows={2}
                                                                                 className="text-sm resize-none"
+                                                                                disabled={isReadOnly}
                                                                             />
                                                                         </div>
                                                                     </CardContent>
@@ -634,6 +710,7 @@ export const SiteAssetDetailsPage = ({
                                                                     onChange={e => setEquipmentForm({ ...equipmentForm, dieselEntered: e.target.value })}
                                                                     placeholder="0.0"
                                                                     className="h-9"
+                                                                    disabled={isReadOnly}
                                                                 />
                                                                 {(() => {
                                                                     const overdueDays = getDieselOverdueDays(equipmentLogs, asset.id);
@@ -650,6 +727,7 @@ export const SiteAssetDetailsPage = ({
                                                                 <Select
                                                                     value={equipmentForm.supervisorOnSite}
                                                                     onValueChange={v => setEquipmentForm({ ...equipmentForm, supervisorOnSite: v })}
+                                                                    disabled={isReadOnly}
                                                                 >
                                                                     <SelectTrigger className="h-9">
                                                                         <SelectValue placeholder="Select..." />
@@ -670,6 +748,7 @@ export const SiteAssetDetailsPage = ({
                                                                 placeholder="Maintenance performed"
                                                                 rows={2}
                                                                 className="text-sm resize-none"
+                                                                disabled={isReadOnly}
                                                             />
                                                         </div>
 
@@ -682,6 +761,7 @@ export const SiteAssetDetailsPage = ({
                                                                 placeholder="Client comments"
                                                                 rows={2}
                                                                 className="text-sm resize-none"
+                                                                disabled={isReadOnly}
                                                             />
                                                         </div>
 
@@ -694,6 +774,7 @@ export const SiteAssetDetailsPage = ({
                                                                 placeholder="Any issues encountered"
                                                                 rows={2}
                                                                 className="text-sm resize-none"
+                                                                disabled={isReadOnly}
                                                             />
                                                         </div>
                                                     </div>
@@ -718,6 +799,7 @@ export const SiteAssetDetailsPage = ({
                                                             onChange={e => setConsumableForm({ ...consumableForm, quantityUsed: e.target.value })}
                                                             placeholder="0.00"
                                                             className="h-9"
+                                                            disabled={isReadOnly}
                                                         />
                                                         <p className="text-xs text-muted-foreground">
                                                             Available: {asset.siteQuantities?.[site.id] || 0} {asset.unitOfMeasurement}
@@ -728,6 +810,7 @@ export const SiteAssetDetailsPage = ({
                                                         <Select
                                                             value={consumableForm.usedBy}
                                                             onValueChange={v => setConsumableForm({ ...consumableForm, usedBy: v })}
+                                                            disabled={isReadOnly}
                                                         >
                                                             <SelectTrigger className="h-9">
                                                                 <SelectValue placeholder="Select..." />
@@ -745,6 +828,7 @@ export const SiteAssetDetailsPage = ({
                                                         onChange={e => setConsumableForm({ ...consumableForm, usedFor: e.target.value })}
                                                         placeholder="Task description..."
                                                         className="h-9"
+                                                        disabled={isReadOnly}
                                                     />
                                                 </div>
                                                 <div className="space-y-1.5">
@@ -755,12 +839,13 @@ export const SiteAssetDetailsPage = ({
                                                         placeholder="Additional notes..."
                                                         rows={2}
                                                         className="text-sm"
+                                                        disabled={isReadOnly}
                                                     />
                                                 </div>
                                                 <div className="pt-3 sm:pt-4">
-                                                    <Button onClick={handleSaveConsumableLog} className="w-full h-10">
+                                                    <Button onClick={handleSaveConsumableLog} disabled={isReadOnly} className="w-full h-10">
                                                         <Save className="h-4 w-4 mr-2" />
-                                                        Save Usage
+                                                        {isReadOnly ? "Read-only" : "Save Usage"}
                                                     </Button>
                                                 </div>
                                             </div>
@@ -827,6 +912,37 @@ export const SiteAssetDetailsPage = ({
                     </TabsContent>
                 </Tabs>
             </div>
+
+            {/* Deployment Date Dialog */}
+            <Dialog open={showDeploymentDateDialog} onOpenChange={setShowDeploymentDateDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Set Deployment Date</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="deployment-date">Deployment Date</Label>
+                            <Input
+                                id="deployment-date"
+                                type="date"
+                                value={deploymentDateDraft}
+                                onChange={(e) => setDeploymentDateDraft(e.target.value)}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Current: {getMachineStartDate() ? format(getMachineStartDate()!, 'PPP') : 'Not set'}
+                            </p>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowDeploymentDateDialog(false)}>
+                            Cancel
+                        </Button>
+                        <Button onClick={handleSaveDeploymentDate} disabled={isSavingDeploymentDate}>
+                            {isSavingDeploymentDate ? 'Saving...' : 'Save'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };

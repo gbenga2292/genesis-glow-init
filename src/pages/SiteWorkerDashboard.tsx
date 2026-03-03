@@ -175,6 +175,7 @@ export const SiteWorkerDashboard = ({ onExit, isSimulated }: SiteWorkerDashboard
         consumableLogs={consumableLogs}
         waybills={waybills}
         employees={employees}
+        currentUser={currentUser}
         onBack={handleBackToDashboard}
         onAddEquipmentLog={handleAddEquipmentLog}
         onUpdateEquipmentLog={handleUpdateEquipmentLog}
@@ -182,6 +183,7 @@ export const SiteWorkerDashboard = ({ onExit, isSimulated }: SiteWorkerDashboard
         onUpdateConsumableLog={handleUpdateConsumableLog}
         initialTab={selectedAssetForDetails.initialTab}
         companySettings={companySettings}
+        isReadOnly={true}
       />
     );
   }
@@ -406,6 +408,7 @@ export const SiteWorkerDashboard = ({ onExit, isSimulated }: SiteWorkerDashboard
                           equipmentLogs={equipmentLogs}
                           employees={employees}
                           waybills={waybills}
+                          currentUser={currentUser}
                           onAddEquipmentLog={handleAddEquipmentLog}
                           onUpdateEquipmentLog={handleUpdateEquipmentLog}
                           onViewAssetDetails={(asset) => handleViewAssetDetails(site, asset)}

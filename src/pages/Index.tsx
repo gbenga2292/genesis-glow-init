@@ -2365,7 +2365,20 @@ const Index = () => {
             }}
             onViewAssetHistory={(site, asset) => handleViewAssetDetails(site, asset, 'history')}
             onViewAssetDetails={(site, asset) => handleViewAssetDetails(site, asset)}
-            onViewAssetAnalytics={(site, asset) => handleViewAssetDetails(site, asset, 'analytics')}
+onViewAssetAnalytics={(site, asset) => handleViewAssetDetails(site, asset, 'analytics')}
+            onSetMachineStartDate={async (asset, startDate) => {
+              if (!isAuthenticated) {
+                toast({
+                  title: "Authentication Required",
+                  description: "Please login to update deployment date",
+                  variant: "destructive"
+                });
+                return;
+              }
+              const updatedAsset = { ...asset, deploymentDate: startDate, updatedAt: new Date() };
+              await dataService.assets.updateAsset(asset.id, updatedAsset);
+              setAssets((prev) => prev.map((a) => (a.id === asset.id ? updatedAsset : a)));
+            }}
             onAddSite={async site => {
               if (!isAuthenticated) {
                 toast({
@@ -2762,6 +2775,7 @@ const Index = () => {
             waybills={waybills}
             employees={employees}
             companySettings={companySettings}
+            currentUser={currentUser}
             onBack={() => {
               setSelectedAssetForDetails(null);
               setCurrentView('site-inventory');
@@ -2803,6 +2817,14 @@ const Index = () => {
                 setConsumableLogs(logs);
               } catch (error) {
                 logger.error('Failed to update consumable log', error);
+              }
+            }}
+            onSetMachineStartDate={async (asset, startDate) => {
+              const updatedAsset = { ...asset, deploymentDate: startDate, updatedAt: new Date() };
+              await dataService.assets.updateAsset(asset.id, updatedAsset);
+              setAssets((prev) => prev.map((a) => (a.id === asset.id ? updatedAsset : a)));
+              if (selectedAssetForDetails?.asset.id === asset.id) {
+                setSelectedAssetForDetails((prev) => prev ? { ...prev, asset: updatedAsset } : prev);
               }
             }}
           />

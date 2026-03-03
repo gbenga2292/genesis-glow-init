@@ -6,11 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Site, Asset, Employee } from "@/types/asset";
 import { EquipmentLog as EquipmentLogType } from "@/types/equipment";
-import { Calendar as CalendarIcon, Eye, BarChart3, LineChart, History } from "lucide-react";
+import { Calendar as CalendarIcon, Eye, BarChart3, LineChart, History, Settings, Pencil } from "lucide-react";
 import { format } from "date-fns";
 import { getDieselOverdueDays } from "@/utils/defaultLogTemplate";
 import { BulkLogDialog } from "./BulkLogDialog";
 import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 interface MachinesSectionProps {
   site: Site;
@@ -19,6 +20,7 @@ interface MachinesSectionProps {
   employees: Employee[];
   waybills: any[];
   companySettings?: any;
+  currentUser?: { role: string; name: string; avatar?: string; id?: string; username?: string } | null | undefined;
   onAddEquipmentLog: (log: EquipmentLogType) => void;
   onUpdateEquipmentLog: (log: EquipmentLogType) => void;
   onViewAnalytics?: () => void;
@@ -35,6 +37,7 @@ export const MachinesSection = ({
   employees,
   waybills,
   companySettings,
+  currentUser,
   onAddEquipmentLog,
   onUpdateEquipmentLog,
   onViewAnalytics,
@@ -47,6 +50,10 @@ export const MachinesSection = ({
   const [showBulkLogDialog, setShowBulkLogDialog] = useState(false);
   const [savingStartDateFor, setSavingStartDateFor] = useState<string | null>(null);
   const [startDateDrafts, setStartDateDrafts] = useState<Record<string, string>>({});
+  const [showStartDateDialog, setShowStartDateDialog] = useState(false);
+  const [selectedMachineForDate, setSelectedMachineForDate] = useState<Asset | null>(null);
+
+  const isAdmin = currentUser?.role === 'admin';
 
   const siteId = String(site.id);
 
@@ -130,10 +137,19 @@ export const MachinesSection = ({
     await Promise.all(logs.map((log) => onAddEquipmentLog(log)));
   };
 
-  const handleSaveStartDate = async (equipment: Asset) => {
-    if (!onSetMachineStartDate) return;
+  const handleOpenStartDateDialog = (equipment: Asset) => {
+    setSelectedMachineForDate(equipment);
+    setStartDateDrafts((prev) => ({
+      ...prev,
+      [String(equipment.id)]: toDateInputValue(getMachineStartDate(equipment)),
+    }));
+    setShowStartDateDialog(true);
+  };
 
-    const value = startDateDrafts[String(equipment.id)];
+  const handleSaveStartDate = async () => {
+    if (!onSetMachineStartDate || !selectedMachineForDate) return;
+
+    const value = startDateDrafts[String(selectedMachineForDate.id)];
     if (!value) {
       toast({ title: "Missing date", description: "Select a start date first.", variant: "destructive" });
       return;
@@ -146,9 +162,11 @@ export const MachinesSection = ({
     }
 
     try {
-      setSavingStartDateFor(String(equipment.id));
-      await onSetMachineStartDate(equipment, parsed);
-      toast({ title: "Start date saved", description: `${equipment.name} start date updated.` });
+      setSavingStartDateFor(String(selectedMachineForDate.id));
+      await onSetMachineStartDate(selectedMachineForDate, parsed);
+      toast({ title: "Start date saved", description: `${selectedMachineForDate.name} start date updated.` });
+      setShowStartDateDialog(false);
+      setSelectedMachineForDate(null);
     } catch (error) {
       toast({ title: "Error", description: "Failed to save start date.", variant: "destructive" });
     } finally {
@@ -188,7 +206,20 @@ export const MachinesSection = ({
                     <CardHeader className="pb-3">
                       <CardTitle className="text-sm flex items-center justify-between gap-2">
                         <span className="truncate font-medium">{equipment.name}</span>
-                        <Badge variant="outline" className="text-xs shrink-0">{equipment.status}</Badge>
+                        <div className="flex items-center gap-1">
+                          {isAdmin && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              title="Set Start Date"
+                              onClick={() => handleOpenStartDateDialog(equipment)}
+                            >
+                              <Settings className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          <Badge variant="outline" className="text-xs shrink-0">{equipment.status}</Badge>
+                        </div>
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
@@ -198,34 +229,24 @@ export const MachinesSection = ({
                         </div>
                       ) : null}
 
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Machine start date (site override)</Label>
-                        <div className="flex gap-2">
-                          <Input
-                            type="date"
-                            value={startDateDrafts[String(equipment.id)] || ""}
-                            max={toDateInputValue(new Date())}
-                            onChange={(e) =>
-                              setStartDateDrafts((prev) => ({
-                                ...prev,
-                                [String(equipment.id)]: e.target.value,
-                              }))
-                            }
-                            className="h-8 text-xs"
-                          />
+                      {/* Start Date Info - always visible but subtle */}
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <CalendarIcon className="h-3.5 w-3.5" />
+                        <span>Start: {currentStartDate ? format(currentStartDate, "PP") : "Not set"}</span>
+                        {isAdmin && (
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
-                            className="h-8 text-xs"
-                            disabled={!onSetMachineStartDate || isSavingStartDate}
-                            onClick={() => handleSaveStartDate(equipment)}
+                            className="h-6 w-6 p-0 ml-1"
+                            title="Edit Start Date"
+                            onClick={() => handleOpenStartDateDialog(equipment)}
                           >
-                            {isSavingStartDate ? "Saving..." : "Set"}
+                            <Pencil className="h-3 w-3" />
                           </Button>
-                        </div>
-                        {currentStartDate ? (
-                          <p className="text-[11px] text-muted-foreground">Current: {format(currentStartDate, "PPP")}</p>
-                        ) : null}
+                        )}
+                        {equipment.deploymentDate && !isAdmin && (
+                          <Badge variant="secondary" className="text-[10px] h-5 ml-1">Override</Badge>
+                        )}
                       </div>
 
                       <div className="flex gap-2">
@@ -248,6 +269,7 @@ export const MachinesSection = ({
           )}
         </section>
 
+        {isAdmin && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold flex items-center gap-2">
@@ -300,7 +322,51 @@ export const MachinesSection = ({
             </div>
           )}
         </section>
+        )}
       </div>
+
+      {/* Start Date Dialog */}
+      <Dialog open={showStartDateDialog} onOpenChange={setShowStartDateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Set Machine Start Date</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Machine</Label>
+              <p className="font-medium">{selectedMachineForDate?.name}</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Start Date (Site Override)</Label>
+              <Input
+                type="date"
+                value={selectedMachineForDate ? startDateDrafts[String(selectedMachineForDate.id)] || "" : ""}
+                max={toDateInputValue(new Date())}
+                onChange={(e) =>
+                  setStartDateDrafts((prev) => ({
+                    ...prev,
+                    [String(selectedMachineForDate!.id)]: e.target.value,
+                  }))
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                This overrides the default start date (waybill date or first log date)
+              </p>
+            </div>
+            {selectedMachineForDate && getMachineStartDate(selectedMachineForDate) && (
+              <p className="text-xs text-muted-foreground">
+                Current: {format(getMachineStartDate(selectedMachineForDate), "PPP")}
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowStartDateDialog(false)}>Cancel</Button>
+            <Button onClick={handleSaveStartDate} disabled={savingStartDateFor !== null}>
+              {savingStartDateFor ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <BulkLogDialog
         open={showBulkLogDialog}
