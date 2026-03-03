@@ -409,6 +409,7 @@ export const SiteWorkerDashboard = ({ onExit, isSimulated }: SiteWorkerDashboard
                           employees={employees}
                           waybills={waybills}
                           currentUser={currentUser}
+                          showAdminControls={false}
                           onAddEquipmentLog={handleAddEquipmentLog}
                           onUpdateEquipmentLog={handleUpdateEquipmentLog}
                           onViewAssetDetails={(asset) => handleViewAssetDetails(site, asset)}
