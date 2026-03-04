@@ -111,24 +111,64 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 3: Create the GitHub Release and attach Android bundle
+  # JOB 3: Build Android APK (FREE - uses GitHub's Android SDK)
   # ─────────────────────────────────────────────────────────────────────────────
-  create-release:
-    name: 📦 Create GitHub Release
-    needs: [build-web, build-electron]
+  build-android:
+    name: 📱 Build Android APK
+    needs: build-web
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download Android bundle
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Download dist artifact
         uses: actions/download-artifact@v4
         with:
-          name: android-bundle
-          path: ./
+          name: dist
+          path: dist/
 
-      - name: Create Release and upload Android bundle
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Build Android APK (Debug)
+        working-directory: android
+        run: ./gradlew assembleDebug
+
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk-debug
+          path: android/app/build/outputs/apk/debug/*.apk
+          retention-days: 1
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # JOB 4: Create the GitHub Release with all artifacts
+  # ─────────────────────────────────────────────────────────────────────────────
+  create-release:
+    name: 📦 Create GitHub Release
+    needs: [build-web, build-electron, build-android]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Create Release with all artifacts
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
@@ -136,15 +176,14 @@ jobs:
           body: |
             ## 🚀 DCEL Inventory ${{ github.ref_name }}
 
-            ### Installation
+            ### Installation Options
             - **Windows Desktop**: Download the `.exe` installer below
-            - **Android**: Open the app → Settings → App Updates → Check for Updates
-
-            ### What's Changed
-            <!-- Add release notes here before tagging -->
+            - **Android (Debug APK)**: Download `android-apk-debug` below and install
+            - **Android (Live Update)**: Open app → Settings → App Updates → Check for Updates
           draft: false
           prerelease: false
           files: |
-            android-bundle.zip
+            artifacts/android-bundle.zip
+            artifacts/android-apk-debug/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
