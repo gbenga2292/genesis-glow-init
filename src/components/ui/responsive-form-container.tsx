@@ -80,7 +80,8 @@ export const ResponsiveFormContainer = ({
           // Override Radix UI's default top-50% / translate-y-[-50%] centering.
           // Instead anchor from a fixed pixel offset below the Electron menu bar
           // and fill downward to a small bottom margin — fully within the app window.
-          "!fixed !inset-x-0 !bottom-0 !top-[40px] !z-50 !w-screen !max-w-none !h-auto !max-h-none !rounded-none !border-none !translate-x-0 !translate-y-0 !left-0 shadow-none outline-none ring-0",
+          "!fixed !inset-x-0 !bottom-0 !top-[40px] !z-50 !w-screen !max-w-none !max-h-none !rounded-none !border-none !translate-x-0 !translate-y-0 !left-0 shadow-none outline-none ring-0",
+          "!h-[calc(100vh-40px)]",
           "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data[state=closed]:zoom-out-95",
           "duration-200",
@@ -109,7 +110,7 @@ export const ResponsiveFormContainer = ({
         </DialogHeader>
 
         {/* Scrollable content — explicit overflow-y-auto with min-h-0 to allow shrinking inside flex */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-4" style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
           {children}
         </div>
       </DialogContent>
