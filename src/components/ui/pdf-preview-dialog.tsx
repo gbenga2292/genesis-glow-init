@@ -190,18 +190,18 @@ export const PDFPreviewDialog = ({
         );
     }
 
-    // Desktop dialog view
-    const isElectron = !!(window as any).electronAPI;
-    const menuBarOffset = isElectron ? 40 : 0;
-
+    // Desktop dialog view - centered and properly sized to fit screen
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent
                 showCloseLeft
-                style={isElectron ? { top: `${menuBarOffset}px`, height: `calc(100vh - ${menuBarOffset}px)` } : {}}
-                className="!fixed !inset-x-0 !bottom-0 !z-50 !w-screen !max-w-none !p-0 !m-0 !gap-0 !rounded-none !border-none !flex !flex-col !bg-background !translate-x-0 !translate-y-0 !left-0 shadow-none outline-none ring-0"
+                onInteractOutside={(e) => {
+                    // Prevent dialog from closing when clicking outside (e.g., when print window is focused)
+                    e.preventDefault();
+                }}
+                className="max-w-[90vw] w-[90vw] max-h-[95vh] h-[95vh] flex flex-col gap-0 p-0 rounded-lg"
             >
-                <DialogHeader className="px-6 pt-6 pb-4 border-b">
+                <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
                     <div className="flex items-center justify-between">
                         <DialogTitle className="ml-6">{title}</DialogTitle>
                         <div className="flex gap-2 mr-8">
