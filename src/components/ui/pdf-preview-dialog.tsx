@@ -199,7 +199,7 @@ export const PDFPreviewDialog = ({
                     // Prevent dialog from closing when clicking outside (e.g., when print window is focused)
                     e.preventDefault();
                 }}
-                className="max-w-[90vw] w-[90vw] max-h-[95vh] h-[95vh] flex flex-col gap-0 p-0 rounded-lg"
+                className="!fixed !inset-x-0 !bottom-0 !top-[40px] !z-50 !w-screen !max-w-none !h-auto !max-h-none !p-0 !m-0 !gap-0 !rounded-none !border-none !flex !flex-col !bg-background !translate-x-0 !translate-y-0 !left-0 shadow-none outline-none ring-0"
             >
                 <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
                     <div className="flex items-center justify-between">
