@@ -4,14 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Site, Asset, Employee } from "@/types/asset";
 import { EquipmentLog as EquipmentLogType } from "@/types/equipment";
-import { Calendar as CalendarIcon, Eye, BarChart3, LineChart, History, Settings, Pencil } from "lucide-react";
+import { Calendar as CalendarIcon, Eye, BarChart3, LineChart, History, Settings, Pencil, Package } from "lucide-react";
 import { format } from "date-fns";
 import { getDieselOverdueDays } from "@/utils/defaultLogTemplate";
 import { BulkLogDialog } from "./BulkLogDialog";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface MachinesSectionProps {
   site: Site;
@@ -189,143 +191,175 @@ export const MachinesSection = ({
       )}
 
       <div className="space-y-6">
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold">Active Machines</h3>
-            <Badge variant="outline" className="text-xs">{siteEquipment.length}</Badge>
-          </div>
-
-          {siteEquipment.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-2">No active equipment assigned to this site.</p>
-          ) : (
-            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-              {siteEquipment.map((equipment) => {
-                const overdueDays = getDieselOverdueDays(equipmentLogs, equipment.id);
-                const currentStartDate = getMachineStartDate(equipment);
-                const isSavingStartDate = savingStartDateFor === String(equipment.id);
-
-                return (
-                  <Card key={equipment.id} className="border shadow-sm">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm flex items-center justify-between gap-2">
-                        <span className="truncate font-medium">{equipment.name}</span>
-                        <div className="flex items-center gap-1">
-                          {isAdmin && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 w-7 p-0"
-                              title="Set Start Date"
-                              onClick={() => handleOpenStartDateDialog(equipment)}
-                            >
-                              <Settings className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                          <Badge variant="outline" className="text-xs shrink-0">{equipment.status}</Badge>
-                        </div>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      {overdueDays > 0 ? (
-                        <div className="text-xs text-warning font-medium">
-                          ⚠️ Diesel refill overdue by {overdueDays} day{overdueDays > 1 ? "s" : ""}
-                        </div>
-                      ) : null}
-
-                      {/* Start Date Info - always visible but subtle */}
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <CalendarIcon className="h-3.5 w-3.5" />
-                        <span>Start: {currentStartDate ? format(currentStartDate, "PP") : "Not set"}</span>
-                        {isAdmin && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 ml-1"
-                            title="Edit Start Date"
-                            onClick={() => handleOpenStartDateDialog(equipment)}
-                          >
-                            <Pencil className="h-3 w-3" />
-                          </Button>
-                        )}
-                        {equipment.deploymentDate && !isAdmin && (
-                          <Badge variant="secondary" className="text-[10px] h-5 ml-1">Override</Badge>
-                        )}
-                      </div>
-
-                      <div className="flex gap-2">
-                        <Button onClick={() => onViewAssetDetails?.(equipment)} variant="outline" size="sm" className="flex-1 text-xs">
-                          <CalendarIcon className="h-3.5 w-3.5 mr-1.5" />
-                          Logs
-                        </Button>
-                        <Button onClick={() => onViewAssetHistory?.(equipment)} variant="ghost" size="sm" className="px-2" title="View History">
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button onClick={() => onViewAssetAnalytics?.(equipment)} variant="ghost" size="sm" className="px-2" title="View Analytics">
-                          <BarChart3 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </section>
-
-        {isAdmin && (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold flex items-center gap-2">
+        {/* Table-based layout for Active Machines and Machine History */}
+        <Tabs defaultValue="active" className="w-full">
+          <TabsList className="mb-4">
+            <TabsTrigger value="active" className="flex items-center gap-2">
+              <Package className="h-4 w-4" />
+              Active Machines
+              <Badge variant="outline" className="ml-1 text-xs">{siteEquipment.length}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="history" className="flex items-center gap-2">
               <History className="h-4 w-4" />
-              Machine History (Returned)
-            </h3>
-            <Badge variant="secondary" className="text-xs">{returnedMachines.length}</Badge>
-          </div>
+              Machine History
+              <Badge variant="secondary" className="ml-1 text-xs">{returnedMachines.length}</Badge>
+            </TabsTrigger>
+          </TabsList>
 
-          {returnedMachines.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-2">No returned machines with history yet.</p>
-          ) : (
-            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-              {returnedMachines.map((equipment) => {
-                const logs = siteLogMap.get(String(equipment.id)) || [];
-                const lastLog = logs[0];
+          {/* Active Machines Table */}
+          <TabsContent value="active" className="space-y-3">
+            {siteEquipment.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 text-center">
+                <Package className="h-8 w-8 text-muted-foreground/40 mb-2" />
+                <p className="text-sm text-muted-foreground">No active equipment assigned to this site.</p>
+              </div>
+            ) : (
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[200px]">Machine Name</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Start Date</TableHead>
+                      <TableHead>Last Activity</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {siteEquipment.map((equipment) => {
+                      const overdueDays = getDieselOverdueDays(equipmentLogs, equipment.id);
+                      const currentStartDate = getMachineStartDate(equipment);
+                      const logs = siteLogMap.get(String(equipment.id)) || [];
+                      const lastLog = logs[0];
 
-                return (
-                  <Card key={`history-${equipment.id}`} className="border border-dashed">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm flex items-center justify-between gap-2">
-                        <span className="truncate font-medium">{equipment.name}</span>
-                        <Badge variant="secondary" className="text-xs shrink-0">Returned</Badge>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <p className="text-xs text-muted-foreground">
-                        {lastLog ? `Last log: ${format(new Date(lastLog.date), "PPP")}` : "No logs found"}
-                      </p>
+                      return (
+                        <TableRow key={equipment.id}>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              <span>{equipment.name}</span>
+                              {overdueDays > 0 && (
+                                <Badge variant="destructive" className="text-[10px] h-5">
+                                  ⚠️ {overdueDays}d overdue
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">{equipment.status}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm">
+                                {currentStartDate ? format(currentStartDate, "PP") : "Not set"}
+                              </span>
+                              {isAdmin && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0"
+                                  title="Edit Start Date"
+                                  onClick={() => handleOpenStartDateDialog(equipment)}
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm text-muted-foreground">
+                              {lastLog ? format(new Date(lastLog.date), "PP") : "No logs"}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button onClick={() => onViewAssetDetails?.(equipment)} variant="outline" size="sm" className="h-8 text-xs">
+                                <CalendarIcon className="h-3.5 w-3.5 mr-1.5" />
+                                Logs
+                              </Button>
+                              <Button onClick={() => onViewAssetHistory?.(equipment)} variant="ghost" size="sm" className="h-8 w-8 p-0" title="View History">
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button onClick={() => onViewAssetAnalytics?.(equipment)} variant="ghost" size="sm" className="h-8 w-8 p-0" title="View Analytics">
+                                <BarChart3 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </TabsContent>
 
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm" className="flex-1 text-xs" disabled>
-                          <CalendarIcon className="h-3.5 w-3.5 mr-1.5" />
-                          Logs Disabled
-                        </Button>
-                        <Button
-                          onClick={() => onViewAssetHistory?.(equipment, { readOnly: true })}
-                          variant="ghost"
-                          size="sm"
-                          className="px-2"
-                          title="View Logs"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </section>
-        )}
+          {/* Machine History Table */}
+          <TabsContent value="history" className="space-y-3">
+            {returnedMachines.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 text-center">
+                <History className="h-8 w-8 text-muted-foreground/40 mb-2" />
+                <p className="text-sm text-muted-foreground">No returned machines with history yet.</p>
+              </div>
+            ) : (
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[200px]">Machine Name</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Last Activity</TableHead>
+                      <TableHead>Last Log Date</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {returnedMachines.map((equipment) => {
+                      const logs = siteLogMap.get(String(equipment.id)) || [];
+                      const lastLog = logs[0];
+
+                      return (
+                        <TableRow key={`history-${equipment.id}`}>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              <History className="h-4 w-4 text-muted-foreground" />
+                              <span>{equipment.name}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className="text-xs">Returned</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm text-muted-foreground">
+                              {lastLog ? (lastLog.active ? "Active" : "Inactive") : "No logs"}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm text-muted-foreground">
+                              {lastLog ? format(new Date(lastLog.date), "PPP") : "No logs"}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                onClick={() => onViewAssetHistory?.(equipment, { readOnly: true })}
+                                variant="outline"
+                                size="sm"
+                                className="h-8 text-xs"
+                              >
+                                <Eye className="h-3.5 w-3.5 mr-1.5" />
+                                View History
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Start Date Dialog */}

@@ -110,7 +110,7 @@ export const ResponsiveFormContainer = ({
         </DialogHeader>
 
         {/* Scrollable content — explicit overflow-y-auto with min-h-0 to allow shrinking inside flex */}
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-4" style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4" style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
           {children}
         </div>
       </DialogContent>
