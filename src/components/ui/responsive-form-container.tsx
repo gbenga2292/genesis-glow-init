@@ -80,7 +80,7 @@ export const ResponsiveFormContainer = ({
           // Override Radix UI's default top-50% / translate-y-[-50%] centering.
           // Instead anchor from a fixed pixel offset below the Electron menu bar
           // and fill downward to a small bottom margin — fully within the app window.
-          "!top-[52px] !translate-y-0 !bottom-[8px] !h-auto !max-h-none",
+          "!fixed !inset-x-0 !bottom-0 !top-[40px] !z-50 !w-screen !max-w-none !h-auto !max-h-none !rounded-none !border-none !translate-x-0 !translate-y-0 !left-0 shadow-none outline-none ring-0",
           "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data[state=closed]:zoom-out-95",
           "duration-200",
