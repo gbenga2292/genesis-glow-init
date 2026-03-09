@@ -199,11 +199,13 @@ export const MachinesSection = ({
               Active Machines
               <Badge variant="outline" className="ml-1 text-xs">{siteEquipment.length}</Badge>
             </TabsTrigger>
-            <TabsTrigger value="history" className="flex items-center gap-2">
-              <History className="h-4 w-4" />
-              Machine History
-              <Badge variant="secondary" className="ml-1 text-xs">{returnedMachines.length}</Badge>
-            </TabsTrigger>
+            {showAdminControls !== false && (
+              <TabsTrigger value="history" className="flex items-center gap-2">
+                <History className="h-4 w-4" />
+                Machine History
+                <Badge variant="secondary" className="ml-1 text-xs">{returnedMachines.length}</Badge>
+              </TabsTrigger>
+            )}
           </TabsList>
 
           {/* Active Machines Table */}
@@ -294,71 +296,73 @@ export const MachinesSection = ({
           </TabsContent>
 
           {/* Machine History Table */}
-          <TabsContent value="history" className="space-y-3">
-            {returnedMachines.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-center">
-                <History className="h-8 w-8 text-muted-foreground/40 mb-2" />
-                <p className="text-sm text-muted-foreground">No returned machines with history yet.</p>
-              </div>
-            ) : (
-              <div className="border rounded-lg overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[200px]">Machine Name</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Last Activity</TableHead>
-                      <TableHead>Last Log Date</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {returnedMachines.map((equipment) => {
-                      const logs = siteLogMap.get(String(equipment.id)) || [];
-                      const lastLog = logs[0];
+          {showAdminControls !== false && (
+            <TabsContent value="history" className="space-y-3">
+              {returnedMachines.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <History className="h-8 w-8 text-muted-foreground/40 mb-2" />
+                  <p className="text-sm text-muted-foreground">No returned machines with history yet.</p>
+                </div>
+              ) : (
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[200px]">Machine Name</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Last Activity</TableHead>
+                        <TableHead>Last Log Date</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {returnedMachines.map((equipment) => {
+                        const logs = siteLogMap.get(String(equipment.id)) || [];
+                        const lastLog = logs[0];
 
-                      return (
-                        <TableRow key={`history-${equipment.id}`}>
-                          <TableCell className="font-medium">
-                            <div className="flex items-center gap-2">
-                              <History className="h-4 w-4 text-muted-foreground" />
-                              <span>{equipment.name}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="secondary" className="text-xs">Returned</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-sm text-muted-foreground">
-                              {lastLog ? (lastLog.active ? "Active" : "Inactive") : "No logs"}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-sm text-muted-foreground">
-                              {lastLog ? format(new Date(lastLog.date), "PPP") : "No logs"}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <Button
-                                onClick={() => onViewAssetHistory?.(equipment, { readOnly: true })}
-                                variant="outline"
-                                size="sm"
-                                className="h-8 text-xs"
-                              >
-                                <Eye className="h-3.5 w-3.5 mr-1.5" />
-                                View History
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </TabsContent>
+                        return (
+                          <TableRow key={`history-${equipment.id}`}>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                <History className="h-4 w-4 text-muted-foreground" />
+                                <span>{equipment.name}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="secondary" className="text-xs">Returned</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-sm text-muted-foreground">
+                                {lastLog ? (lastLog.active ? "Active" : "Inactive") : "No logs"}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-sm text-muted-foreground">
+                                {lastLog ? format(new Date(lastLog.date), "PPP") : "No logs"}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <Button
+                                  onClick={() => onViewAssetHistory?.(equipment, { readOnly: true })}
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 text-xs"
+                                >
+                                  <Eye className="h-3.5 w-3.5 mr-1.5" />
+                                  View History
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </TabsContent>
+          )}
         </Tabs>
       </div>
 
