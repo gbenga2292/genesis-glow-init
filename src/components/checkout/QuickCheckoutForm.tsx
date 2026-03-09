@@ -51,8 +51,9 @@ export const QuickCheckoutForm = ({
     condition: 'good' as 'good' | 'damaged' | 'missing',
     notes: ''
   });
+  const [expandedCheckoutId, setExpandedCheckoutId] = useState<string | null>(null);
 
-  
+
 
   const { isAuthenticated, currentUser, hasPermission } = useAuth();
   const { toast } = useToast();
