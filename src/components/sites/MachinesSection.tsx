@@ -199,11 +199,13 @@ export const MachinesSection = ({
               Active Machines
               <Badge variant="outline" className="ml-1 text-xs">{siteEquipment.length}</Badge>
             </TabsTrigger>
-            <TabsTrigger value="history" className="flex items-center gap-2">
-              <History className="h-4 w-4" />
-              Machine History
-              <Badge variant="secondary" className="ml-1 text-xs">{returnedMachines.length}</Badge>
-            </TabsTrigger>
+            {showAdminControls !== false && (
+              <TabsTrigger value="history" className="flex items-center gap-2">
+                <History className="h-4 w-4" />
+                Machine History
+                <Badge variant="secondary" className="ml-1 text-xs">{returnedMachines.length}</Badge>
+              </TabsTrigger>
+            )}
           </TabsList>
 
           {/* Active Machines Table */}
