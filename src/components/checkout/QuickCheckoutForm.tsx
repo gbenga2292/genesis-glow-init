@@ -51,8 +51,9 @@ export const QuickCheckoutForm = ({
     condition: 'good' as 'good' | 'damaged' | 'missing',
     notes: ''
   });
+  const [expandedCheckoutId, setExpandedCheckoutId] = useState<string | null>(null);
 
-  
+
 
   const { isAuthenticated, currentUser, hasPermission } = useAuth();
   const { toast } = useToast();
@@ -306,80 +307,61 @@ export const QuickCheckoutForm = ({
                 </div>
               </div>
             ) : (
-              <div className="max-h-[500px] overflow-y-auto">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-background z-10">
-                    <tr className="border-b text-left text-muted-foreground">
-                      <th className="py-2 pr-2 font-medium">Item</th>
-                      <th className="py-2 pr-2 font-medium w-12">Qty</th>
-                      <th className="py-2 pr-2 font-medium hidden sm:table-cell">Employee</th>
-                      <th className="py-2 pr-2 font-medium hidden sm:table-cell">Date</th>
-                      <th className="py-2 pr-2 font-medium w-24">Status</th>
-                      <th className="py-2 font-medium w-20 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredCheckouts.map((checkout, index) => {
-                      const asset = assets.find(a => a.id === checkout.assetId);
+              <div className="max-h-[500px] overflow-y-auto divide-y">
+                {filteredCheckouts.map((checkout, index) => {
+                  const asset = assets.find(a => a.id === checkout.assetId);
+                  const displayAssetName = checkout.assetName || asset?.name || 'Unknown Asset';
+                  const displayEmployeeName = checkout.employee ||
+                    (checkout.employeeId ? employees.find(e => e.id === checkout.employeeId)?.name : null) ||
+                    'Unknown Employee';
+                  const isExpanded = expandedCheckoutId === checkout.id;
 
-                      const displayAssetName = checkout.assetName || asset?.name || 'Unknown Asset';
-                      const displayEmployeeName = checkout.employee ||
-                        (checkout.employeeId ? employees.find(e => e.id === checkout.employeeId)?.name : null) ||
-                        'Unknown Employee';
+                  return (
+                    <div key={`${checkout.id}-${index}`}>
+                      <div
+                        className="flex items-center gap-2 py-2.5 px-1 cursor-pointer hover:bg-muted/30 transition-colors"
+                        onClick={() => setExpandedCheckoutId(isExpanded ? null : checkout.id)}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm truncate">{displayAssetName}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {displayEmployeeName} · {checkout.checkoutDate.toLocaleDateString('en-GB')}
+                            {checkout.returnedQuantity > 0 && ` · Returned: ${checkout.returnedQuantity}`}
+                          </div>
+                        </div>
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">×{checkout.quantity}</span>
+                        {getStatusBadge(checkout.status)}
+                      </div>
 
-                      return (
-                        <tr key={`${checkout.id}-${index}`} className="border-b last:border-0 hover:bg-muted/30">
-                          <td className="py-2 pr-2">
-                            <div className="font-medium truncate max-w-[160px]">{displayAssetName}</div>
-                            <div className="text-xs text-muted-foreground sm:hidden">
-                              {displayEmployeeName} · {checkout.checkoutDate.toLocaleDateString('en-GB')}
-                            </div>
-                          </td>
-                          <td className="py-2 pr-2">
-                            {checkout.quantity}
-                            {checkout.returnedQuantity > 0 && (
-                              <span className="text-xs text-muted-foreground block">-{checkout.returnedQuantity}</span>
-                            )}
-                          </td>
-                          <td className="py-2 pr-2 hidden sm:table-cell">
-                            <span className="truncate max-w-[120px] block">{displayEmployeeName}</span>
-                          </td>
-                          <td className="py-2 pr-2 hidden sm:table-cell text-muted-foreground">
-                            {checkout.checkoutDate.toLocaleDateString('en-GB')}
-                          </td>
-                          <td className="py-2 pr-2">{getStatusBadge(checkout.status)}</td>
-                          <td className="py-2 text-right">
-                            <div className="flex gap-1 justify-end">
-                              {checkout.status === 'outstanding' && (
-                                <Button
-                                  onClick={() => handleOpenReturnDialog(checkout.id)}
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 w-7 p-0"
-                                  disabled={!isAuthenticated || !hasPermission('write_quick_checkouts')}
-                                  title="Return / Update"
-                                >
-                                  <RotateCcw className="h-3.5 w-3.5" />
-                                </Button>
-                              )}
-                              {onDeleteCheckout && isAuthenticated && hasPermission('delete_quick_checkouts') && (
-                                <Button
-                                  onClick={() => onDeleteCheckout(checkout.id)}
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                                  title="Delete"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                      {isExpanded && (
+                        <div className="flex gap-2 px-1 pb-2.5 animate-fade-in">
+                          {checkout.status === 'outstanding' && (
+                            <Button
+                              onClick={(e) => { e.stopPropagation(); handleOpenReturnDialog(checkout.id); }}
+                              size="sm"
+                              variant="outline"
+                              className="flex-1 h-8"
+                              disabled={!isAuthenticated || !hasPermission('write_quick_checkouts')}
+                            >
+                              <RotateCcw className="h-3 w-3 mr-2" />
+                              Return / Update
+                            </Button>
+                          )}
+                          {onDeleteCheckout && isAuthenticated && hasPermission('delete_quick_checkouts') && (
+                            <Button
+                              onClick={(e) => { e.stopPropagation(); onDeleteCheckout(checkout.id); }}
+                              size="sm"
+                              variant="destructive"
+                              className="h-8 px-3"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </CardContent>
