@@ -1289,7 +1289,7 @@ export const NotificationPanel = ({
         </div>
       ) : (
         <Dialog open={showBulkLogDialog} onOpenChange={setShowBulkLogDialog}>
-          <DialogContent className="sm:max-w-2xl max-h-[95vh] overflow-hidden flex flex-col p-0">
+          <DialogContent className="sm:max-w-2xl max-h-[95vh] flex flex-col p-0 overflow-hidden">
             <DialogHeader className="px-4 pt-4 pb-2 border-b shrink-0">
               <DialogTitle className="text-base flex items-center gap-2">
                 <Layers className="h-4 w-4 text-primary" />
@@ -1300,7 +1300,7 @@ export const NotificationPanel = ({
               </DialogDescription>
             </DialogHeader>
 
-            <ScrollArea className="flex-1 overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-y-auto">
               <div className="p-4 space-y-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Log Date</Label>
