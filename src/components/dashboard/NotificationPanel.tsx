@@ -1374,7 +1374,7 @@ export const NotificationPanel = ({
                   </div>
                 </div>
               </div>
-            </ScrollArea>
+            </div>
 
             <div className="p-4 border-t bg-card shrink-0">
               <div className="flex gap-3">
