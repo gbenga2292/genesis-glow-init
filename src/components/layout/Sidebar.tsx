@@ -207,7 +207,7 @@ export const Sidebar = ({
 
         {/* Navigation */}
         <ScrollArea className="flex-1 px-2 py-3">
-          <nav className="space-y-4">
+          <nav className="flex flex-col justify-evenly h-full min-h-full gap-2">
             {renderGroup(mainItems, 'Main')}
             {renderGroup(operationItems, 'Operations')}
             {renderGroup(adminItems, 'Admin')}
