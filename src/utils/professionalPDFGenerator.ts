@@ -32,6 +32,7 @@ const defaultCompanySettings: CompanySettings = {
 const loadImage = (src: string): Promise<HTMLImageElement> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
     img.onerror = reject;
     // Convert relative paths to absolute URLs
@@ -47,6 +48,21 @@ const loadImage = (src: string): Promise<HTMLImageElement> => {
       img.src = src;
     }
   });
+};
+
+/**
+ * Convert an image element to a base64 data URL using canvas.
+ * This is critical for Electron packaged builds where file:// paths
+ * inside asar archives cannot be used directly by jsPDF.
+ */
+const imageToDataUrl = (img: HTMLImageElement, format: 'png' | 'jpeg' = 'png'): string => {
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth || img.width;
+  canvas.height = img.naturalHeight || img.height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return '';
+  ctx.drawImage(img, 0, 0);
+  return canvas.toDataURL(`image/${format}`);
 };
 
 export const generateProfessionalPDF = async ({ waybill, companySettings, sites, vehicles, type, signatureUrl, signatureName }: PDFGenerationOptions) => {
@@ -96,14 +112,22 @@ export const generateProfessionalPDF = async ({ waybill, companySettings, sites,
           finalW = maxH * aspect;
         }
 
-        // Determine format
-        let format: string | undefined = undefined;
-        if (effectiveCompanySettings.logo.startsWith('data:image/png')) format = 'PNG';
-        else if (effectiveCompanySettings.logo.startsWith('data:image/jpeg')) format = 'JPEG';
-        else if (effectiveCompanySettings.logo.startsWith('data:image/jpg')) format = 'JPEG';
+        // Convert loaded image to base64 data URL — this ensures it works
+        // in packaged Electron where file:// paths inside asar won't work with jsPDF
+        let logoSrc = effectiveCompanySettings.logo;
+        let format: string = 'PNG';
 
-        // Logo placed flush at left margin (MARGIN, not 20)
-        pdf.addImage(effectiveCompanySettings.logo, format as any, MARGIN, logoY, finalW, finalH);
+        if (logoSrc.startsWith('data:image/png')) {
+          format = 'PNG';
+        } else if (logoSrc.startsWith('data:image/jpeg') || logoSrc.startsWith('data:image/jpg')) {
+          format = 'JPEG';
+        } else {
+          // Not a data URL — convert via canvas (critical for Electron production)
+          logoSrc = imageToDataUrl(img, 'png');
+          format = 'PNG';
+        }
+
+        pdf.addImage(logoSrc, format as any, MARGIN, logoY, finalW, finalH);
       } catch (error) {
         logger.warn('Could not load company logo', { context: 'ProfessionalPDFGenerator' });
         // Fallback circle
