@@ -32,6 +32,7 @@ const defaultCompanySettings: CompanySettings = {
 const loadImage = (src: string): Promise<HTMLImageElement> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
     img.onerror = reject;
     // Convert relative paths to absolute URLs
@@ -47,6 +48,21 @@ const loadImage = (src: string): Promise<HTMLImageElement> => {
       img.src = src;
     }
   });
+};
+
+/**
+ * Convert an image element to a base64 data URL using canvas.
+ * This is critical for Electron packaged builds where file:// paths
+ * inside asar archives cannot be used directly by jsPDF.
+ */
+const imageToDataUrl = (img: HTMLImageElement, format: 'png' | 'jpeg' = 'png'): string => {
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth || img.width;
+  canvas.height = img.naturalHeight || img.height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return '';
+  ctx.drawImage(img, 0, 0);
+  return canvas.toDataURL(`image/${format}`);
 };
 
 export const generateProfessionalPDF = async ({ waybill, companySettings, sites, vehicles, type, signatureUrl, signatureName }: PDFGenerationOptions) => {

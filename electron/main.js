@@ -19,11 +19,29 @@ let splashWindow;
 let tray = null;
 let isQuitting = false;
 
-function createTray() {
-  const iconPath = process.env.NODE_ENV === 'development'
-    ? path.join(__dirname, '../public/favicon.ico')
-    : path.join(__dirname, '../dist/favicon.ico');
+function getIconPath() {
+  if (!app.isPackaged) {
+    return path.join(__dirname, '../public/favicon.ico');
+  }
+  // In packaged app, resources are extracted alongside app.asar
+  // Try multiple locations for robustness
+  const candidates = [
+    path.join(process.resourcesPath, 'favicon.ico'),
+    path.join(path.dirname(app.getPath('exe')), 'favicon.ico'),
+    path.join(app.getAppPath(), 'dist', 'favicon.ico'),
+  ];
+  for (const p of candidates) {
+    try {
+      const fs = require('fs');
+      if (fs.existsSync(p)) return p;
+    } catch {}
+  }
+  // Fallback
+  return path.join(app.getAppPath(), 'dist', 'favicon.ico');
+}
 
+function createTray() {
+  const iconPath = getIconPath();
   const icon = nativeImage.createFromPath(iconPath);
   tray = new Tray(icon);
 
