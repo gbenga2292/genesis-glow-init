@@ -112,14 +112,22 @@ export const generateProfessionalPDF = async ({ waybill, companySettings, sites,
           finalW = maxH * aspect;
         }
 
-        // Determine format
-        let format: string | undefined = undefined;
-        if (effectiveCompanySettings.logo.startsWith('data:image/png')) format = 'PNG';
-        else if (effectiveCompanySettings.logo.startsWith('data:image/jpeg')) format = 'JPEG';
-        else if (effectiveCompanySettings.logo.startsWith('data:image/jpg')) format = 'JPEG';
+        // Convert loaded image to base64 data URL — this ensures it works
+        // in packaged Electron where file:// paths inside asar won't work with jsPDF
+        let logoSrc = effectiveCompanySettings.logo;
+        let format: string = 'PNG';
 
-        // Logo placed flush at left margin (MARGIN, not 20)
-        pdf.addImage(effectiveCompanySettings.logo, format as any, MARGIN, logoY, finalW, finalH);
+        if (logoSrc.startsWith('data:image/png')) {
+          format = 'PNG';
+        } else if (logoSrc.startsWith('data:image/jpeg') || logoSrc.startsWith('data:image/jpg')) {
+          format = 'JPEG';
+        } else {
+          // Not a data URL — convert via canvas (critical for Electron production)
+          logoSrc = imageToDataUrl(img, 'png');
+          format = 'PNG';
+        }
+
+        pdf.addImage(logoSrc, format as any, MARGIN, logoY, finalW, finalH);
       } catch (error) {
         logger.warn('Could not load company logo', { context: 'ProfessionalPDFGenerator' });
         // Fallback circle
