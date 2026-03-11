@@ -237,10 +237,10 @@ export const MachinesSection = ({
                       return (
                         <TableRow key={equipment.id}>
                           <TableCell className="font-medium">
-                            <div className="flex items-center gap-2">
-                              <span>{equipment.name}</span>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="whitespace-nowrap">{equipment.name}</span>
                               {overdueDays > 0 && (
-                                <Badge variant="destructive" className="text-[10px] h-5">
+                                <Badge variant="destructive" className="text-[10px] h-4 px-1.5 py-0 leading-none whitespace-nowrap">
                                   ⚠️ {overdueDays}d overdue
                                 </Badge>
                               )}
