@@ -19,44 +19,7 @@ function toDataUrl(file: File): Promise<string> {
     reader.readAsDataURL(file);
   });
 }
-
-async function removeBackground(file: File, onProgress?: (p: number) => void) {
-  // Use server-side proxy endpoint to protect API key. Ensure proxy is running (start:remove-bg-proxy)
-  // Use XHR to provide upload progress feedback
-  const proxyUrl = REMOVE_BG_PROXY;
-
-  return await new Promise<string>((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', proxyUrl);
-    xhr.responseType = 'arraybuffer';
-
-    xhr.upload.onprogress = (ev) => {
-      if (ev.lengthComputable && onProgress) {
-        // range for this step: 0-50
-        const percent = Math.round((ev.loaded / ev.total) * 50);
-        onProgress(percent);
-      }
-    };
-
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        const arrayBuffer = xhr.response as ArrayBuffer;
-        const b64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-        resolve(`data:image/png;base64,${b64}`);
-      } else {
-        const text = xhr.response ? new TextDecoder().decode(new Uint8Array(xhr.response as ArrayBuffer)) : xhr.statusText;
-        reject(new Error(`remove.bg proxy error: ${xhr.status} ${text}`));
-      }
-    };
-
-    xhr.onerror = () => reject(new Error('remove.bg proxy network error'));
-
-    const formData = new FormData();
-    formData.append('size', 'auto');
-    formData.append('image_file', file);
-    xhr.send(formData);
-  });
-}
+// removeBackground function removed - now handled by server-side edge function
 
 export const SignatureUpload: React.FC = () => {
   const { currentUser, hasPermission, refreshCurrentUser } = useAuth();
