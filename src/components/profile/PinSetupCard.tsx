@@ -29,16 +29,22 @@ export const PinSetupCard: React.FC<PinSetupCardProps> = ({ isLoading = false })
   const checkPinStatus = async () => {
     if (!currentUser?.id) return;
     try {
-      const { data } = await supabase.
-      from('users').
-      select('pin_hash').
-      eq('id', currentUser.id).
-      single();
-      setHasPinSet(!!data?.pin_hash);
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const edgeFunctionUrl = `https://${projectId}.supabase.co/functions/v1/auth`;
+      const resp = await fetch(edgeFunctionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
+        },
+        body: JSON.stringify({ action: 'check-pin-status', userId: currentUser.id }),
+      });
+      const result = await resp.json();
+      setHasPinSet(!!result.hasPinSet);
     } catch {
-
       // ignore
-    }};
+    }
+  };
 
   const handleSetPin = async () => {
     if (step === 'enter') {
