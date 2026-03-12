@@ -64,83 +64,30 @@ import type { SiteRequest } from '@/types/request';
 export const authService = {
     login: async (username: string, password: string): Promise<{ success: boolean; user?: User; message?: string; mfaRequired?: boolean; userId?: string }> => {
         try {
-            // 1. First try username-based login (for both admin-created and self-registered users)
-            // 1. First try username-based login (for both admin-created and self-registered users)
-            // Use ilike for case-insensitive matching
-            let { data, error } = await supabase
-                .from('users')
-                .select('*')
-                .ilike('username', username)
-                .maybeSingle();
+            // Use server-side edge function for authentication (password comparison happens server-side)
+            const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+            const edgeFunctionUrl = `https://${projectId}.supabase.co/functions/v1/auth`;
 
-            // 2. If username not found, try email field (allows login with email for self-registered users)
-            if (!data) {
-                const emailResult = await supabase
-                    .from('users')
-                    .select('*')
-                    .ilike('email', username)
-                    .maybeSingle();
+            const resp = await fetch(edgeFunctionUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
+                },
+                body: JSON.stringify({ action: 'login', username, password }),
+            });
 
-                data = emailResult.data;
-                error = emailResult.error;
+            const result = await resp.json();
+
+            if (result.success && result.user) {
+                return { success: true, user: result.user };
             }
 
-            if (data) {
-                // Check password hash
-                const isMatch = await bcrypt.compare(password, data.password_hash || '');
-                if (!isMatch) {
-                    return { success: false, message: 'Invalid credentials' };
-                }
-
-                // Check for blocked status
-                if (data.status === 'inactive') {
-                    return { success: false, message: 'Access blocked' };
-                }
-
-                // Fetch signature
-                let signatureUrl: string | undefined;
-                try {
-                    const sigResult = await authService.getSignature(data.id.toString());
-                    if (sigResult.success && sigResult.url) {
-                        signatureUrl = sigResult.url;
-                    }
-                } catch (e) {
-                    console.warn('Failed to fetch signature during login', e);
-                }
-
-                const user: User = {
-                    id: data.id.toString(),
-                    username: data.username,
-                    role: data.role as UserRole,
-                    name: data.name,
-                    email: data.email || undefined,
-                    bio: data.bio || undefined,
-                    avatar: data.avatar || undefined,
-                    avatarColor: data.avatar_color || undefined,
-                    status: data.status as any,
-                    lastActive: data.last_active || undefined,
-                    signatureUrl,
-                    created_at: data.created_at,
-                    updated_at: data.updated_at,
-                    preferences: data.preferences || undefined
-                };
-
-                if (data.mfa_enabled) {
-                    return { success: false, mfaRequired: true, userId: data.id.toString() };
-                }
-
-                // Record login and update last active
-                try {
-                    await authService.recordLogin(user.id, { loginType: 'password' });
-                    await authService.updateLastActive(user.id);
-                } catch (e) {
-                    console.warn('Failed to record login/update last active', e);
-                }
-
-                return { success: true, user };
+            if (result.mfaRequired) {
+                return { success: false, mfaRequired: true, userId: result.userId };
             }
 
-            // 3. If neither username nor email found in DB, try Supabase Auth (legacy fallback)
+            // If edge function login fails, try Supabase Auth (legacy fallback)
             const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
                 email: username,
                 password: password
@@ -150,14 +97,15 @@ export const authService = {
                 if (authError.message.includes('Email not confirmed')) {
                     return { success: false, message: 'Please verify your email address before logging in.' };
                 }
-                return { success: false, message: 'Invalid credentials' };
+                return { success: false, message: result.message || 'Invalid credentials' };
             }
 
             if (authData?.user) {
-                // Fetch user profile from database
+                // Fetch user profile - explicit safe columns only
+                const SAFE_COLS = 'id, username, role, name, email, bio, phone, avatar, avatar_color, status, last_active, created_at, updated_at, preferences, mfa_enabled, signature_path';
                 const { data: userData } = await supabase
                     .from('users')
-                    .select('*')
+                    .select(SAFE_COLS)
                     .eq('id', authData.user.id)
                     .single();
 
@@ -165,7 +113,6 @@ export const authService = {
                     return { success: false, message: 'User profile not found. Contact support.' };
                 }
 
-                // Fetch signature
                 let signatureUrl: string | undefined;
                 try {
                     const sigResult = await authService.getSignature(userData.id.toString());
@@ -197,7 +144,6 @@ export const authService = {
                     return { success: false, mfaRequired: true, userId: userData.id.toString() };
                 }
 
-                // Record login and update last active
                 try {
                     await authService.recordLogin(user.id, { loginType: 'password' });
                     await authService.updateLastActive(user.id);
@@ -208,7 +154,7 @@ export const authService = {
                 return { success: true, user };
             }
 
-            return { success: false, message: 'Invalid credentials' };
+            return { success: false, message: result.message || 'Invalid credentials' };
         } catch (error) {
             return { success: false, message: error instanceof Error ? error.message : 'Unknown error' };
         }
