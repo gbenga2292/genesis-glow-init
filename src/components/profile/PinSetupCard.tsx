@@ -7,10 +7,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { KeyRound, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase as supabaseClient } from '@/integrations/supabase/client';
-import bcrypt from 'bcryptjs';
-
-const supabase = supabaseClient as any;
 
 interface PinSetupCardProps {
   isLoading?: boolean;
