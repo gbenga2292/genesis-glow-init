@@ -1,9 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { PinLockScreen } from '@/components/PinLockScreen';
-import { supabase as supabaseClient } from '@/integrations/supabase/client';
-
-const supabase = supabaseClient as any;
 
 const PIN_UNLOCKED_KEY = 'pin_unlocked';
 
