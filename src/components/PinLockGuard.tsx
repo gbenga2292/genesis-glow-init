@@ -52,20 +52,22 @@ export const PinLockGuard: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       try {
-        const { data, error } = await supabase
-          .from('users')
-          .select('pin_hash')
-          .eq('id', userId)
-          .single();
+        // Check PIN status via server-side edge function (never fetch pin_hash to client)
+        const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+        const edgeFunctionUrl = `https://${projectId}.supabase.co/functions/v1/auth`;
+        const resp = await fetch(edgeFunctionUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
+          },
+          body: JSON.stringify({ action: 'check-pin-status', userId }),
+        });
+        const result = await resp.json();
 
-        if (error) {
-          throw error;
-        }
-
-        if (data?.pin_hash) {
+        if (result.hasPinSet) {
           // PIN is enabled
           localStorage.setItem(statusKey, 'enabled');
-          localStorage.setItem(hashKey, data.pin_hash);
           setIsLocked(true);
         } else {
           // No PIN set
