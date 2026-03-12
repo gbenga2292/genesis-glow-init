@@ -266,14 +266,24 @@ export const authService = {
     },
 
     createUser: async (userData: { name: string; username: string; password: string; role: UserRole }): Promise<{ success: boolean; message?: string }> => {
-        // Admin creates user - no Supabase Auth required
-        // This allows admins to create accounts with usernames (not emails) that can be used immediately
-
         try {
-            const password_hash = await bcrypt.hash(userData.password, 10);
+            // Hash password server-side via edge function
+            const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+            const edgeFunctionUrl = `https://${projectId}.supabase.co/functions/v1/auth`;
+            const hashResp = await fetch(edgeFunctionUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
+                },
+                body: JSON.stringify({ action: 'hash-password', password: userData.password }),
+            });
+            const hashResult = await hashResp.json();
+            if (!hashResult.success) return { success: false, message: hashResult.message || 'Failed to hash password' };
+
             const insertData = {
                 username: userData.username,
-                password_hash: password_hash,
+                password_hash: hashResult.hash,
                 role: userData.role,
                 name: userData.name
             };
@@ -291,7 +301,6 @@ export const authService = {
     },
 
     register: async (userData: { name: string; username: string; password: string; role: UserRole; displayUsername?: string }): Promise<{ success: boolean; message?: string }> => {
-        // Public Register - Creates Supabase Auth account + database entry
         const { data: authData, error: authError } = await supabase.auth.signUp({
             email: userData.username,
             password: userData.password,
@@ -306,18 +315,27 @@ export const authService = {
 
         if (authError) return { success: false, message: authError.message };
 
-        const password_hash = await bcrypt.hash(userData.password, 10);
+        // Hash password server-side
+        const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+        const edgeFunctionUrl = `https://${projectId}.supabase.co/functions/v1/auth`;
+        const hashResp = await fetch(edgeFunctionUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
+            },
+            body: JSON.stringify({ action: 'hash-password', password: userData.password }),
+        });
+        const hashResult = await hashResp.json();
+        const password_hash = hashResult.hash || '';
 
-        // Use displayUsername as the username field if provided, otherwise use email
         const insertData = {
-            username: userData.displayUsername || userData.username.split('@')[0], // Display username for login
-            email: userData.username, // Email address
+            username: userData.displayUsername || userData.username.split('@')[0],
+            email: userData.username,
             password_hash: password_hash,
             role: userData.role,
             name: userData.name
         };
-        // NOTE: We don't set the ID - let the BIGSERIAL auto-increment handle it
-        // The Supabase Auth ID is UUID but our table uses BIGINT
 
         const { error: dbError } = await supabase.from('users').insert(insertData);
 
