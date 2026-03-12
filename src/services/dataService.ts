@@ -216,58 +216,24 @@ export const authService = {
 
     verifyMFALogin: async (userId: string, code: string): Promise<{ success: boolean; user?: User; message?: string }> => {
         try {
-            const { data, error } = await supabase
-                .from('users')
-                .select('*')
-                .eq('id', userId)
-                .single();
+            // Use server-side edge function for MFA verification
+            const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+            const edgeFunctionUrl = `https://${projectId}.supabase.co/functions/v1/auth`;
 
-            if (error || !data) {
-                return { success: false, message: 'User not found' };
+            const resp = await fetch(edgeFunctionUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
+                },
+                body: JSON.stringify({ action: 'verify-mfa', userId, code }),
+            });
+
+            const result = await resp.json();
+            if (result.success && result.user) {
+                return { success: true, user: result.user };
             }
-
-            if (!data.mfa_secret) {
-                return { success: false, message: 'MFA not set up for this user' };
-            }
-
-            const isValid = await verifyToken(code, data.mfa_secret);
-            if (!isValid) {
-                return { success: false, message: 'Invalid authentication code' };
-            }
-
-            // Fetch signature (reusing logic from login)
-            let signatureUrl: string | undefined;
-            try {
-                const sigResult = await authService.getSignature(data.id.toString());
-                if (sigResult.success && sigResult.url) {
-                    signatureUrl = sigResult.url;
-                }
-            } catch (e) {
-                console.warn('Failed to fetch signature during login', e);
-            }
-
-            const user: User = {
-                id: data.id.toString(),
-                username: data.username,
-                role: data.role as UserRole,
-                name: data.name,
-                email: data.email || undefined,
-                bio: data.bio || undefined,
-                avatar: data.avatar || undefined,
-                avatarColor: data.avatar_color || undefined,
-                status: data.status as any,
-                lastActive: data.last_active || undefined,
-                signatureUrl,
-                created_at: data.created_at,
-                updated_at: data.updated_at,
-                preferences: data.preferences || undefined
-            };
-
-            // Record login
-            await authService.recordLogin(user.id, { loginType: 'mfa' });
-            await authService.updateLastActive(user.id);
-
-            return { success: true, user };
+            return { success: false, message: result.message || 'MFA verification failed' };
         } catch (error) {
             return { success: false, message: error instanceof Error ? error.message : 'Unknown error' };
         }

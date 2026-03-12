@@ -364,12 +364,17 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onUnlock, onLogout
                       return;
                     }
 
-                    // Password correct — remove PIN
-                    const { supabase } = await import('@/integrations/supabase/client');
-                    await (supabase as any)
-                      .from('users')
-                      .update({ pin_hash: null })
-                      .eq('id', user.id);
+                    // Password correct — remove PIN via edge function
+                    const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+                    const edgeFunctionUrl = `https://${projectId}.supabase.co/functions/v1/auth`;
+                    await fetch(edgeFunctionUrl, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
+                      },
+                      body: JSON.stringify({ action: 'remove-pin', userId: user.id }),
+                    });
 
                     localStorage.removeItem(`pin_hash_${user.id}`);
                     localStorage.setItem(`pin_status_${user.id}`, 'disabled');
