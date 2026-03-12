@@ -7,9 +7,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { dataService } from '@/services/dataService';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
-const REMOVE_BG_KEY = (import.meta.env.VITE_REMOVE_BG_API_KEY as string) || '';
-const REMOVE_BG_PROXY = (import.meta.env.VITE_REMOVE_BG_PROXY_URL as string) || 'http://localhost:5210/remove-bg';
+const REMOVE_BG_PROXY = (import.meta.env.VITE_REMOVE_BG_PROXY_URL as string) || '';
 
 function toDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
