@@ -96,12 +96,18 @@ export const PinSetupCard: React.FC<PinSetupCardProps> = ({ isLoading = false })
   const handleRemovePin = async () => {
     setIsSaving(true);
     try {
-      const { error } = await supabase.
-      from('users').
-      update({ pin_hash: null }).
-      eq('id', currentUser?.id);
-
-      if (error) throw error;
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const edgeFunctionUrl = `https://${projectId}.supabase.co/functions/v1/auth`;
+      const resp = await fetch(edgeFunctionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
+        },
+        body: JSON.stringify({ action: 'remove-pin', userId: currentUser?.id }),
+      });
+      const result = await resp.json();
+      if (!result.success) throw new Error(result.message);
 
       // Update local cache
       if (currentUser?.id) {
