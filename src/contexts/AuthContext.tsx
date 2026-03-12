@@ -140,30 +140,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: false, mfaRequired: true, userId: result.userId, message: 'MFA Required' };
       }
 
-      // If dataService login fails, try hardcoded admin fallback (DEV ONLY)
-      if (import.meta.env.DEV && username === 'admin' && password === 'admin123') {
-        const hardcodedAdmin: User = {
-          id: 'admin',
-          username: 'admin',
-          role: 'admin',
-          name: 'Administrator',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-
-        setCurrentUser(hardcodedAdmin);
-        setIsAuthenticated(true);
-        localStorage.setItem('isAuthenticated', 'true');
-        localStorage.setItem('currentUser', JSON.stringify(hardcodedAdmin));
-        await logActivity({
-          action: 'login',
-          entity: 'user',
-          entityId: 'admin',
-          details: 'Admin user logged in (hardcoded fallback)'
-        });
-        return { success: true };
-      }
-
       return { success: false, message: result.message || 'Invalid credentials' };
     } catch (error) {
       logger.error('Login error', error);
