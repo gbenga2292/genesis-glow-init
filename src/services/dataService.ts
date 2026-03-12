@@ -412,7 +412,19 @@ export const authService = {
         if (userData.preferences) updateData.preferences = userData.preferences;
 
         if (userData.password) {
-            updateData.password_hash = await bcrypt.hash(userData.password, 10);
+            // Hash password server-side
+            const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+            const edgeFunctionUrl = `https://${projectId}.supabase.co/functions/v1/auth`;
+            const hashResp = await fetch(edgeFunctionUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
+                },
+                body: JSON.stringify({ action: 'hash-password', password: userData.password }),
+            });
+            const hashResult = await hashResp.json();
+            if (hashResult.hash) updateData.password_hash = hashResult.hash;
         }
 
         const { error } = await supabase.from('users').update(updateData).eq('id', userId);
