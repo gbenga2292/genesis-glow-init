@@ -217,17 +217,11 @@ export const SignatureUpload: React.FC = () => {
 
   const handleRemoveBackground = async () => {
     if (!selectedFile) return;
-    if (!REMOVE_BG_PROCESS && !REMOVE_BG_KEY) {
-      toast({ title: 'Background removal not configured', description: 'Set VITE_REMOVE_BG_PROCESS_URL or VITE_REMOVE_BG_API_KEY to enable', variant: 'destructive' });
-      return;
-    }
     setLoading(true);
     try {
-      // If a proxy/process URL is provided, prefer that. Otherwise, if a direct
-      // remove.bg API key is configured, call remove.bg directly from the client.
       if (REMOVE_BG_PROCESS) {
+        // Use external process URL if configured
         const dataUrl = await toDataUrl(selectedFile);
-        // upload original to provide an accessible URL for the remove-bg service
         const origResult = await uploadData(dataUrl as string);
         const origUrl = origResult?.url;
         if (!origUrl) throw new Error('Failed to upload original image for processing');
@@ -248,7 +242,6 @@ export const SignatureUpload: React.FC = () => {
         if (ct.includes('application/json')) {
           const body = await resp.json();
           if (body?.url) {
-            // fetch the returned URL and convert to data URL for upload
             const fetched = await fetch(body.url);
             const ab = await fetched.arrayBuffer();
             const b64 = btoa(String.fromCharCode(...new Uint8Array(ab)));
@@ -271,21 +264,26 @@ export const SignatureUpload: React.FC = () => {
           setSelectedFile(null);
           setTempPreview(null);
         }
-      } else if (REMOVE_BG_KEY) {
-        // Direct client-side call to remove.bg using API key (not recommended for public clients).
+      } else {
+        // Use server-side edge function proxy (API key stored securely on server)
+        const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+        const edgeFunctionUrl = `https://${projectId}.supabase.co/functions/v1/remove-bg-proxy`;
+
         const form = new FormData();
         form.append('size', 'auto');
         form.append('image_file', selectedFile as File);
 
-        const resp = await fetch('https://api.remove.bg/v1.0/removebg', {
+        const resp = await fetch(edgeFunctionUrl, {
           method: 'POST',
-          headers: { 'X-Api-Key': REMOVE_BG_KEY },
-          body: form as any,
+          headers: {
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
+          },
+          body: form,
         });
 
         if (!resp.ok) {
           const text = await resp.text();
-          throw new Error(`remove.bg API error: ${resp.status} ${text}`);
+          throw new Error(`Background removal failed: ${resp.status} ${text}`);
         }
 
         const ab = await resp.arrayBuffer();

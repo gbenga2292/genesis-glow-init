@@ -274,9 +274,11 @@ export const authService = {
     },
 
     getUsers: async (): Promise<User[]> => {
+        // Explicit safe columns - never fetch password_hash, mfa_secret, pin_hash
+        const SAFE_COLS = 'id, username, role, name, email, bio, phone, avatar, avatar_color, status, last_active, created_at, updated_at, preferences, mfa_enabled';
         const { data, error } = await supabase
             .from('users')
-            .select('*')
+            .select(SAFE_COLS)
             .order('created_at', { ascending: false });
 
         if (error) throw error;
