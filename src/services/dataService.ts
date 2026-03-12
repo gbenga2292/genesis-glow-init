@@ -372,11 +372,22 @@ export const authService = {
             const { error } = await supabase.auth.updateUser({ password: newPassword });
             if (error) throw error;
 
-            // Sync local hash
-            const password_hash = await bcrypt.hash(newPassword, 10);
+            // Hash password server-side and sync
+            const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+            const edgeFunctionUrl = `https://${projectId}.supabase.co/functions/v1/auth`;
+            const hashResp = await fetch(edgeFunctionUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
+                },
+                body: JSON.stringify({ action: 'hash-password', password: newPassword }),
+            });
+            const hashResult = await hashResp.json();
+
             const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                await supabase.from('users').update({ password_hash }).eq('id', user.id);
+            if (user && hashResult.hash) {
+                await supabase.from('users').update({ password_hash: hashResult.hash }).eq('id', user.id);
             }
             return { success: true };
         } catch (error) {
