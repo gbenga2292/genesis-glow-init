@@ -27,7 +27,6 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onUnlock, onLogout
   const verifyPin = React.useCallback(async (enteredPin: string) => {
     setIsVerifying(true);
     try {
-      const { default: bcrypt } = await import('bcryptjs');
       const storedUser = localStorage.getItem('currentUser');
       if (!storedUser) {
         setError('Session expired');
@@ -36,42 +35,31 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onUnlock, onLogout
       }
 
       const userId = JSON.parse(storedUser).id;
-      let pinHash = localStorage.getItem(`pin_hash_${userId}`);
+      
+      // Verify PIN server-side via edge function (never fetch pin_hash to client)
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const edgeFunctionUrl = `https://${projectId}.supabase.co/functions/v1/auth`;
 
-      if (!pinHash) {
-        try {
-          const { supabase } = await import('@/integrations/supabase/client');
-          const { data, error: dbError } = await (supabase as any)
-            .from('users')
-            .select('pin_hash')
-            .eq('id', userId)
-            .single();
+      const resp = await fetch(edgeFunctionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
+        },
+        body: JSON.stringify({ action: 'verify-pin', userId, pin: enteredPin }),
+      });
 
-          if (!dbError && data?.pin_hash) {
-            pinHash = data.pin_hash;
-            localStorage.setItem(`pin_hash_${userId}`, pinHash!);
-          } else if (dbError) {
-            console.error('Error fetching PIN hash:', dbError);
-          } else if (!data?.pin_hash) {
-            onUnlock();
-            return;
-          }
-        } catch (err) {
-          console.error('Network error checking PIN:', err);
-        }
-      }
-
-      if (!pinHash) {
-        setError('Offline: Cannot verify PIN. Connect to internet.');
-        setIsVerifying(false);
+      const result = await resp.json();
+      
+      if (result.noPinSet) {
+        onUnlock();
         return;
       }
 
-      const isMatch = await bcrypt.compare(enteredPin, pinHash);
-      if (isMatch) {
+      if (result.success) {
         onUnlock();
       } else {
-        setError('Incorrect PIN. Please try again.');
+        setError(result.message || 'Incorrect PIN. Please try again.');
         setIsShaking(true);
         setTimeout(() => {
           setIsShaking(false);
@@ -376,12 +364,17 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onUnlock, onLogout
                       return;
                     }
 
-                    // Password correct — remove PIN
-                    const { supabase } = await import('@/integrations/supabase/client');
-                    await (supabase as any)
-                      .from('users')
-                      .update({ pin_hash: null })
-                      .eq('id', user.id);
+                    // Password correct — remove PIN via edge function
+                    const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+                    const edgeFunctionUrl = `https://${projectId}.supabase.co/functions/v1/auth`;
+                    await fetch(edgeFunctionUrl, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
+                      },
+                      body: JSON.stringify({ action: 'remove-pin', userId: user.id }),
+                    });
 
                     localStorage.removeItem(`pin_hash_${user.id}`);
                     localStorage.setItem(`pin_status_${user.id}`, 'disabled');

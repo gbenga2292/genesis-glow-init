@@ -7,10 +7,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { KeyRound, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase as supabaseClient } from '@/integrations/supabase/client';
-import bcrypt from 'bcryptjs';
-
-const supabase = supabaseClient as any;
 
 interface PinSetupCardProps {
   isLoading?: boolean;
@@ -33,16 +29,22 @@ export const PinSetupCard: React.FC<PinSetupCardProps> = ({ isLoading = false })
   const checkPinStatus = async () => {
     if (!currentUser?.id) return;
     try {
-      const { data } = await supabase.
-      from('users').
-      select('pin_hash').
-      eq('id', currentUser.id).
-      single();
-      setHasPinSet(!!data?.pin_hash);
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const edgeFunctionUrl = `https://${projectId}.supabase.co/functions/v1/auth`;
+      const resp = await fetch(edgeFunctionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
+        },
+        body: JSON.stringify({ action: 'check-pin-status', userId: currentUser.id }),
+      });
+      const result = await resp.json();
+      setHasPinSet(!!result.hasPinSet);
     } catch {
-
       // ignore
-    }};
+    }
+  };
 
   const handleSetPin = async () => {
     if (step === 'enter') {
@@ -63,17 +65,21 @@ export const PinSetupCard: React.FC<PinSetupCardProps> = ({ isLoading = false })
 
     setIsSaving(true);
     try {
-      const pinHash = await bcrypt.hash(pin, 10);
-      const { error } = await supabase.
-      from('users').
-      update({ pin_hash: pinHash }).
-      eq('id', currentUser?.id);
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const edgeFunctionUrl = `https://${projectId}.supabase.co/functions/v1/auth`;
+      const resp = await fetch(edgeFunctionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
+        },
+        body: JSON.stringify({ action: 'set-pin', userId: currentUser?.id, pin }),
+      });
+      const result = await resp.json();
+      if (!result.success) throw new Error(result.message);
 
-      if (error) throw error;
-
-      // Update local cache so offline PIN works immediately
+      // Update local status cache
       if (currentUser?.id) {
-        localStorage.setItem(`pin_hash_${currentUser.id}`, pinHash);
         localStorage.setItem(`pin_status_${currentUser.id}`, 'enabled');
       }
 
@@ -90,12 +96,18 @@ export const PinSetupCard: React.FC<PinSetupCardProps> = ({ isLoading = false })
   const handleRemovePin = async () => {
     setIsSaving(true);
     try {
-      const { error } = await supabase.
-      from('users').
-      update({ pin_hash: null }).
-      eq('id', currentUser?.id);
-
-      if (error) throw error;
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const edgeFunctionUrl = `https://${projectId}.supabase.co/functions/v1/auth`;
+      const resp = await fetch(edgeFunctionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
+        },
+        body: JSON.stringify({ action: 'remove-pin', userId: currentUser?.id }),
+      });
+      const result = await resp.json();
+      if (!result.success) throw new Error(result.message);
 
       // Update local cache
       if (currentUser?.id) {

@@ -7,9 +7,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { dataService } from '@/services/dataService';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
-const REMOVE_BG_KEY = (import.meta.env.VITE_REMOVE_BG_API_KEY as string) || '';
-const REMOVE_BG_PROXY = (import.meta.env.VITE_REMOVE_BG_PROXY_URL as string) || 'http://localhost:5210/remove-bg';
+const REMOVE_BG_PROXY = (import.meta.env.VITE_REMOVE_BG_PROXY_URL as string) || '';
 
 function toDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -19,44 +19,7 @@ function toDataUrl(file: File): Promise<string> {
     reader.readAsDataURL(file);
   });
 }
-
-async function removeBackground(file: File, onProgress?: (p: number) => void) {
-  // Use server-side proxy endpoint to protect API key. Ensure proxy is running (start:remove-bg-proxy)
-  // Use XHR to provide upload progress feedback
-  const proxyUrl = REMOVE_BG_PROXY;
-
-  return await new Promise<string>((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', proxyUrl);
-    xhr.responseType = 'arraybuffer';
-
-    xhr.upload.onprogress = (ev) => {
-      if (ev.lengthComputable && onProgress) {
-        // range for this step: 0-50
-        const percent = Math.round((ev.loaded / ev.total) * 50);
-        onProgress(percent);
-      }
-    };
-
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        const arrayBuffer = xhr.response as ArrayBuffer;
-        const b64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-        resolve(`data:image/png;base64,${b64}`);
-      } else {
-        const text = xhr.response ? new TextDecoder().decode(new Uint8Array(xhr.response as ArrayBuffer)) : xhr.statusText;
-        reject(new Error(`remove.bg proxy error: ${xhr.status} ${text}`));
-      }
-    };
-
-    xhr.onerror = () => reject(new Error('remove.bg proxy network error'));
-
-    const formData = new FormData();
-    formData.append('size', 'auto');
-    formData.append('image_file', file);
-    xhr.send(formData);
-  });
-}
+// removeBackground function removed - now handled by server-side edge function
 
 export const SignatureUpload: React.FC = () => {
   const { currentUser, hasPermission, refreshCurrentUser } = useAuth();
@@ -217,17 +180,11 @@ export const SignatureUpload: React.FC = () => {
 
   const handleRemoveBackground = async () => {
     if (!selectedFile) return;
-    if (!REMOVE_BG_PROCESS && !REMOVE_BG_KEY) {
-      toast({ title: 'Background removal not configured', description: 'Set VITE_REMOVE_BG_PROCESS_URL or VITE_REMOVE_BG_API_KEY to enable', variant: 'destructive' });
-      return;
-    }
     setLoading(true);
     try {
-      // If a proxy/process URL is provided, prefer that. Otherwise, if a direct
-      // remove.bg API key is configured, call remove.bg directly from the client.
       if (REMOVE_BG_PROCESS) {
+        // Use external process URL if configured
         const dataUrl = await toDataUrl(selectedFile);
-        // upload original to provide an accessible URL for the remove-bg service
         const origResult = await uploadData(dataUrl as string);
         const origUrl = origResult?.url;
         if (!origUrl) throw new Error('Failed to upload original image for processing');
@@ -248,7 +205,6 @@ export const SignatureUpload: React.FC = () => {
         if (ct.includes('application/json')) {
           const body = await resp.json();
           if (body?.url) {
-            // fetch the returned URL and convert to data URL for upload
             const fetched = await fetch(body.url);
             const ab = await fetched.arrayBuffer();
             const b64 = btoa(String.fromCharCode(...new Uint8Array(ab)));
@@ -271,21 +227,26 @@ export const SignatureUpload: React.FC = () => {
           setSelectedFile(null);
           setTempPreview(null);
         }
-      } else if (REMOVE_BG_KEY) {
-        // Direct client-side call to remove.bg using API key (not recommended for public clients).
+      } else {
+        // Use server-side edge function proxy (API key stored securely on server)
+        const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+        const edgeFunctionUrl = `https://${projectId}.supabase.co/functions/v1/remove-bg-proxy`;
+
         const form = new FormData();
         form.append('size', 'auto');
         form.append('image_file', selectedFile as File);
 
-        const resp = await fetch('https://api.remove.bg/v1.0/removebg', {
+        const resp = await fetch(edgeFunctionUrl, {
           method: 'POST',
-          headers: { 'X-Api-Key': REMOVE_BG_KEY },
-          body: form as any,
+          headers: {
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
+          },
+          body: form,
         });
 
         if (!resp.ok) {
           const text = await resp.text();
-          throw new Error(`remove.bg API error: ${resp.status} ${text}`);
+          throw new Error(`Background removal failed: ${resp.status} ${text}`);
         }
 
         const ab = await resp.arrayBuffer();
