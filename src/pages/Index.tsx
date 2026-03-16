@@ -1252,13 +1252,20 @@ const Index = () => {
 
     try {
       // 1. Update Return Waybill Items (track returnedQuantity)
+      // Aggregate quantities per assetId first (items may have multiple entries for good/damaged/missing)
+      const returnedByAsset = new Map<string, number>();
+      for (const ri of returnData.items) {
+        returnedByAsset.set(ri.assetId, (returnedByAsset.get(ri.assetId) || 0) + ri.quantity);
+      }
+
       const updatedItems = returnWaybill.items.map(item => {
-        const returned = returnData.items.find(ri => ri.assetId === item.assetId);
-        if (returned) {
+        const totalReturned = returnedByAsset.get(item.assetId) || 0;
+        if (totalReturned > 0) {
+          const newReturnedQty = (item.returnedQuantity || 0) + totalReturned;
           return {
             ...item,
-            returnedQuantity: (item.returnedQuantity || 0) + returned.quantity,
-            status: ((item.returnedQuantity || 0) + returned.quantity) >= item.quantity ? 'completed' : 'outstanding'
+            returnedQuantity: newReturnedQty,
+            status: newReturnedQty >= item.quantity ? 'completed' : 'outstanding'
           };
         }
         return item;
