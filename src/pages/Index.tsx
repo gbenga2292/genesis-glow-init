@@ -1024,7 +1024,7 @@ const Index = () => {
     }
   };
 
-  const handleUpdateReturnWaybill = (updatedData: {
+const handleUpdateReturnWaybill = async (updatedData: {
     id?: string;
     siteId: string;
     returnToSiteId?: string;
@@ -1044,37 +1044,31 @@ const Index = () => {
       return;
     }
 
-    setWaybills(prev => prev.map(wb => {
-      if (wb.id === updatedData.id) {
-        // Update items quantities, preserve returnedQuantity and status
-        const updatedItems = wb.items.map(existingItem => {
-          const updatedItem = updatedData.items.find(uItem => uItem.assetId === existingItem.assetId);
-          if (updatedItem) {
-            return {
-              ...existingItem,
-              quantity: updatedItem.quantity,
-              assetName: updatedItem.assetName // in case name changed, but unlikely
-            };
-          }
-          return existingItem;
-        });
+    try {
+      // 1. Backend persistence
+      const updatedWaybillData = {
+        ...updatedData,
+        updatedAt: new Date()
+      };
+      await dataService.waybills.updateWaybill(updatedData.id, updatedWaybillData);
 
-        return {
-          ...wb,
-          ...updatedData,
-          items: updatedItems,
-          returnToSiteId: updatedData.returnToSiteId,
-          updatedAt: new Date()
-        };
-      }
-      return wb;
-    }));
+      // 2. Refresh from backend
+      const freshWaybills = await dataService.waybills.getWaybills();
+      setWaybills(freshWaybills);
+    } catch (error) {
+      logger.error('Failed to persist return waybill update', error);
+      toast({
+        title: "Update Failed", 
+        description: "Backend persistence failed - changes may be lost on refresh",
+        variant: "destructive"
+      });
+      return;
+    }
 
     setEditingReturnWaybill(null);
-
     toast({
-      title: "Return Waybill Updated",
-      description: `Return waybill ${updatedData.id} updated successfully.`
+      title: "Return Waybill Updated ✅",
+      description: `Return waybill ${updatedData.id} updated & persisted successfully.`
     });
   };
 
