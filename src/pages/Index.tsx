@@ -1252,13 +1252,20 @@ const Index = () => {
 
     try {
       // 1. Update Return Waybill Items (track returnedQuantity)
+      // Aggregate quantities per assetId first (items may have multiple entries for good/damaged/missing)
+      const returnedByAsset = new Map<string, number>();
+      for (const ri of returnData.items) {
+        returnedByAsset.set(ri.assetId, (returnedByAsset.get(ri.assetId) || 0) + ri.quantity);
+      }
+
       const updatedItems = returnWaybill.items.map(item => {
-        const returned = returnData.items.find(ri => ri.assetId === item.assetId);
-        if (returned) {
+        const totalReturned = returnedByAsset.get(item.assetId) || 0;
+        if (totalReturned > 0) {
+          const newReturnedQty = (item.returnedQuantity || 0) + totalReturned;
           return {
             ...item,
-            returnedQuantity: (item.returnedQuantity || 0) + returned.quantity,
-            status: ((item.returnedQuantity || 0) + returned.quantity) >= item.quantity ? 'completed' : 'outstanding'
+            returnedQuantity: newReturnedQty,
+            status: newReturnedQty >= item.quantity ? 'completed' : 'outstanding'
           };
         }
         return item;
@@ -1275,14 +1282,10 @@ const Index = () => {
       await dataService.waybills.updateWaybill(returnWaybill.id, updatedWaybill);
 
       // 2. Update Assets (Remove from Site, Unreserve)
-      // When items return from site:
-      // - Decrease siteQuantities (no longer at site)
-      // - Decrease reservedQuantity (no longer reserved)
-      // - Items become available again in warehouse
-
-      for (const item of returnData.items) {
+      // Use aggregated quantities per asset to avoid duplicate updates
+      for (const [assetId, totalQty] of returnedByAsset.entries()) {
         const fetchedAssets = await dataService.assets.getAssets();
-        const asset = fetchedAssets.find(a => a.id === item.assetId);
+        const asset = fetchedAssets.find(a => String(a.id) === String(assetId));
 
         if (asset) {
           // Decrease site quantities
@@ -1290,7 +1293,7 @@ const Index = () => {
           const parsedSiteQuantities = typeof siteQuantities === 'string' ? JSON.parse(siteQuantities) : { ...siteQuantities };
 
           const currentSiteQty = parsedSiteQuantities[returnWaybill.siteId] || 0;
-          const newSiteQty = Math.max(0, currentSiteQty - item.quantity);
+          const newSiteQty = Math.max(0, currentSiteQty - totalQty);
 
           if (newSiteQty === 0) {
             delete parsedSiteQuantities[returnWaybill.siteId];
@@ -1298,14 +1301,24 @@ const Index = () => {
             parsedSiteQuantities[returnWaybill.siteId] = newSiteQty;
           }
 
-          // Decrease reserved quantity (items were reserved when sent to site)
+          // Decrease reserved quantity
           const currentReserved = asset.reservedQuantity || 0;
-          const newReserved = Math.max(0, currentReserved - item.quantity);
+          const newReserved = Math.max(0, currentReserved - totalQty);
+
+          // Track damaged/missing counts
+          const damagedForAsset = returnData.items
+            .filter(ri => ri.assetId === assetId && ri.condition === 'damaged')
+            .reduce((sum, ri) => sum + ri.quantity, 0);
+          const missingForAsset = returnData.items
+            .filter(ri => ri.assetId === assetId && ri.condition === 'missing')
+            .reduce((sum, ri) => sum + ri.quantity, 0);
 
           await dataService.assets.updateAsset(asset.id, {
             ...asset,
             reservedQuantity: newReserved,
             siteQuantities: parsedSiteQuantities,
+            damagedCount: (asset.damagedCount || 0) + damagedForAsset,
+            missingCount: (asset.missingCount || 0) + missingForAsset,
             updatedAt: new Date()
           });
         }
